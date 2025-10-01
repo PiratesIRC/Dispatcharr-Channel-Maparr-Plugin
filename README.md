@@ -13,15 +13,14 @@ A Dispatcharr plugin that standardizes US broadcast (OTA) and premium/cable chan
 ## Requirements
 * Active Dispatcharr installation
 * Admin username and password for API access
-* `networks.json` file (FCC broadcast station database)
-* `channels.txt` file (premium/cable channel list)
+* `networks.json` file (FCC broadcast station database) - included
+* `channels.txt` file (premium/cable channel list) - included
 
 ## Installation
 1.  Log in to Dispatcharr's web UI.
 2.  Navigate to **Plugins**.
 3.  Click **Import Plugin** and upload the plugin zip file.
-4.  Place `networks.json` and `channels.txt` in the plugin directory.
-5.  Enable the plugin after installation.
+4.  Enable the plugin after installation.
 
 ## Settings Reference
 

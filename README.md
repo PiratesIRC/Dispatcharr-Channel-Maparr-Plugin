@@ -167,6 +167,7 @@ docker logs dispatcharr | grep -i channel_mapparr
 
 # View processing cache
 docker exec dispatcharr cat /data/channel_mapparr_loaded_channels.json
+```
 
 ## Data Sources
 

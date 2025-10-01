@@ -167,3 +167,46 @@ docker logs dispatcharr | grep -i channel_mapparr
 
 # View processing cache
 docker exec dispatcharr cat /data/channel_mapparr_loaded_channels.json
+
+## Data Sources
+
+### `networks.json` Format
+An FCC broadcast station database with fields:
+* `callsign`: Station identifier (e.g., KABC-TV)
+* `community_served_city`: City name
+* `community_served_state`: Two-letter state code
+* `network_affiliation`: Network name(s)
+* `tv_virtual_channel`: Virtual channel number
+* `facility_id`: FCC facility identifier
+
+### `channels.txt` Format
+A plain text file with one channel name per line:
+HBO
+HBO2
+Cinemax
+5StarMax
+MovieMax
+
+## Performance Notes
+* Matching is sequential, not parallel.
+* Pagination support for large logo collections (2500+ logos).
+* API bulk operations for efficient channel updates.
+* Automatic M3U refresh triggers GUI updates.
+
+## Version History
+**v0.1 (Initial Release)**
+* Dual database matching (OTA + premium/cable).
+* Customizable OTA name formatting.
+* Fuzzy matching with regional/quality tag preservation.
+* Logo management integration.
+* CSV export with database source tracking.
+
+## Contributing
+When reporting issues, please include:
+* Dispatcharr version
+* Sample channel names that fail to match
+* Relevant container logs
+* Contents of the preview CSV (first 10 rows)
+
+## License
+This plugin integrates with Dispatcharr's plugin system and follows its licensing terms.

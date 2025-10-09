@@ -27,7 +27,7 @@ class Plugin:
     """Channel Mapparr Plugin"""
     
     name = "Channel Mapparr"
-    version = "0.1"
+    version = "0.2"
     description = "Standardizes US broadcast (OTA) and premium/cable channel names using network data and channel lists."
     
     # Settings rendered by UI
@@ -76,6 +76,14 @@ class Plugin:
             "default": " [Unk]",
             "placeholder": " [Unk]",
             "help_text": "Suffix to append to channels that cannot be matched (OTA and premium/cable). Leave empty for no suffix.",
+        },
+        {
+            "id": "ignored_tags",
+            "label": "Ignored Tags (comma-separated)",
+            "type": "string",
+            "default": "[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]",
+            "placeholder": "[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]",
+            "help_text": "Tags in brackets or parentheses to ignore/remove. Case-insensitive. Examples: [HD], (H), [4K]. Separate with commas.",
         },
         {
             "id": "default_logo",
@@ -284,29 +292,41 @@ class Plugin:
     def _extract_callsign(self, channel_name):
         """
         Extract US TV callsign from channel name with priority order.
-        Returns None if EAST/WEST appears alone (not a valid callsign).
+        Returns None if EAST/WEST/KIDS/WOMEN appears alone (not a valid callsign).
         """
-        # Remove D<number>- prefix if present
+        # Remove common prefixes (US/USA followed by space or non-alphanumeric)
         channel_name = re.sub(r'^D\d+-', '', channel_name)
+        channel_name = re.sub(r'^USA?\s*[^a-zA-Z0-9]*\s*', '', channel_name, flags=re.IGNORECASE)
         
-        # Priority 1: Callsigns in parentheses
-        paren_match = re.search(r'\(([KW][A-Z]{2,4}(?:-(?:TV|CD|LP|DT|LD))?)\)', channel_name, re.IGNORECASE)
+        # Priority 1: Callsigns in parentheses (most reliable)
+        # Match 4-letter callsigns optionally followed by dash and more text
+        paren_match = re.search(r'\(([KW][A-Z]{3})(?:-[A-Z\s]+)?\)', channel_name, re.IGNORECASE)
         if paren_match:
-            return paren_match.group(1).upper()
+            callsign = paren_match.group(1).upper()
+            # Reject common false positives
+            if callsign not in ['WEST', 'EAST', 'KIDS', 'WOMEN']:
+                return callsign
         
-        # Priority 2: Callsigns at the end (possibly with suffix or file extension)
+        # Priority 2: Callsigns with suffix in parentheses (like WMTW-TV)
+        paren_suffix_match = re.search(r'\(([KW][A-Z]{2,4}-(?:TV|CD|LP|DT|LD))\)', channel_name, re.IGNORECASE)
+        if paren_suffix_match:
+            callsign = paren_suffix_match.group(1).upper()
+            return callsign
+        
+        # Priority 3: Callsigns at the end (possibly with suffix or file extension)
         end_match = re.search(r'\b([KW][A-Z]{2,4}(?:-(?:TV|CD|LP|DT|LD))?)\s*(?:\.[a-z]+)?\s*$', channel_name, re.IGNORECASE)
         if end_match:
             callsign = end_match.group(1).upper()
-            # Reject if it's just "WEST" or "EAST"
-            if callsign not in ['WEST', 'EAST']:
+            # Reject common false positives
+            if callsign not in ['WEST', 'EAST', 'KIDS', 'WOMEN']:
                 return callsign
         
-        # Priority 3: Any word that matches callsign pattern (but not WEST/EAST alone)
+        # Priority 4: Any word that matches callsign pattern (but not false positives)
         word_match = re.search(r'\b([KW][A-Z]{2,4}(?:-(?:TV|CD|LP|DT|LD))?)\b', channel_name, re.IGNORECASE)
         if word_match:
             callsign = word_match.group(1).upper()
-            if callsign not in ['WEST', 'EAST']:
+            # Reject common false positives
+            if callsign not in ['WEST', 'EAST', 'KIDS', 'WOMEN']:
                 return callsign
         
         return None
@@ -349,85 +369,125 @@ class Plugin:
         """Calculate similarity ratio between two strings."""
         return SequenceMatcher(None, str1.lower(), str2.lower()).ratio()
 
-    def _normalize_channel_name_for_matching(self, name):
+    def _normalize_channel_name_for_matching(self, name, ignored_tags_list):
         """
         Normalize channel name for matching.
-        Removes: quality tags, common suffixes
-        Preserves: core channel name and subchannel identifiers
+        Removes: prefixes in parens, quality tags, regional tags, US prefix, callsigns, ignored tags
+        Preserves: core channel name
         """
-        # Remove quality indicators
-        name = re.sub(r'\[(HD|FHD|SD|4K|Slow)\]', '', name, flags=re.IGNORECASE)
+        # Remove leading parenthetical prefixes like (SP2), (D1), etc.
+        name = re.sub(r'^\([^\)]+\)\s*', '', name)
         
-        # Remove common country suffixes ONLY if not "USA Network"
-        if not re.search(r'\bUSA\s+Network\b', name, re.IGNORECASE):
-            name = re.sub(r'\bUSA\b', '', name, flags=re.IGNORECASE)
+        # Remove "US" prefix (with space, colon, or colon+space)
+        name = re.sub(r'^US:?\s*', '', name, flags=re.IGNORECASE)
+        
+        # Remove ignored tags (case-insensitive)
+        for tag in ignored_tags_list:
+            # Escape special regex characters in the tag
+            escaped_tag = re.escape(tag)
+            name = re.sub(escaped_tag, '', name, flags=re.IGNORECASE)
+        
+        # Remove quality indicators in brackets (fallback for common patterns)
+        name = re.sub(r'\[(HD|FHD|SD|4K|Slow|H|A|S)\]', '', name, flags=re.IGNORECASE)
+        
+        # Remove quality indicators in parentheses (fallback for common patterns)
+        name = re.sub(r'\((HD|FHD|SD|4K|Slow|H|A|S)\)', '', name, flags=re.IGNORECASE)
+        
+        # Remove regional indicators
+        name = re.sub(r'\((East|West)\)', '', name, flags=re.IGNORECASE)
+        name = re.sub(r'\b(East|West)\b', '', name, flags=re.IGNORECASE)
+        
+        # Remove callsigns in parentheses
+        name = re.sub(r'\([KW][A-Z]{3}(?:-(?:TV|CD|LP|DT|LD))?\)', '', name, flags=re.IGNORECASE)
+        
+        # Remove other tags in parentheses (like CX, etc.)
+        name = re.sub(r'\([A-Z0-9]+\)', '', name)
         
         # Clean up whitespace
         name = re.sub(r'\s+', ' ', name).strip()
         
         return name
 
-    def _extract_regional_and_quality_tags(self, name):
+    def _extract_regional_and_quality_tags(self, name, ignored_tags_list):
         """Extract regional indicators, extra tags, and quality tags to preserve them."""
         regional = None
         extra_tags = []
         quality_tags = []
         
-        # Extract regional indicator ONLY if it appears in specific contexts
-        regional_pattern = r'\b(East|West)\b(?!\s*\[)|[\(\s](East|West)[\)\s]'
-        regional_match = re.search(regional_pattern, name, re.IGNORECASE)
+        # Extract regional indicator - check parentheses first, then standalone word
+        regional_pattern_paren = r'\((East|West)\)'
+        regional_match = re.search(regional_pattern_paren, name, re.IGNORECASE)
         if regional_match:
-            regional_text = regional_match.group(1) or regional_match.group(2)
-            # Only treat as regional if not part of a callsign pattern
-            if not re.search(r'\b[A-Z]{4}\s+(East|West)\b', name):
-                regional = regional_text.capitalize()
+            regional = regional_match.group(1).capitalize()
+        else:
+            # Check for standalone East/West at the end
+            regional_pattern_word = r'\b(East|West)\b(?!.*\b(East|West)\b)'
+            regional_match = re.search(regional_pattern_word, name, re.IGNORECASE)
+            if regional_match:
+                regional = regional_match.group(1).capitalize()
         
-        # Extract other tags in parentheses (like CX, etc.) - but not East/West
-        other_tags = re.findall(r'\(([A-Z0-9]+)\)', name)
-        for tag in other_tags:
-            if tag.upper() not in ['EAST', 'WEST']:
-                extra_tags.append(f"({tag})")
+        # Extract ALL tags in parentheses (like FHD, HD, H, A, S, CX, etc.)
+        # But exclude: East, West, callsigns, LEADING prefixes, and ignored tags
+        paren_tags = re.findall(r'\(([^\)]+)\)', name)
+        
+        # Determine if first paren tag is a prefix (appears at start of name)
+        first_paren_is_prefix = name.strip().startswith('(') if paren_tags else False
+        
+        for idx, tag in enumerate(paren_tags):
+            # Skip the first tag if it's a prefix
+            if idx == 0 and first_paren_is_prefix:
+                continue
+            
+            # Check if tag should be ignored
+            if f"({tag})" in ignored_tags_list or f"[{tag}]" in ignored_tags_list:
+                continue
+                
+            tag_upper = tag.upper()
+            # Skip if it is East or West
+            if tag_upper in ['EAST', 'WEST']:
+                continue
+            # Skip if it looks like a callsign (4 letters starting with K or W, possibly with -TV, -CD, etc.)
+            if re.match(r'^[KW][A-Z]{3}(?:-(?:TV|CD|LP|DT|LD))?$', tag_upper):
+                continue
+            # Keep everything else
+            extra_tags.append(f"({tag})")
         
         # Extract ALL quality/bracketed tags (preserve case and collect all)
         bracketed_tags = re.findall(r'\[([^\]]+)\]', name)
         for tag in bracketed_tags:
+            # Check if tag should be ignored
+            if f"[{tag}]" in ignored_tags_list or f"({tag})" in ignored_tags_list:
+                continue
             quality_tags.append(f"[{tag}]")
         
         return regional, extra_tags, quality_tags
 
-    def _fuzzy_match_premium_channel(self, channel_name):
+    def _fuzzy_match_premium_channel(self, channel_name, ignored_tags_list):
         """
         Match premium/cable channel name against channels.txt.
         Returns (matched_name, regional, extra_tags, quality_tags, match_type) or (None, None, None, None, None)
         """
         # Extract tags to preserve
-        regional, extra_tags, quality_tags = self._extract_regional_and_quality_tags(channel_name)
+        regional, extra_tags, quality_tags = self._extract_regional_and_quality_tags(channel_name, ignored_tags_list)
         
         # Normalize for matching
-        normalized = self._normalize_channel_name_for_matching(channel_name)
+        normalized = self._normalize_channel_name_for_matching(channel_name, ignored_tags_list)
         
         if not normalized:
             return None, None, None, None, None
-        
-        # Remove regional indicators for matching
-        normalized_for_match = re.sub(r'\b(East|West)\b', '', normalized, flags=re.IGNORECASE)
-        # Remove extra tags for matching
-        normalized_for_match = re.sub(r'\([A-Z0-9]+\)', '', normalized_for_match)
-        normalized_for_match = re.sub(r'\s+', ' ', normalized_for_match).strip()
         
         best_match = None
         best_ratio = 0
         match_type = None
         
         # Create versions with and without spaces for comparison
-        normalized_lower = normalized_for_match.lower()
+        normalized_lower = normalized.lower()
         normalized_nospace = re.sub(r'[\s&\-]+', '', normalized_lower)
         
         # Stage 1: Exact/near-exact match
         for premium_channel in self.premium_channels:
-            premium_normalized = self._normalize_channel_name_for_matching(premium_channel)
-            premium_normalized = re.sub(r'\b(East|West)\b', '', premium_normalized, flags=re.IGNORECASE)
-            premium_normalized = re.sub(r'\s+', ' ', premium_normalized).strip()
+            # Normalize the premium channel name the same way
+            premium_normalized = self._normalize_channel_name_for_matching(premium_channel, ignored_tags_list)
             premium_lower = premium_normalized.lower()
             premium_nospace = re.sub(r'[\s&\-]+', '', premium_lower)
             
@@ -446,18 +506,17 @@ class Plugin:
             return best_match, regional, extra_tags, quality_tags, match_type
         
         # Stage 2: Check for number variations (HBO 2, HBO2, HBO 2 HD -> HBO2)
-        number_pattern = re.match(r'^(.+?)\s*(\d+)\s*(.*)$', normalized_for_match)
+        number_pattern = re.match(r'^(.+?)\s*(\d+)\s*(.*)$', normalized)
         if number_pattern:
             base_channel = number_pattern.group(1).strip()
             number = number_pattern.group(2)
-            suffix = number_pattern.group(3).strip()
             
             # Try matching "BaseChannel" + "Number" (e.g., HBO2)
             combined = f"{base_channel}{number}".lower()
             combined_nospace = re.sub(r'[\s&\-]+', '', combined)
             
             for premium_channel in self.premium_channels:
-                premium_normalized = self._normalize_channel_name_for_matching(premium_channel)
+                premium_normalized = self._normalize_channel_name_for_matching(premium_channel, ignored_tags_list)
                 premium_lower = premium_normalized.lower()
                 premium_nospace = re.sub(r'[\s&\-]+', '', premium_lower)
                 
@@ -469,17 +528,18 @@ class Plugin:
     def _build_final_channel_name(self, base_name, regional, extra_tags, quality_tags):
         """
         Build final channel name with regional indicator, extra tags, and quality tags.
-        Format: "Channel Name (Extra) (Regional) [Quality1] [Quality2] ..."
+        Format: "Channel Name Regional (Extra) [Quality1] [Quality2] ..."
+        Regional is added WITHOUT parentheses and comes immediately after channel name.
         """
         parts = [base_name]
         
-        # Add extra tags first
+        # Add regional indicator WITHOUT parentheses, immediately after channel name
+        if regional:
+            parts.append(regional)
+        
+        # Add extra tags (already have parentheses)
         if extra_tags:
             parts.extend(extra_tags)
-        
-        # Add regional indicator
-        if regional:
-            parts.append(f"({regional})")
         
         # Add ALL quality tags (preserve original case and count)
         if quality_tags:
@@ -591,6 +651,7 @@ class Plugin:
             
             # Fetch all channels and filter by group ID
             all_channels = self._get_api_data("/api/channels/channels/", token, settings, logger)
+            
             channels_to_process = [
                 ch for ch in all_channels 
                 if ch.get('channel_group_id') in target_group_ids
@@ -617,6 +678,36 @@ class Plugin:
             skipped_channels = []
             ota_format = settings.get("ota_format", "{NETWORK} - {STATE} {CITY} ({CALLSIGN})")
             
+            # Parse ignored tags from settings
+            ignored_tags_str = settings.get("ignored_tags", "[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]")
+            ignored_tags_list = [tag.strip() for tag in ignored_tags_str.split(',') if tag.strip()]
+            
+            # Also create versions with parentheses for tags that use brackets
+            expanded_ignored_tags = []
+            for tag in ignored_tags_list:
+                expanded_ignored_tags.append(tag)
+                # If tag is in brackets, also add parentheses version
+                if tag.startswith('[') and tag.endswith(']'):
+                    inner = tag[1:-1]
+                    expanded_ignored_tags.append(f"({inner})")
+                # If tag is in parentheses, also add brackets version
+                elif tag.startswith('(') and tag.endswith(')'):
+                    inner = tag[1:-1]
+                    expanded_ignored_tags.append(f"[{inner}]")
+            
+            ignored_tags_list = expanded_ignored_tags
+            
+            # Track matching statistics
+            debug_stats = {
+                "ota_attempted": 0,
+                "ota_matched": 0,
+                "premium_attempted": 0,
+                "premium_matched": 0,
+                "skipped_empty_normalized": 0,
+                "skipped_already_correct": 0,
+                "skipped_no_match": 0
+            }
+            
             for i, channel in enumerate(self.loaded_channels):
                 self.processing_status["current"] = i + 1
                 
@@ -631,28 +722,36 @@ class Plugin:
                 skip_reason = None
                 
                 # Try OTA matching first (networks.json)
+                ota_callsign_found = False
                 if networks_loaded:
+                    debug_stats["ota_attempted"] += 1
                     callsign = self._extract_callsign(current_name)
                     
                     if callsign:
+                        ota_callsign_found = True
                         station = self.network_lookup.get(callsign)
                         
                         if station:
                             new_name = self._format_ota_name(station, ota_format, callsign)
                             if new_name:
                                 matcher_used = "networks.json"
+                                debug_stats["ota_matched"] += 1
                             else:
                                 skip_reason = "Missing required fields for OTA format"
                         else:
                             skip_reason = f"Callsign {callsign} not in networks.json"
                 
-                # If OTA match failed, try premium/cable matching (channels.txt)
-                if not new_name and premium_loaded:
-                    matched_premium, regional, extra_tags, quality_tags, match_type = self._fuzzy_match_premium_channel(current_name)
+                # If OTA match failed BUT a valid callsign was found, do NOT try premium matching
+                # Only try premium matching if no callsign was found at all
+                if not new_name and premium_loaded and not ota_callsign_found:
+                    debug_stats["premium_attempted"] += 1
+                    
+                    matched_premium, regional, extra_tags, quality_tags, match_type = self._fuzzy_match_premium_channel(current_name, ignored_tags_list)
                     
                     if matched_premium:
                         new_name = self._build_final_channel_name(matched_premium, regional, extra_tags, quality_tags)
                         matcher_used = "channels.txt"
+                        debug_stats["premium_matched"] += 1
                         if not skip_reason:
                             skip_reason = None
                 
@@ -671,8 +770,10 @@ class Plugin:
                 else:
                     if new_name == current_name:
                         skip_reason = "Already in correct format"
+                        debug_stats["skipped_already_correct"] += 1
                     elif not skip_reason:
                         skip_reason = "No match found in networks.json or channels.txt"
+                        debug_stats["skipped_no_match"] += 1
                     
                     skipped_channels.append({
                         'channel_id': channel_id,

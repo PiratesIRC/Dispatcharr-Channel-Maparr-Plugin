@@ -1,5 +1,5 @@
 # Channel Mapparr
-A Dispatcharr plugin that standardizes US broadcast (OTA) and premium/cable channel names using FCC network data and curated channel lists.
+A Dispatcharr plugin that standardizes US broadcast (OTA) and premium/cable channel names using FCC network data and curated channel lists. [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin)
 
 ## Features
 * **Dual Database Matching**: Automatically identifies channels using both `networks.json` (OTA) and `channels.txt` (premium/cable).

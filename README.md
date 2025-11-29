@@ -1,30 +1,55 @@
 # Channel Mapparr
-A Dispatcharr plugin that standardizes US broadcast (OTA) and premium/cable channel names using FCC network data and curated channel lists. [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin)
+A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel names using network data and curated channel lists. It supports multiple country databases and offers advanced organization features. [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin)
 
 ## Features
-* **Dual Database Matching**: Automatically identifies channels using both `networks.json` (OTA) and `channels.txt` (premium/cable).
+* **Multi-Country Support**: Load channel databases for multiple regions, including US, UK, CA, AU, BR, DE, ES, FR, IN, and MX.
+* **Category-Based Organization**: Automatically move channels into specific groups based on their content category (e.g., News, Sports, Entertainment).
 * **Customizable OTA Formatting**: Use tags like `{NETWORK}`, `{STATE}`, `{CITY}`, `{CALLSIGN}` to format broadcast channel names.
-* **Intelligent Fuzzy Matching**: Handles channel name variations, regional indicators (East/West), quality tags, and country suffixes.
-* **Configurable Ignored Tags**: Define a custom list of tags (e.g., `[4K]`, `[FHD]`) to be removed from channel names before matching.
-* **Advanced OTA Recognition**: Intelligently extracts callsigns from complex formats (e.g., `(WMTW-PORTLAND MAINE)`), handles multiple `US`/`USA` prefixes, and avoids false positives.
-* **Smarter Matching Logic**: Prevents OTA channels from incorrectly matching premium channels by attempting premium matching only when no broadcast callsign is found.
-* **Improved Premium Channel Normalization**: Standardizes regional indicators to appear after the channel name for better consistency.
+* **Configurable Fuzzy Matching**: Adjust the matching sensitivity threshold to fine-tune accuracy for channel name variations.
+* **Automatic Update Checking**: Checks for plugin updates on GitHub and notifies via the settings UI.
+* **Intelligent Matching Logic**: Handles regional indicators, quality tags, and country suffixes while preventing false positives.
+* **Configurable Ignored Tags**: Define a custom list of tags to be removed from channel names before matching.
 * **Logo Management**: Bulk apply default logos to channels without artwork.
-* **CSV Export**: Preview changes before applying with detailed dry-run reports.
-* **Group Filtering**: Target specific channel groups or process all channels.
-* **Unknown Channel Tagging**: Mark unmatched channels with configurable suffixes.
+* **CSV Export**: Preview renaming and grouping changes before applying them with detailed dry-run reports.
+* **Group Filtering**: Target specific channel groups for processing or organization.
+* **Performance Optimization**: Features API token caching and WebSocket frontend refreshes for efficient operation.
 
 ## Requirements
 * Active Dispatcharr installation
 * Admin username and password for API access
-* `networks.json` file (FCC broadcast station database) - included
-* `channels.txt` file (premium/cable channel list) - included
+* Internet access (for version checking and initial database loading)
 
 ## Installation
 1.  Log in to Dispatcharr's web UI.
 2.  Navigate to **Plugins**.
 3.  Click **Import Plugin** and upload the plugin zip file.
 4.  Enable the plugin after installation.
+
+## Updating the Plugin
+To update Channel Mapparr from a previous version:
+
+### 1. Remove Old Version
+1.  Navigate to **Plugins** in Dispatcharr.
+2.  Click the trash icon next to the old Channel Mapparr plugin.
+3.  Confirm deletion.
+
+### 2. Restart Dispatcharr
+1.  Log out of Dispatcharr.
+2.  Restart the Docker container:
+    ```bash
+    docker restart dispatcharr
+    ```
+
+### 3. Install New Version
+1.  Log back into Dispatcharr.
+2.  Navigate to **Plugins**.
+3.  Click **Import Plugin** and upload the new plugin zip file.
+4.  Enable the plugin after installation.
+
+### 4. Verify Installation
+1.  Check that the new version number appears in the plugin list.
+2.  Reconfigure your settings if needed.
+3.  Run **Load/Process Channels** to test the update.
 
 ## Settings Reference
 
@@ -33,190 +58,71 @@ A Dispatcharr plugin that standardizes US broadcast (OTA) and premium/cable chan
 | **Dispatcharr URL** | `string` | - | Full URL of your Dispatcharr instance (e.g., `http://127.0.0.1:9191`). |
 | **Dispatcharr Admin Username**| `string` | - | Username for API authentication. |
 | **Dispatcharr Admin Password**| `password`| - | Password for API authentication. |
-| **Channel Groups** | `string` | - | Comma-separated group names, empty = all groups. |
+| **Channel Databases** | `string` | `US` | Comma-separated country codes (e.g., `US, UK, CA`). |
+| **Fuzzy Match Threshold** | `number` | `85` | Minimum similarity score (0-100) for matching. Higher values require closer matches. |
+| **Channel Groups to Process** | `string` | - | Comma-separated group names for renaming operations. Empty = all groups. |
+| **Channel Groups for Category Organization** | `string` | - | Comma-separated group names for category sorting. Empty = all groups. |
 | **OTA Channel Name Format** | `string` | `{NETWORK} - {STATE} {CITY} ({CALLSIGN})` | Format template for OTA channels. Available tags: `{NETWORK}`, `{STATE}`, `{CITY}`, `{CALLSIGN}`. |
-| **Ignored Tags** | `string` | `[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]` | Comma-separated list of tags to remove from names before matching (case-insensitive, handles `[]` and `()`). |
-| **Suffix for Unknown Channels**| `string` | ` [Unk]` | Suffix to append to unmatched channels (OTA and premium/cable). |
+| **Ignored Tags** | `string` | `[4K], [FHD], ...` | Comma-separated list of tags to remove before matching (handles `[]` and `()`). |
+| **Suffix for Unknown Channels**| `string` | ` [Unk]` | Suffix to append to unmatched channels. |
 | **Default Logo** | `string` | - | Logo display name from Dispatcharr's logo manager to apply to channels without logos. |
 
 ## Usage Guide
 
-### Step-by-Step Workflow
-1.  **Configure Authentication**
-    * Enter your Dispatcharr URL, username, and password.
-    * Optionally specify **Channel Groups** (leave empty to process all).
-    * Customize OTA format and unknown channel suffix.
-    * Click **Save Settings**.
-2.  **Load and Process Channels**
-    * Click **Run** on `Load/Process Channels`.
-    * The plugin attempts to match channels using `networks.json` first, then `channels.txt`.
-    * Review the summary showing OTA vs. premium/cable matches.
-3.  **Preview Changes (Dry Run)**
-    * Click **Run** on `Preview Changes (Dry Run)`.
-    * Exports a CSV to `/data/exports/channel_mapparr_preview_YYYYMMDD_HHMMSS.csv`.
-    * Review proposed changes with database source indicators.
-4.  **Apply Changes**
-    * Click **Run** on `Rename Channels` to standardize names.
-    * A rename report is saved to `/data/exports/channel_mapparr_renamed_YYYYMMDD_HHMMSS.csv`.
-    * Optionally run `Add Suffix to Unknown Channels` for unmatched channels.
-5.  **Apply Logos (Optional)**
-    * Configure **Default Logo** with a display name from the logo manager.
-    * Click **Run** on `Apply Default Logos`.
-    * This only applies to channels without existing logos.
+### Renaming Channels
+1.  **Configure Settings**: Set your Dispatcharr credentials, select your **Channel Databases** (e.g., `US, UK`), and adjust the **Fuzzy Match Threshold** if needed.
+2.  **Load and Process**: Run **Load/Process Channels**. This loads the selected databases and attempts to match your current channels.
+3.  **Preview**: Run **Preview Changes (Dry Run)** to generate a CSV report of proposed name changes.
+4.  **Apply**: Run **Rename Channels** to apply the standardized names.
 
-## Channel Matching Logic
+### Organizing by Category
+1.  **Configure Groups**: Optionally set **Channel Groups for Category Organization** to limit which channels are moved.
+2.  **Preview**: Run **Category Groups Dry Run**. This exports a CSV showing which channels will be moved and if new groups (e.g., "News", "Sports") need to be created.
+3.  **Apply**: Run **Organize Channels by Category** to move channels into their respective category groups.
 
-### OTA Channels (`networks.json`)
-* Extracts callsigns from channel names, including complex formats like `(WMTW-PORTLAND MAINE)`.
-* Handles various `US`/`USA` prefixes.
-* Looks up station data in the FCC database.
-* Formats using a customizable template with network, location, and callsign.
-* Avoids false positive callsigns like `EAST` or `KIDS`.
-* Only attempts premium/cable matching if no callsign is found, preventing incorrect matches.
-
-### Premium/Cable Channels (`channels.txt`)
-* Two-stage fuzzy matching process:
-    * High-confidence match (97%+ similarity after normalization).
-    * Number variation handling (matches "HBO 2" → "HBO2").
-* Correctly positions regional indicators after the channel name (e.g., `HBO Comedy West (H)`).
-* Preserves quality tags: `[HD]`, `[FHD]`, `[SD]`, etc.
-* Preserves extra tags: `(CX)`, `(USA)`, etc.
-* Removes "USA" suffix except for "USA Network".
-* Removes tags defined in the **Ignored Tags** setting before matching.
-
-## Example Transformations
-
-### OTA Channels
-* **Before:** `ABC 7 New York WABC`
-* **After:** `ABC - NY New York (WABC)`
-
-### Premium/Cable Channels
-* **Before:** `HBO 2 (East) [HD]`
-* **After:** `HBO2 (East) [HD]`
-<br>
-* **Before:** `HBO Comedy (H) West`
-* **After:** `HBO Comedy West (H)`
-<br>
-* **Before:** `Cinemax Moviemax East [SD]`
-* **After:** `MovieMax (East) [SD]`
-<br>
-* **Before:** `5 Star Max USA [FHD]`
-* **After:** `5StarMax [FHD]`
+### Managing Logos and Unknowns
+* **Apply Default Logos**: If you have channels missing artwork, configure a **Default Logo** name and run this action to fill in the gaps.
+* **Unknown Channels**: Use **Add Suffix to Unknown Channels** to tag channels that could not be matched against the loaded databases.
 
 ## Action Reference
 
-### Core Actions
 | Action | Description |
 | :--- | :--- |
-| **Load/Process Channels** | Load channels from groups and match against databases. |
-| **Preview Changes (Dry Run)** | Export a CSV showing proposed renames with database sources. |
+| **Load/Process Channels** | Load channels from API and match against selected country databases. |
+| **Preview Changes (Dry Run)** | Export a CSV showing proposed renames and match sources. |
 | **Rename Channels** | Apply standardized names to matched channels. |
 | **Add Suffix to Unknown Channels**| Tag unmatched channels with the configured suffix. |
 | **Apply Default Logos** | Bulk assign a logo to channels without artwork. |
+| **Category Groups Dry Run** | Export a CSV showing proposed channel moves based on categories. |
+| **Organize Channels by Category** | Move channels to groups based on their category (creates groups if needed). |
+| **Clear CSV Exports** | Delete all CSV export files created by the plugin. |
 
 ## File Locations
 * **Processing Cache**: `/data/channel_mapparr_loaded_channels.json`
-* **Preview Export**: `/data/exports/channel_mapparr_preview_YYYYMMDD_HHMMSS.csv`
-* **Rename Report**: `/data/exports/channel_mapparr_renamed_YYYYMMDD_HHMMSS.csv`
-* **Plugin Files**:
-    * `/data/plugins/channel_mapparr/plugin.py`
-    * `/data/plugins/channel_mapparr/networks.json`
-    * `/data/plugins/channel_mapparr/channels.txt`
+* **Version Cache**: `/data/channel_mapparr_version_check.json`
+* **Exports**: `/data/exports/` (CSV previews and reports)
 
 ## CSV Export Format
+The plugin generates CSVs for both renaming and categorization previews.
 
-| Column | Description |
-| :--- | :--- |
-| **channel_id** | Internal Dispatcharr channel ID. |
-| **channel_number** | Channel number. |
-| **channel_group** | Current group name. |
-| **current_name** | Original channel name. |
-| **new_name** | Proposed/applied name. |
-| **status** | `Renamed` or `Skipped`. |
-| **dbase** | Database used: `networks.json`, `channels.txt`, or `none`. |
-| **reason** | Skip reason if applicable. |
+**Renaming Preview:**
+* **dbase**: Indicates the source of the match (e.g., `Broadcast (OTA)`, `Premium/Cable`).
+* **match_method**: Details the specific logic used (e.g., `Callsign Match`, `Fuzzy Match - score: 92`).
 
-## Logo Management
-The plugin uses Dispatcharr's logo manager **display names** (not filenames):
-
-1.  Navigate to **Logos** in the Dispatcharr UI.
-2.  Find your desired default logo.
-3.  Copy the **display name** (e.g., `abc-logo-2013-garnet-us`).
-4.  Enter it in the plugin's **Default Logo** setting.
-5.  Run the **Apply Default Logos** action.
-
-**Note:** Logos are only applied to channels that either have no logo or use the "Default" logo (ID 0).
-
-## Troubleshooting
-
-### Common Issues
-* **"Logo not found in logo manager"**
-    * Use the logo's **display name** from Dispatcharr's Logos page, not the filename.
-    * Check logs for available logo names (the first 30 are listed).
-    * Ensure the logo has been uploaded to Dispatcharr.
-* **"No suffix configured"**
-    * If the default value is not working, manually enter ` [Unk]` (with a leading space) in settings.
-    * Save settings before running actions.
-* **"No groups found"**
-    * Verify channel groups exist in Dispatcharr.
-    * Check that group names are spelled correctly (case-sensitive).
-    * Leave the field empty to process all groups.
-* **Channels not matching**
-    * Verify `networks.json` and `channels.txt` are in the plugin directory.
-    * Check logs for callsign extraction and matching attempts.
-    * Use the **Preview** export to see which database was attempted.
-
-### Debugging Commands
-```bash
-# Check plugin files
-docker exec dispatcharr ls -la /data/plugins/channel_mapparr/
-
-# Monitor plugin activity
-docker logs dispatcharr | grep -i channel_mapparr
-
-# View processing cache
-docker exec dispatcharr cat /data/channel_mapparr_loaded_channels.json
-```
-
-## Data Sources
-
-### `networks.json` Format
-An FCC broadcast station database with fields:
-* `callsign`: Station identifier (e.g., KABC-TV)
-* `community_served_city`: City name
-* `community_served_state`: Two-letter state code
-* `network_affiliation`: Network name(s)
-* `tv_virtual_channel`: Virtual channel number
-* `facility_id`: FCC facility identifier
-
-### `channels.txt` Format
-A plain text file with one channel name per line:
-HBO
-HBO2
-Cinemax
-5StarMax
-MovieMax
+**Category Preview:**
+* **New Group**: The target group based on the channel's category.
+* **Group Exists**: Indicates if the plugin needs to create a new group via the API.
 
 ## Performance Notes
-* Matching is sequential, not parallel.
-* Pagination support for large logo collections (2500+ logos).
-* API bulk operations for efficient channel updates.
-* Automatic M3U refresh triggers GUI updates.
+* **Token Caching**: API tokens are cached for 30 minutes to reduce authentication overhead.
+* **WebSocket Updates**: The plugin triggers a WebSocket frontend refresh upon completion, ensuring the UI updates immediately without a full page reload.
+* **Bulk Operations**: Channel updates are performed in bulk to minimize API calls.
 
-## Version History
-**v0.1 (Initial Release)**
-* Dual database matching (OTA + premium/cable).
-* Customizable OTA name formatting.
-* Fuzzy matching with regional/quality tag preservation.
-* Logo management integration.
-* CSV export with database source tracking.
-
-## Contributing
-When reporting issues, please include:
-* Dispatcharr version
-* Sample channel names that fail to match
-* Relevant container logs
-* Contents of the preview CSV (first 10 rows)
+## Troubleshooting
+* **"Logo not found"**: Ensure you are using the logo's *display name* from the Dispatcharr Logos page, not the filename.
+* **"No match found"**: Try lowering the **Fuzzy Match Threshold** slightly (e.g., to 75 or 80) if channels are being skipped due to minor spelling differences.
+* **Database Loading Errors**: Ensure the `Channel Databases` setting uses valid 2-letter country codes (e.g., `US`, `UK`).
+* **Update Checks**: If the version check fails, ensure your container has internet access to reach GitHub.
 
 ## License
 This plugin integrates with Dispatcharr's plugin system and follows its licensing terms.

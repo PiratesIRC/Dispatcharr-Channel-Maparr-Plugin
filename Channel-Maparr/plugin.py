@@ -8,8 +8,15 @@ import csv
 import os
 import re
 import requests
+import json
+import time
+import urllib.request
+import urllib.error
 from datetime import datetime
-from difflib import SequenceMatcher
+from glob import glob
+
+# Import the fuzzy matcher module
+from .fuzzy_matcher import FuzzyMatcher
 
 # Django model imports
 from apps.channels.models import Channel
@@ -23,77 +30,182 @@ if not LOGGER.handlers:
     LOGGER.addHandler(handler)
 LOGGER.setLevel(logging.INFO)
 
+# Plugin name prefix for all log messages
+PLUGIN_LOG_PREFIX = "[Channel Mapparr]"
+
 class Plugin:
     """Channel Mapparr Plugin"""
-    
+
     name = "Channel Mapparr"
-    version = "0.2"
+    version = "0.5.0"
     description = "Standardizes US broadcast (OTA) and premium/cable channel names using network data and channel lists."
-    
+
+    # ========================================
+    # CONFIGURATION DEFAULTS
+    # ========================================
+    # Modify these values to change plugin defaults
+
+    # Channel Database Settings
+    DEFAULT_CHANNEL_DATABASES = "US"
+
+    # Fuzzy Matching Settings
+    DEFAULT_FUZZY_MATCH_THRESHOLD = 85  # Minimum similarity score (0-100)
+    INITIAL_MATCH_THRESHOLD = 85  # Used during initialization, overridden by settings
+
+    # Channel Naming Settings
+    DEFAULT_OTA_FORMAT = "{NETWORK} - {STATE} {CITY} ({CALLSIGN})"
+    DEFAULT_UNKNOWN_SUFFIX = " [Unk]"
+    DEFAULT_IGNORED_TAGS = "[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]"
+
+    # API Token Cache Settings
+    TOKEN_CACHE_DURATION = 1800  # 30 minutes in seconds
+
+    # File Paths
+    RESULTS_FILE = "/data/channel_mapparr_loaded_channels.json"
+    VERSION_CHECK_FILE = "/data/channel_mapparr_version_check.json"
+    EXPORT_DIR = "/data/exports"
+
+    # ========================================
+
     # Settings rendered by UI
-    fields = [
-        {
-            "id": "dispatcharr_url",
-            "label": "Dispatcharr URL",
-            "type": "string",
-            "default": "",
-            "placeholder": "http://192.168.1.10:9191",
-            "help_text": "URL of your Dispatcharr instance (from your browser's address bar). Example: http://127.0.0.1:9191",
-        },
+    @property
+    def fields(self):
+        """Dynamically generate fields list with version check"""
+        # Check for updates from GitHub
+        version_message = "Checking for updates..."
+        try:
+            # Check if we should perform a version check (once per day)
+            if self._should_check_for_updates():
+                # Perform the version check
+                latest_version = self._get_latest_version("PiratesIRC", "Dispatcharr-Channel-Maparr-Plugin")
+
+                # Check if it's an error message
+                if latest_version.startswith("Error"):
+                    version_message = f"⚠️ Could not check for updates: {latest_version}"
+                else:
+                    # Save the check result
+                    self._save_version_check(latest_version)
+
+                    # Compare versions
+                    current = self.version
+                    # Remove 'v' prefix if present in latest_version
+                    latest_clean = latest_version.lstrip('v')
+
+                    if current == latest_clean:
+                        version_message = f"✅ You are up to date (v{current})"
+                    else:
+                        version_message = f"🔔 Update available! Current: v{current} → Latest: {latest_version}"
+            else:
+                # Use cached version info
+                if self.cached_version_info:
+                    latest_version = self.cached_version_info['latest_version']
+                    current = self.version
+                    latest_clean = latest_version.lstrip('v')
+
+                    if current == latest_clean:
+                        version_message = f"✅ You are up to date (v{current})"
+                    else:
+                        version_message = f"🔔 Update available! Current: v{current} → Latest: {latest_version}"
+                else:
+                    version_message = "ℹ️ Version check will run on next page load"
+        except Exception as e:
+            LOGGER.debug(f"{PLUGIN_LOG_PREFIX} Error during version check: {e}")
+            version_message = f"⚠️ Error checking for updates: {str(e)}"
+
+        # Build the fields list dynamically
+        return [
+            {
+                "id": "version_status",
+                "label": "📦 Plugin Version Status",
+                "type": "info",
+                "help_text": version_message
+            },
+            {
+                "id": "dispatcharr_url",
+                "label": "🌐 Dispatcharr URL",
+                "type": "string",
+                "default": "",
+                "placeholder": "http://192.168.1.10:9191",
+                "help_text": "URL of your Dispatcharr instance (from your browser's address bar). Example: http://127.0.0.1:9191",
+            },
         {
             "id": "dispatcharr_username",
-            "label": "Dispatcharr Admin Username",
+            "label": "👤 Dispatcharr Admin Username",
             "type": "string",
             "help_text": "Your admin username for the Dispatcharr UI. Required for API access.",
         },
         {
             "id": "dispatcharr_password",
-            "label": "Dispatcharr Admin Password",
+            "label": "🔑 Dispatcharr Admin Password",
             "type": "string",
             "input_type": "password",
             "help_text": "Your admin password for the Dispatcharr UI. Required for API access.",
         },
         {
+            "id": "channel_databases",
+            "label": "📚 Channel Databases (comma-separated country codes)",
+            "type": "string",
+            "default": self.DEFAULT_CHANNEL_DATABASES,
+            "placeholder": "US, UK, CA, AU",
+            "help_text": "Select which channel databases to load. Available: AU (Australia, v2025-11-10), BR (Brazil, v2025-11-11), CA (Canada, v2025-11-10), DE (Germany, v2025-11-10), ES (Spain, v2025-11-10), FR (France, v2025-11-25), IN (India, v2025-11-10), MX (Mexico, v2025-11-10), UK (United Kingdom, v2025-11-10), US (United States, v2025-10-30). Example: US, UK, CA",
+        },
+        {
+            "id": "fuzzy_match_threshold",
+            "label": "🎯 Fuzzy Match Threshold",
+            "type": "number",
+            "default": self.DEFAULT_FUZZY_MATCH_THRESHOLD,
+            "placeholder": str(self.DEFAULT_FUZZY_MATCH_THRESHOLD),
+            "help_text": f"Minimum similarity score (0-100) for fuzzy matching. Higher values require closer matches. Default: {self.DEFAULT_FUZZY_MATCH_THRESHOLD}",
+        },
+        {
             "id": "selected_groups",
-            "label": "Channel Groups (comma-separated)",
+            "label": "📂 Channel Groups to Process (comma-separated)",
             "type": "string",
             "default": "",
             "placeholder": "Locals, News, Entertainment",
-            "help_text": "Apply actions only to specific channel groups. Leave empty to apply to all groups.",
+            "help_text": "Apply renaming and logo actions only to specific channel groups. Leave empty to apply to all groups.",
+        },
+        {
+            "id": "category_groups",
+            "label": "📁 Channel Groups for Category Organization (comma-separated)",
+            "type": "string",
+            "default": "",
+            "placeholder": "Locals, News, Entertainment",
+            "help_text": "Source groups for category-based organization. Channels in these groups will be moved to new groups based on their category in channels.json. Leave empty to apply to all groups.",
         },
         {
             "id": "ota_format",
-            "label": "OTA Channel Name Format",
+            "label": "📺 OTA Channel Name Format",
             "type": "string",
-            "default": "{NETWORK} - {STATE} {CITY} ({CALLSIGN})",
-            "placeholder": "{NETWORK} - {STATE} {CITY} ({CALLSIGN})",
+            "default": self.DEFAULT_OTA_FORMAT,
+            "placeholder": self.DEFAULT_OTA_FORMAT,
             "help_text": "Format for OTA channel names. Available tags: {NETWORK}, {STATE}, {CITY}, {CALLSIGN}. Channels missing required fields will be skipped.",
         },
         {
             "id": "unknown_suffix",
-            "label": "Suffix for Unknown Channels",
+            "label": "🏷️ Suffix for Unknown Channels",
             "type": "string",
-            "default": " [Unk]",
-            "placeholder": " [Unk]",
+            "default": self.DEFAULT_UNKNOWN_SUFFIX,
+            "placeholder": self.DEFAULT_UNKNOWN_SUFFIX,
             "help_text": "Suffix to append to channels that cannot be matched (OTA and premium/cable). Leave empty for no suffix.",
         },
         {
             "id": "ignored_tags",
-            "label": "Ignored Tags (comma-separated)",
+            "label": "🚫 Ignored Tags (comma-separated)",
             "type": "string",
-            "default": "[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]",
-            "placeholder": "[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]",
+            "default": self.DEFAULT_IGNORED_TAGS,
+            "placeholder": self.DEFAULT_IGNORED_TAGS,
             "help_text": "Tags in brackets or parentheses to ignore/remove. Case-insensitive. Examples: [HD], (H), [4K]. Separate with commas.",
         },
         {
             "id": "default_logo",
-            "label": "Default Logo",
+            "label": "🖼️ Default Logo",
             "type": "string",
             "default": "",
             "placeholder": "abc-logo-2013-garnet-us",
             "help_text": "Logo display name from Dispatcharr's logo manager (not the filename). Find the exact name in Dispatcharr's Logos page. Leave empty to skip logo assignment.",
         },
-    ]
+        ]
     
     # Actions for Dispatcharr UI
     actions = [
@@ -125,21 +237,189 @@ class Plugin:
             "description": "Apply default logo to channels without logos",
             "confirm": { "required": True, "title": "Apply Logos?", "message": "This will apply the default logo to channels that do not have a logo assigned. Continue?" }
         },
+        {
+            "id": "category_groups_dry_run",
+            "label": "Category Groups Dry Run",
+            "description": "Export a CSV showing which channels would be moved to which category-based groups",
+        },
+        {
+            "id": "organize_by_category",
+            "label": "Organize Channels by Category",
+            "description": "Create groups based on category names and move matching channels to those groups",
+            "confirm": { "required": True, "title": "Organize by Category?", "message": "This will create new groups (if needed) and move channels to category-based groups. Continue?" }
+        },
+        {
+            "id": "clear_csv_exports",
+            "label": "Clear CSV Exports",
+            "description": "Delete all CSV export files created by this plugin",
+            "confirm": { "required": True, "title": "Clear CSV Exports?", "message": "This will delete all CSV export files created by this plugin. Continue?" }
+        },
     ]
     
     def __init__(self):
         self.loaded_channels = []
         self.processing_status = {"current": 0, "total": 0, "status": "idle", "start_time": None}
-        self.results_file = "/data/channel_mapparr_loaded_channels.json"
-        self.networks_file = os.path.join(os.path.dirname(__file__), "networks.json")
-        self.channels_file = os.path.join(os.path.dirname(__file__), "channels.txt")
-        self.network_lookup = {}
-        self.premium_channels = []
+        self.results_file = self.RESULTS_FILE
         self.group_name_map = {}
-        LOGGER.info(f"{self.name} Plugin v{self.version} initialized")
+
+        # API token cache state
+        self.cached_api_token = None
+        self.token_cache_time = None
+        self.token_cache_duration = self.TOKEN_CACHE_DURATION
+
+        # Version check cache state
+        self.version_check_file = self.VERSION_CHECK_FILE
+        self.cached_version_info = None
+
+        # Initialize the fuzzy matcher (will load databases on first use)
+        plugin_dir = os.path.dirname(__file__)
+        self.matcher = FuzzyMatcher(plugin_dir=plugin_dir, match_threshold=self.INITIAL_MATCH_THRESHOLD, logger=LOGGER)
+
+        LOGGER.info(f"{PLUGIN_LOG_PREFIX} {self.name} Plugin v{self.version} initialized")
+
+        # Import version from fuzzy_matcher module
+        try:
+            from . import fuzzy_matcher
+            LOGGER.info(f"{PLUGIN_LOG_PREFIX} Using fuzzy_matcher.py v{fuzzy_matcher.__version__}")
+        except:
+            LOGGER.info(f"{PLUGIN_LOG_PREFIX} Using fuzzy_matcher.py")
+
+    def _get_latest_version(self, owner, repo):
+        """
+        Fetches the latest release tag name from GitHub using only Python's standard library.
+        Returns the version string or an error message.
+        """
+        url = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
+
+        # Add a user-agent to avoid potential 403 Forbidden errors
+        headers = {
+            'User-Agent': 'Dispatcharr-Plugin-Version-Checker'
+        }
+
+        try:
+            # Create a request object with headers
+            req = urllib.request.Request(url, headers=headers)
+
+            # Make the request and open the URL with a timeout
+            with urllib.request.urlopen(req, timeout=5) as response:
+                # Read the response and decode it as UTF-8
+                data = response.read().decode('utf-8')
+
+                # Parse the JSON string
+                json_data = json.loads(data)
+
+                # Get the tag name
+                latest_version = json_data.get("tag_name")
+
+                if latest_version:
+                    return latest_version
+                else:
+                    return "Error: 'tag_name' key not found."
+
+        except urllib.error.HTTPError as http_err:
+            if http_err.code == 404:
+                return f"Error: Repo not found or has no releases."
+            else:
+                return f"HTTP error: {http_err.code}"
+        except Exception as e:
+            # Catch other errors like timeouts
+            return f"Error: {str(e)}"
+
+    def _should_check_for_updates(self):
+        """
+        Check if we should perform a version check (once per day).
+        Returns True if we should check, False otherwise.
+        Also loads and caches the last check data.
+        """
+        try:
+            if os.path.exists(self.version_check_file):
+                with open(self.version_check_file, 'r') as f:
+                    data = json.load(f)
+                    last_check_time = data.get('last_check_time')
+                    cached_latest_version = data.get('latest_version')
+
+                    if last_check_time and cached_latest_version:
+                        # Check if last check was within 24 hours
+                        last_check_dt = datetime.fromisoformat(last_check_time)
+                        now = datetime.now()
+                        time_diff = now - last_check_dt
+
+                        if time_diff.total_seconds() < 86400:  # 24 hours in seconds
+                            # Use cached data
+                            self.cached_version_info = {
+                                'latest_version': cached_latest_version,
+                                'last_check_time': last_check_time
+                            }
+                            return False  # Don't check again
+
+            # Either file doesn't exist, or it's been more than 24 hours
+            return True
+
+        except Exception as e:
+            LOGGER.debug(f"{PLUGIN_LOG_PREFIX} Error checking version check time: {e}")
+            return True  # Check if there's an error
+
+    def _save_version_check(self, latest_version):
+        """Save the version check result to disk with timestamp"""
+        try:
+            data = {
+                'latest_version': latest_version,
+                'last_check_time': datetime.now().isoformat()
+            }
+            with open(self.version_check_file, 'w') as f:
+                json.dump(data, f, indent=2)
+            LOGGER.debug(f"{PLUGIN_LOG_PREFIX} Saved version check: {latest_version}")
+        except Exception as e:
+            LOGGER.debug(f"{PLUGIN_LOG_PREFIX} Error saving version check: {e}")
+
+    def _generate_csv_settings_header(self, settings):
+        """Generate CSV header comments with plugin settings (excluding credentials)"""
+        # Exclude sensitive settings
+        excluded_fields = {'dispatcharr_url', 'dispatcharr_username', 'dispatcharr_password'}
+
+        # Map field IDs to their labels
+        field_labels = {
+            'channel_databases': 'Channel Databases',
+            'fuzzy_match_threshold': 'Fuzzy Match Threshold',
+            'selected_groups': 'Channel Groups to Process',
+            'category_groups': 'Channel Groups for Category Organization',
+            'ota_format': 'OTA Channel Name Format',
+            'unknown_suffix': 'Suffix for Unknown Channels',
+            'ignored_tags': 'Ignored Tags',
+            'default_logo': 'Default Logo'
+        }
+
+        header_lines = []
+        header_lines.append("# Channel Mapparr Plugin Settings")
+        header_lines.append(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        header_lines.append(f"# Plugin Version: {self.version}")
+        header_lines.append("#")
+
+        # Add each setting
+        for field_id, label in field_labels.items():
+            if field_id not in excluded_fields:
+                value = settings.get(field_id, '')
+                if value:
+                    header_lines.append(f"# {label}: {value}")
+                else:
+                    header_lines.append(f"# {label}: (not set)")
+
+        header_lines.append("#")
+        return '\n'.join(header_lines) + '\n'
 
     def _get_api_token(self, settings, logger):
-        """Get an API access token using username and password."""
+        """Get an API access token using username and password with caching."""
+
+        # 1. Check Cache
+        if self.cached_api_token and self.token_cache_time:
+            elapsed_time = time.time() - self.token_cache_time
+            if elapsed_time < self.token_cache_duration:
+                logger.info(f"{PLUGIN_LOG_PREFIX} Using cached API token (age: {int(elapsed_time)}s / {self.token_cache_duration}s)")
+                return self.cached_api_token, None
+            else:
+                logger.info(f"{PLUGIN_LOG_PREFIX} Cached API token expired (age: {int(elapsed_time)}s), requesting new token")
+
+        # 2. Prepare Request
         dispatcharr_url = settings.get("dispatcharr_url", "").strip().rstrip('/')
         username = settings.get("dispatcharr_username", "")
         password = settings.get("dispatcharr_password", "")
@@ -150,193 +430,187 @@ class Plugin:
         try:
             url = f"{dispatcharr_url}/api/accounts/token/"
             payload = {"username": username, "password": password}
-            
-            logger.info(f"Attempting to authenticate with Dispatcharr at: {url}")
+
+            logger.info(f"{PLUGIN_LOG_PREFIX} Attempting to authenticate with Dispatcharr at: {url}")
+
+            # 3. Execute Request
             response = requests.post(url, json=payload, timeout=15)
             response.raise_for_status()
             token_data = response.json()
             access_token = token_data.get("access")
 
             if not access_token:
-                logger.error("No access token returned from API")
+                logger.error(f"{PLUGIN_LOG_PREFIX} No access token returned from API")
                 return None, "Login successful, but no access token was returned by the API."
-            
-            logger.info("Successfully obtained API access token")
+
+            # 4. Write to Cache
+            self.cached_api_token = access_token
+            self.token_cache_time = time.time()
+
+            logger.info(f"{PLUGIN_LOG_PREFIX} Successfully obtained new API access token (cached for {self.token_cache_duration}s / {self.token_cache_duration // 60} minutes)")
             return access_token, None
-            
+
         except requests.exceptions.RequestException as e:
-            logger.error(f"Request error during authentication: {e}")
+            logger.error(f"{PLUGIN_LOG_PREFIX} Request error during authentication: {e}")
             return None, f"Network error occurred while authenticating: {e}"
         except Exception as e:
-            logger.error(f"Unexpected error during authentication: {e}")
+            logger.error(f"{PLUGIN_LOG_PREFIX} Unexpected error during authentication: {e}")
             return None, f"Unexpected error during authentication: {e}"
 
     def _get_api_data(self, endpoint, token, settings, logger, paginated=False):
-        """Helper to perform GET requests to the Dispatcharr API."""
+        """Helper to perform GET requests to the Dispatcharr API with 401 handling."""
         dispatcharr_url = settings.get("dispatcharr_url", "").strip().rstrip('/')
         url = f"{dispatcharr_url}{endpoint}"
         headers = {'Authorization': f'Bearer {token}', 'Accept': 'application/json'}
-        
+
         try:
             all_results = []
-            
+
             while url:
                 response = requests.get(url, headers=headers, timeout=30)
+
+                # 5. Invalidation Logic - Handle 401 Unauthorized
+                if response.status_code == 401:
+                    logger.error(f"{PLUGIN_LOG_PREFIX} API token expired or invalid (401 Unauthorized)")
+                    # Invalidate cached token immediately
+                    self.cached_api_token = None
+                    self.token_cache_time = None
+                    raise Exception("API authentication failed. Token may have expired. Please retry the action.")
+
                 response.raise_for_status()
                 json_data = response.json()
-                
+
                 # Handle paginated responses
                 if isinstance(json_data, dict) and 'results' in json_data:
                     results = json_data.get('results', [])
                     all_results.extend(results)
-                    
+
                     # Check for next page
                     url = json_data.get('next') if paginated else None
                 else:
                     # Non-paginated response
                     return json_data
-            
+
             return all_results if paginated else all_results
-                
+
         except requests.exceptions.RequestException as e:
-            logger.error(f"API request failed for {endpoint}: {e}")
+            logger.error(f"{PLUGIN_LOG_PREFIX} API request failed for {endpoint}: {e}")
             raise Exception(f"API request failed: {e}")
 
     def _patch_api_data(self, endpoint, token, payload, settings, logger):
-        """Helper to perform PATCH requests to the Dispatcharr API."""
+        """Helper to perform PATCH requests to the Dispatcharr API with 401 handling."""
         dispatcharr_url = settings.get("dispatcharr_url", "").strip().rstrip('/')
         url = f"{dispatcharr_url}{endpoint}"
         headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
-        
+
         try:
             response = requests.patch(url, headers=headers, json=payload, timeout=60)
+
+            # Handle 401 Unauthorized
+            if response.status_code == 401:
+                logger.error(f"{PLUGIN_LOG_PREFIX} API token expired or invalid (401 Unauthorized)")
+                # Invalidate cached token immediately
+                self.cached_api_token = None
+                self.token_cache_time = None
+                raise Exception("API authentication failed. Token may have expired. Please retry the action.")
+
             response.raise_for_status()
             return response.json()
-            
+
         except requests.exceptions.RequestException as e:
-            logger.error(f"API PATCH request failed for {endpoint}: {e}")
+            logger.error(f"{PLUGIN_LOG_PREFIX} API PATCH request failed for {endpoint}: {e}")
             raise Exception(f"API PATCH request failed: {e}")
 
     def _post_api_data(self, endpoint, token, payload, settings, logger):
-        """Helper to perform POST requests to the Dispatcharr API."""
+        """Helper to perform POST requests to the Dispatcharr API with 401 handling."""
         dispatcharr_url = settings.get("dispatcharr_url", "").strip().rstrip('/')
         url = f"{dispatcharr_url}{endpoint}"
         headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
-        
+
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=30)
+
+            # Handle 401 Unauthorized
+            if response.status_code == 401:
+                logger.error(f"{PLUGIN_LOG_PREFIX} API token expired or invalid (401 Unauthorized)")
+                # Invalidate cached token immediately
+                self.cached_api_token = None
+                self.token_cache_time = None
+                raise Exception("API authentication failed. Token may have expired. Please retry the action.")
+
             response.raise_for_status()
             return response.json()
-            
+
         except requests.exceptions.RequestException as e:
-            logger.error(f"API POST request failed for {endpoint}: {e}")
+            logger.error(f"{PLUGIN_LOG_PREFIX} API POST request failed for {endpoint}: {e}")
             raise Exception(f"API POST request failed: {e}")
 
-    def _trigger_m3u_refresh(self, token, settings, logger):
-        """Triggers a global M3U refresh to update the GUI via WebSockets."""
-        logger.info("Triggering M3U refresh to update the GUI...")
+    def _trigger_frontend_refresh(self, settings, logger):
+        """Trigger frontend channel list refresh via WebSocket"""
         try:
-            self._post_api_data("/api/m3u/refresh/", token, {}, settings, logger)
-            logger.info("M3U refresh triggered successfully.")
-            return True
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                # Send WebSocket message to trigger frontend refresh
+                async_to_sync(channel_layer.group_send)(
+                    "dispatcharr_updates",
+                    {
+                        "type": "channels.updated",
+                        "message": "Channel visibility updated by Channel Mapparr"
+                    }
+                )
+                logger.info(f"{PLUGIN_LOG_PREFIX} Frontend refresh triggered via WebSocket")
+                return True
         except Exception as e:
-            logger.error(f"Failed to trigger M3U refresh: {e}")
+            logger.warning(f"{PLUGIN_LOG_PREFIX} Could not trigger frontend refresh: {e}")
+        return False
+
+    def _load_channel_data(self, settings, logger):
+        """Load channel data from selected country database files."""
+        # Get selected country codes from settings
+        channel_databases_str = settings.get("channel_databases", "US").strip()
+
+        if not channel_databases_str:
+            logger.warning(f"{PLUGIN_LOG_PREFIX} No channel databases selected, defaulting to US")
+            channel_databases_str = "US"
+
+        # Parse country codes
+        country_codes = [code.strip().upper() for code in channel_databases_str.split(',') if code.strip()]
+
+        if not country_codes:
+            logger.error(f"{PLUGIN_LOG_PREFIX} Invalid channel_databases setting: '{channel_databases_str}'")
             return False
 
-    def _load_network_data(self, logger):
-        """Load network/station data from bundled networks.json file."""
-        if os.path.exists(self.networks_file):
-            import json
-            try:
-                with open(self.networks_file, 'r') as f:
-                    stations_list = json.load(f)
-                
-                # Create a lookup dictionary by callsign
-                self.network_lookup = {}
-                for station in stations_list:
-                    callsign = station.get('callsign', '').strip()
-                    if callsign:
-                        # Store with original callsign as key
-                        self.network_lookup[callsign] = station
-                        
-                        # Also store without suffix (-TV, -CD, -LP, -DT, -LD) for easier matching
-                        base_callsign = re.sub(r'-(?:TV|CD|LP|DT|LD)$', '', callsign)
-                        if base_callsign != callsign:
-                            self.network_lookup[base_callsign] = station
-                
-                logger.info(f"Loaded {len(stations_list)} stations from networks.json")
-                return True
-            except Exception as e:
-                logger.error(f"Error loading networks.json: {e}")
-                return False
+        # Get and apply fuzzy match threshold from settings
+        fuzzy_threshold = settings.get("fuzzy_match_threshold", self.DEFAULT_FUZZY_MATCH_THRESHOLD)
+        try:
+            fuzzy_threshold = int(fuzzy_threshold)
+            # Validate threshold is in range
+            if fuzzy_threshold < 0 or fuzzy_threshold > 100:
+                logger.warning(f"{PLUGIN_LOG_PREFIX} Invalid fuzzy match threshold {fuzzy_threshold}, using default {self.DEFAULT_FUZZY_MATCH_THRESHOLD}")
+                fuzzy_threshold = self.DEFAULT_FUZZY_MATCH_THRESHOLD
+        except (ValueError, TypeError):
+            logger.warning(f"{PLUGIN_LOG_PREFIX} Invalid fuzzy match threshold format, using default {self.DEFAULT_FUZZY_MATCH_THRESHOLD}")
+            fuzzy_threshold = self.DEFAULT_FUZZY_MATCH_THRESHOLD
+
+        # Update matcher threshold
+        self.matcher.match_threshold = fuzzy_threshold
+        logger.info(f"{PLUGIN_LOG_PREFIX} Fuzzy match threshold set to: {fuzzy_threshold}")
+
+        logger.info(f"{PLUGIN_LOG_PREFIX} Loading channel databases: {', '.join(country_codes)}")
+
+        # Use fuzzy matcher to reload databases
+        success = self.matcher.reload_databases(country_codes=country_codes)
+
+        if success:
+            logger.info(f"{PLUGIN_LOG_PREFIX} Successfully loaded {len(self.matcher.broadcast_channels)} broadcast and {len(self.matcher.premium_channels)} premium channels")
         else:
-            logger.warning(f"networks.json not found at {self.networks_file}")
-            return False
+            logger.error(f"{PLUGIN_LOG_PREFIX} Failed to load channel databases")
 
-    def _load_premium_channels(self, logger):
-        """Load premium/cable channel names from channels.txt."""
-        if os.path.exists(self.channels_file):
-            try:
-                with open(self.channels_file, 'r', encoding='utf-8') as f:
-                    self.premium_channels = [line.strip() for line in f if line.strip()]
-                
-                logger.info(f"Loaded {len(self.premium_channels)} premium/cable channels from channels.txt")
-                return True
-            except Exception as e:
-                logger.error(f"Error loading channels.txt: {e}")
-                return False
-        else:
-            logger.warning(f"channels.txt not found at {self.channels_file}")
-            return False
+        return success
 
-    def _extract_callsign(self, channel_name):
-        """
-        Extract US TV callsign from channel name with priority order.
-        Returns None if EAST/WEST/KIDS/WOMEN appears alone (not a valid callsign).
-        """
-        # Remove common prefixes (US/USA followed by space or non-alphanumeric)
-        channel_name = re.sub(r'^D\d+-', '', channel_name)
-        channel_name = re.sub(r'^USA?\s*[^a-zA-Z0-9]*\s*', '', channel_name, flags=re.IGNORECASE)
-        
-        # Priority 1: Callsigns in parentheses (most reliable)
-        # Match 4-letter callsigns optionally followed by dash and more text
-        paren_match = re.search(r'\(([KW][A-Z]{3})(?:-[A-Z\s]+)?\)', channel_name, re.IGNORECASE)
-        if paren_match:
-            callsign = paren_match.group(1).upper()
-            # Reject common false positives
-            if callsign not in ['WEST', 'EAST', 'KIDS', 'WOMEN']:
-                return callsign
-        
-        # Priority 2: Callsigns with suffix in parentheses (like WMTW-TV)
-        paren_suffix_match = re.search(r'\(([KW][A-Z]{2,4}-(?:TV|CD|LP|DT|LD))\)', channel_name, re.IGNORECASE)
-        if paren_suffix_match:
-            callsign = paren_suffix_match.group(1).upper()
-            return callsign
-        
-        # Priority 3: Callsigns at the end (possibly with suffix or file extension)
-        end_match = re.search(r'\b([KW][A-Z]{2,4}(?:-(?:TV|CD|LP|DT|LD))?)\s*(?:\.[a-z]+)?\s*$', channel_name, re.IGNORECASE)
-        if end_match:
-            callsign = end_match.group(1).upper()
-            # Reject common false positives
-            if callsign not in ['WEST', 'EAST', 'KIDS', 'WOMEN']:
-                return callsign
-        
-        # Priority 4: Any word that matches callsign pattern (but not false positives)
-        word_match = re.search(r'\b([KW][A-Z]{2,4}(?:-(?:TV|CD|LP|DT|LD))?)\b', channel_name, re.IGNORECASE)
-        if word_match:
-            callsign = word_match.group(1).upper()
-            # Reject common false positives
-            if callsign not in ['WEST', 'EAST', 'KIDS', 'WOMEN']:
-                return callsign
-        
-        return None
-    
-    def _normalize_callsign(self, callsign):
-        """Remove suffixes like -TV, -CD, -LP from callsign for display purposes."""
-        if callsign:
-            callsign = re.sub(r'-(?:TV|CD|LP|DT|LD)$', '', callsign)
-        return callsign
-    
     def _parse_network_affiliation(self, network_affiliation):
         """Extract first network from affiliation string, removing everything after comma or parenthesis."""
         if not network_affiliation:
@@ -365,187 +639,6 @@ class Plugin:
         
         return network_affiliation if network_affiliation else None
 
-    def _similarity_ratio(self, str1, str2):
-        """Calculate similarity ratio between two strings."""
-        return SequenceMatcher(None, str1.lower(), str2.lower()).ratio()
-
-    def _normalize_channel_name_for_matching(self, name, ignored_tags_list):
-        """
-        Normalize channel name for matching.
-        Removes: prefixes in parens, quality tags, regional tags, US prefix, callsigns, ignored tags
-        Preserves: core channel name
-        """
-        # Remove leading parenthetical prefixes like (SP2), (D1), etc.
-        name = re.sub(r'^\([^\)]+\)\s*', '', name)
-        
-        # Remove "US" prefix (with space, colon, or colon+space)
-        name = re.sub(r'^US:?\s*', '', name, flags=re.IGNORECASE)
-        
-        # Remove ignored tags (case-insensitive)
-        for tag in ignored_tags_list:
-            # Escape special regex characters in the tag
-            escaped_tag = re.escape(tag)
-            name = re.sub(escaped_tag, '', name, flags=re.IGNORECASE)
-        
-        # Remove quality indicators in brackets (fallback for common patterns)
-        name = re.sub(r'\[(HD|FHD|SD|4K|Slow|H|A|S)\]', '', name, flags=re.IGNORECASE)
-        
-        # Remove quality indicators in parentheses (fallback for common patterns)
-        name = re.sub(r'\((HD|FHD|SD|4K|Slow|H|A|S)\)', '', name, flags=re.IGNORECASE)
-        
-        # Remove regional indicators
-        name = re.sub(r'\((East|West)\)', '', name, flags=re.IGNORECASE)
-        name = re.sub(r'\b(East|West)\b', '', name, flags=re.IGNORECASE)
-        
-        # Remove callsigns in parentheses
-        name = re.sub(r'\([KW][A-Z]{3}(?:-(?:TV|CD|LP|DT|LD))?\)', '', name, flags=re.IGNORECASE)
-        
-        # Remove other tags in parentheses (like CX, etc.)
-        name = re.sub(r'\([A-Z0-9]+\)', '', name)
-        
-        # Clean up whitespace
-        name = re.sub(r'\s+', ' ', name).strip()
-        
-        return name
-
-    def _extract_regional_and_quality_tags(self, name, ignored_tags_list):
-        """Extract regional indicators, extra tags, and quality tags to preserve them."""
-        regional = None
-        extra_tags = []
-        quality_tags = []
-        
-        # Extract regional indicator - check parentheses first, then standalone word
-        regional_pattern_paren = r'\((East|West)\)'
-        regional_match = re.search(regional_pattern_paren, name, re.IGNORECASE)
-        if regional_match:
-            regional = regional_match.group(1).capitalize()
-        else:
-            # Check for standalone East/West at the end
-            regional_pattern_word = r'\b(East|West)\b(?!.*\b(East|West)\b)'
-            regional_match = re.search(regional_pattern_word, name, re.IGNORECASE)
-            if regional_match:
-                regional = regional_match.group(1).capitalize()
-        
-        # Extract ALL tags in parentheses (like FHD, HD, H, A, S, CX, etc.)
-        # But exclude: East, West, callsigns, LEADING prefixes, and ignored tags
-        paren_tags = re.findall(r'\(([^\)]+)\)', name)
-        
-        # Determine if first paren tag is a prefix (appears at start of name)
-        first_paren_is_prefix = name.strip().startswith('(') if paren_tags else False
-        
-        for idx, tag in enumerate(paren_tags):
-            # Skip the first tag if it's a prefix
-            if idx == 0 and first_paren_is_prefix:
-                continue
-            
-            # Check if tag should be ignored
-            if f"({tag})" in ignored_tags_list or f"[{tag}]" in ignored_tags_list:
-                continue
-                
-            tag_upper = tag.upper()
-            # Skip if it is East or West
-            if tag_upper in ['EAST', 'WEST']:
-                continue
-            # Skip if it looks like a callsign (4 letters starting with K or W, possibly with -TV, -CD, etc.)
-            if re.match(r'^[KW][A-Z]{3}(?:-(?:TV|CD|LP|DT|LD))?$', tag_upper):
-                continue
-            # Keep everything else
-            extra_tags.append(f"({tag})")
-        
-        # Extract ALL quality/bracketed tags (preserve case and collect all)
-        bracketed_tags = re.findall(r'\[([^\]]+)\]', name)
-        for tag in bracketed_tags:
-            # Check if tag should be ignored
-            if f"[{tag}]" in ignored_tags_list or f"({tag})" in ignored_tags_list:
-                continue
-            quality_tags.append(f"[{tag}]")
-        
-        return regional, extra_tags, quality_tags
-
-    def _fuzzy_match_premium_channel(self, channel_name, ignored_tags_list):
-        """
-        Match premium/cable channel name against channels.txt.
-        Returns (matched_name, regional, extra_tags, quality_tags, match_type) or (None, None, None, None, None)
-        """
-        # Extract tags to preserve
-        regional, extra_tags, quality_tags = self._extract_regional_and_quality_tags(channel_name, ignored_tags_list)
-        
-        # Normalize for matching
-        normalized = self._normalize_channel_name_for_matching(channel_name, ignored_tags_list)
-        
-        if not normalized:
-            return None, None, None, None, None
-        
-        best_match = None
-        best_ratio = 0
-        match_type = None
-        
-        # Create versions with and without spaces for comparison
-        normalized_lower = normalized.lower()
-        normalized_nospace = re.sub(r'[\s&\-]+', '', normalized_lower)
-        
-        # Stage 1: Exact/near-exact match
-        for premium_channel in self.premium_channels:
-            # Normalize the premium channel name the same way
-            premium_normalized = self._normalize_channel_name_for_matching(premium_channel, ignored_tags_list)
-            premium_lower = premium_normalized.lower()
-            premium_nospace = re.sub(r'[\s&\-]+', '', premium_lower)
-            
-            # Exact match (with or without spaces/separators)
-            if normalized_nospace == premium_nospace:
-                return premium_channel, regional, extra_tags, quality_tags, "exact"
-            
-            # Very high similarity (97%+) - prevents partial matches
-            ratio = self._similarity_ratio(normalized_lower, premium_lower)
-            if ratio >= 0.97 and ratio > best_ratio:
-                best_match = premium_channel
-                best_ratio = ratio
-                match_type = "exact"
-        
-        if best_match:
-            return best_match, regional, extra_tags, quality_tags, match_type
-        
-        # Stage 2: Check for number variations (HBO 2, HBO2, HBO 2 HD -> HBO2)
-        number_pattern = re.match(r'^(.+?)\s*(\d+)\s*(.*)$', normalized)
-        if number_pattern:
-            base_channel = number_pattern.group(1).strip()
-            number = number_pattern.group(2)
-            
-            # Try matching "BaseChannel" + "Number" (e.g., HBO2)
-            combined = f"{base_channel}{number}".lower()
-            combined_nospace = re.sub(r'[\s&\-]+', '', combined)
-            
-            for premium_channel in self.premium_channels:
-                premium_normalized = self._normalize_channel_name_for_matching(premium_channel, ignored_tags_list)
-                premium_lower = premium_normalized.lower()
-                premium_nospace = re.sub(r'[\s&\-]+', '', premium_lower)
-                
-                if combined_nospace == premium_nospace:
-                    return premium_channel, regional, extra_tags, quality_tags, "exact"
-        
-        return None, None, None, None, None
-
-    def _build_final_channel_name(self, base_name, regional, extra_tags, quality_tags):
-        """
-        Build final channel name with regional indicator, extra tags, and quality tags.
-        Format: "Channel Name Regional (Extra) [Quality1] [Quality2] ..."
-        Regional is added WITHOUT parentheses and comes immediately after channel name.
-        """
-        parts = [base_name]
-        
-        # Add regional indicator WITHOUT parentheses, immediately after channel name
-        if regional:
-            parts.append(regional)
-        
-        # Add extra tags (already have parentheses)
-        if extra_tags:
-            parts.extend(extra_tags)
-        
-        # Add ALL quality tags (preserve original case and count)
-        if quality_tags:
-            parts.extend(quality_tags)
-        
-        return " ".join(parts)
 
     def _format_ota_name(self, station_data, format_string, callsign):
         """
@@ -554,14 +647,14 @@ class Plugin:
         """
         # Parse format string to find required fields
         required_fields = re.findall(r'\{(\w+)\}', format_string)
-        
+
         # Get data from station
         network_raw = station_data.get('network_affiliation', '').strip()
         network = self._parse_network_affiliation(network_raw)
         city = station_data.get('community_served_city', '').title()
         state = station_data.get('community_served_state', '').upper()
-        display_callsign = self._normalize_callsign(callsign)
-        
+        display_callsign = self.matcher.normalize_callsign(callsign)
+
         # Build replacement map
         replacements = {
             'NETWORK': network,
@@ -569,17 +662,17 @@ class Plugin:
             'STATE': state,
             'CALLSIGN': display_callsign
         }
-        
+
         # Check if all required fields have values
         for field in required_fields:
             if field not in replacements or not replacements[field]:
                 return None
-        
+
         # Replace all placeholders
         result = format_string
         for field, value in replacements.items():
             result = result.replace(f'{{{field}}}', value)
-        
+
         return result
 
     def run(self, action, params, context):
@@ -596,6 +689,9 @@ class Plugin:
                 "rename_channels": self.rename_channels_action,
                 "rename_unknown_channels": self.rename_unknown_channels_action,
                 "apply_logos": self.apply_logos_action,
+                "category_groups_dry_run": self.category_groups_dry_run_action,
+                "organize_by_category": self.organize_by_category_action,
+                "clear_csv_exports": self.clear_csv_exports_action,
             }
             
             if action not in action_map:
@@ -609,23 +705,22 @@ class Plugin:
             return {"status": "error", "message": str(e)}
 
     def load_and_process_channels_action(self, settings, logger):
-        """Load channels from API and process them with network data and premium channel list."""
+        """Load channels from API and process them with channel data."""
         try:
             import json
-            
-            # Load both data sources
-            networks_loaded = self._load_network_data(logger)
-            premium_loaded = self._load_premium_channels(logger)
-            
-            if not networks_loaded and not premium_loaded:
-                return {"status": "error", "message": "Neither networks.json nor channels.txt could be loaded. Please ensure at least one file is in the same directory as plugin.py"}
+
+            # Load channel data from selected country databases
+            channels_loaded = self._load_channel_data(settings, logger)
+
+            if not channels_loaded:
+                return {"status": "error", "message": "Channel databases could not be loaded. Please check your channel_databases setting and ensure the files exist."}
             
             # Get API token
             token, error = self._get_api_token(settings, logger)
             if error:
                 return {"status": "error", "message": error}
 
-            logger.info("Loading channels from Dispatcharr API...")
+            logger.info(f"{PLUGIN_LOG_PREFIX} Loading channels from Dispatcharr API...")
             
             # Get all groups first to build name-to-id mapping
             all_groups = self._get_api_data("/api/channels/groups/", token, settings, logger)
@@ -644,7 +739,7 @@ class Plugin:
                 if not target_group_ids:
                     return {"status": "error", "message": f"None of the specified groups could be found: {', '.join(invalid_names)}"}
                 
-                logger.info(f"Target group IDs: {target_group_ids}")
+                logger.info(f"{PLUGIN_LOG_PREFIX} Target group IDs: {target_group_ids}")
             else:
                 target_group_ids = set(group_name_to_id.values())
                 valid_names = set(group_name_to_id.keys())
@@ -656,7 +751,7 @@ class Plugin:
                 ch for ch in all_channels 
                 if ch.get('channel_group_id') in target_group_ids
             ]
-            logger.info(f"Filtered to {len(channels_to_process)} channels in groups: {selected_groups_str if selected_groups_str else 'all groups'}")
+            logger.info(f"{PLUGIN_LOG_PREFIX} Filtered to {len(channels_to_process)} channels in groups: {selected_groups_str if selected_groups_str else 'all groups'}")
             
             # Store channels with proper group names
             for channel in channels_to_process:
@@ -666,7 +761,7 @@ class Plugin:
             self.loaded_channels = channels_to_process
             
             # Process channels
-            logger.info(f"Processing {len(self.loaded_channels)} channels...")
+            logger.info(f"{PLUGIN_LOG_PREFIX} Processing {len(self.loaded_channels)} channels...")
             self.processing_status = {
                 "current": 0,
                 "total": len(self.loaded_channels),
@@ -676,10 +771,10 @@ class Plugin:
             
             renamed_channels = []
             skipped_channels = []
-            ota_format = settings.get("ota_format", "{NETWORK} - {STATE} {CITY} ({CALLSIGN})")
-            
+            ota_format = settings.get("ota_format", self.DEFAULT_OTA_FORMAT)
+
             # Parse ignored tags from settings
-            ignored_tags_str = settings.get("ignored_tags", "[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]")
+            ignored_tags_str = settings.get("ignored_tags", self.DEFAULT_IGNORED_TAGS)
             ignored_tags_list = [tag.strip() for tag in ignored_tags_str.split(',') if tag.strip()]
             
             # Also create versions with parentheses for tags that use brackets
@@ -711,6 +806,10 @@ class Plugin:
             for i, channel in enumerate(self.loaded_channels):
                 self.processing_status["current"] = i + 1
                 
+                # Periodic progress logging every 50 channels
+                if (i + 1) % 50 == 0 or (i + 1) == len(self.loaded_channels):
+                    logger.info(f"{PLUGIN_LOG_PREFIX} Processing progress: {i + 1}/{len(self.loaded_channels)} channels...")
+                
                 current_name = channel.get('name', '').strip()
                 channel_id = channel.get('id')
                 channel_number = channel.get('channel_number', '')
@@ -721,36 +820,56 @@ class Plugin:
                 matcher_used = None
                 skip_reason = None
                 
-                # Try OTA matching first (networks.json)
+                # Try OTA matching first (broadcast channels)
                 ota_callsign_found = False
-                if networks_loaded:
+                match_method = None
+                if self.matcher.broadcast_channels:
                     debug_stats["ota_attempted"] += 1
-                    callsign = self._extract_callsign(current_name)
-                    
+                    callsign, station = self.matcher.match_broadcast_channel(current_name)
+
                     if callsign:
                         ota_callsign_found = True
-                        station = self.network_lookup.get(callsign)
-                        
+
                         if station:
                             new_name = self._format_ota_name(station, ota_format, callsign)
                             if new_name:
-                                matcher_used = "networks.json"
+                                matcher_used = "Broadcast (OTA)"
+                                match_method = "OTA - Callsign Match"
                                 debug_stats["ota_matched"] += 1
                             else:
                                 skip_reason = "Missing required fields for OTA format"
                         else:
-                            skip_reason = f"Callsign {callsign} not in networks.json"
-                
+                            skip_reason = f"Callsign {callsign} not in channel databases"
+
                 # If OTA match failed BUT a valid callsign was found, do NOT try premium matching
                 # Only try premium matching if no callsign was found at all
-                if not new_name and premium_loaded and not ota_callsign_found:
+                if not new_name and self.matcher.premium_channels and not ota_callsign_found:
                     debug_stats["premium_attempted"] += 1
-                    
-                    matched_premium, regional, extra_tags, quality_tags, match_type = self._fuzzy_match_premium_channel(current_name, ignored_tags_list)
-                    
+
+                    # Extract tags to preserve them
+                    regional, extra_tags, quality_tags = self.matcher.extract_tags(current_name, ignored_tags_list)
+
+                    # Use fuzzy matcher to find best match
+                    matched_premium, score, match_type = self.matcher.fuzzy_match(
+                        current_name,
+                        self.matcher.premium_channels,
+                        ignored_tags_list
+                    )
+
                     if matched_premium:
-                        new_name = self._build_final_channel_name(matched_premium, regional, extra_tags, quality_tags)
-                        matcher_used = "channels.txt"
+                        new_name = self.matcher.build_final_channel_name(matched_premium, regional, extra_tags, quality_tags)
+                        matcher_used = "Premium/Cable"
+
+                        # match_type contains detailed info like "fuzzy (92)", "exact", etc.
+                        if match_type:
+                            if "fuzzy" in str(match_type).lower():
+                                match_method = f"Fuzzy Match - {match_type} (score: {score})"
+                            elif match_type == "exact":
+                                match_method = f"Exact Match (score: {score})"
+                            else:
+                                match_method = f"Premium - {match_type} (score: {score})"
+                        else:
+                            match_method = f"Premium Match (score: {score})"
                         debug_stats["premium_matched"] += 1
                         if not skip_reason:
                             skip_reason = None
@@ -765,6 +884,7 @@ class Plugin:
                         'new_name': new_name,
                         'status': 'Renamed',
                         'matcher': matcher_used,
+                        'match_method': match_method,
                         'reason': ''
                     })
                 else:
@@ -772,7 +892,7 @@ class Plugin:
                         skip_reason = "Already in correct format"
                         debug_stats["skipped_already_correct"] += 1
                     elif not skip_reason:
-                        skip_reason = "No match found in networks.json or channels.txt"
+                        skip_reason = "No match found in channels.json"
                         debug_stats["skipped_no_match"] += 1
                     
                     skipped_channels.append({
@@ -783,10 +903,14 @@ class Plugin:
                         'new_name': current_name,
                         'status': 'Skipped',
                         'matcher': 'none',
+                        'match_method': 'No Match',
                         'reason': skip_reason
                     })
             
             self.processing_status['status'] = 'complete'
+            
+            # Log completion
+            logger.info(f"{PLUGIN_LOG_PREFIX} Processing complete. {len(renamed_channels)} to rename, {len(skipped_channels)} skipped.")
             
             # Combine results
             all_results = renamed_channels + skipped_channels
@@ -798,44 +922,32 @@ class Plugin:
                     "total_channels_loaded": len(self.loaded_channels),
                     "channels_to_rename": len(renamed_channels),
                     "channels_skipped": len(skipped_channels),
-                    "group_map": group_id_to_name,
-                    "channels": self.loaded_channels,
+                    "debug_stats": debug_stats,
                     "changes": all_results
                 }, f, indent=2)
             
-            # Count matches by source
-            ota_matches = sum(1 for c in renamed_channels if c.get('matcher') == 'networks.json')
-            premium_matches = sum(1 for c in renamed_channels if c.get('matcher') == 'channels.txt')
+            logger.info(f"{PLUGIN_LOG_PREFIX} Processing complete. {len(renamed_channels)} to rename, {len(skipped_channels)} skipped.")
             
+            # Build success message with summary
             message_parts = [
-                f"✓ Processing complete",
+                f"✓ Successfully processed {len(self.loaded_channels)} channels.",
                 f"\n**Summary:**",
-                f"• Total channels loaded: {len(self.loaded_channels)}",
-                f"• Channels to be renamed: {len(renamed_channels)}",
-                f"  - OTA matches (networks.json): {ota_matches}",
-                f"  - Premium/cable matches (channels.txt): {premium_matches}",
-                f"• Channels skipped: {len(skipped_channels)}"
+                f"• Channels to rename: {len(renamed_channels)}",
+                f"• Channels skipped: {len(skipped_channels)}",
+                f"\n**Match Statistics:**",
+                f"• OTA matches: {debug_stats['ota_matched']} / {debug_stats['ota_attempted']} attempted",
+                f"• Premium matches: {debug_stats['premium_matched']} / {debug_stats['premium_attempted']} attempted",
+                f"\nUse 'Preview Changes (Dry Run)' to export a CSV of the changes, or 'Rename Channels' to apply them."
             ]
-            
-            if renamed_channels:
-                message_parts.append(f"\n**Sample Changes:**")
-                for change in renamed_channels[:5]:
-                    message_parts.append(f"• '{change['current_name']}' → '{change['new_name']}' ({change['matcher']})")
-                
-                if len(renamed_channels) > 5:
-                    message_parts.append(f"...and {len(renamed_channels) - 5} more.")
-            
-            message_parts.append("\nUse 'Preview Changes' to export full list or 'Rename Channels' to apply changes.")
             
             return {"status": "success", "message": "\n".join(message_parts)}
             
         except Exception as e:
-            self.processing_status['status'] = 'idle'
-            logger.error(f"Error in load and process: {e}")
-            return {"status": "error", "message": f"Error in load and process: {e}"}
+            logger.error(f"{PLUGIN_LOG_PREFIX} Error loading and processing channels: {e}")
+            return {"status": "error", "message": f"Error loading and processing channels: {e}"}
 
     def preview_changes_action(self, settings, logger):
-        """Export CSV showing which channels would be renamed."""
+        """Export a CSV showing the preview of channel renaming changes."""
         try:
             import json
             
@@ -850,40 +962,50 @@ class Plugin:
             if not all_changes:
                 return {"status": "success", "message": "No changes to preview."}
             
-            filename = f"channel_mapparr_preview_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-            filepath = os.path.join("/data/exports", filename)
-            os.makedirs("/data/exports", exist_ok=True)
+            # Create export directory if it does not exist
+            export_dir = self.EXPORT_DIR
+            os.makedirs(export_dir, exist_ok=True)
             
-            with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
-                fieldnames = ['channel_id', 'channel_number', 'channel_group', 'current_name', 'new_name', 'status', 'dbase', 'reason']
+            # Create timestamp for filename
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            csv_filename = f"channel_mapparr_preview_{timestamp}.csv"
+            csv_path = os.path.join(export_dir, csv_filename)
+            
+            # Write CSV
+            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+                # Write settings header as comments
+                csvfile.write(self._generate_csv_settings_header(settings))
+
+                fieldnames = ['Channel ID', 'Channel Number', 'Group', 'Current Name', 'New Name', 'Status', 'Matcher', 'Match Method', 'Reason']
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
                 writer.writeheader()
-                
-                # Remap 'matcher' to 'dbase' for CSV output
                 for change in all_changes:
-                    csv_row = {
-                        'channel_id': change.get('channel_id'),
-                        'channel_number': change.get('channel_number'),
-                        'channel_group': change.get('channel_group'),
-                        'current_name': change.get('current_name'),
-                        'new_name': change.get('new_name'),
-                        'status': change.get('status'),
-                        'dbase': change.get('matcher'),  # Remap matcher -> dbase
-                        'reason': change.get('reason')
-                    }
-                    writer.writerow(csv_row)
+                    writer.writerow({
+                        'Channel ID': change.get('channel_id', ''),
+                        'Channel Number': change.get('channel_number', ''),
+                        'Group': change.get('channel_group', ''),
+                        'Current Name': change.get('current_name', ''),
+                        'New Name': change.get('new_name', ''),
+                        'Status': change.get('status', ''),
+                        'Matcher': change.get('matcher', ''),
+                        'Match Method': change.get('match_method', ''),
+                        'Reason': change.get('reason', '')
+                    })
+            
+            logger.info(f"{PLUGIN_LOG_PREFIX} Preview CSV exported to {csv_path}")
             
             renamed_count = sum(1 for c in all_changes if c.get('status') == 'Renamed')
             skipped_count = sum(1 for c in all_changes if c.get('status') == 'Skipped')
-            ota_count = sum(1 for c in all_changes if c.get('matcher') == 'networks.json')
-            premium_count = sum(1 for c in all_changes if c.get('matcher') == 'channels.txt')
             
-            message = f"✓ Preview exported to {filepath}\n\n**Summary:**\n• {renamed_count} channels will be renamed\n  - OTA: {ota_count}\n  - Premium/cable: {premium_count}\n• {skipped_count} channels will be skipped"
-            return {"status": "success", "message": message}
+            return {
+                "status": "success", 
+                "message": f"✓ Preview exported to: {csv_filename}\n\n{renamed_count} channels will be renamed, {skipped_count} will be skipped."
+            }
             
         except Exception as e:
-            logger.error(f"Error generating preview: {str(e)}")
-            return {"status": "error", "message": f"Error generating preview: {str(e)}"}
+            logger.error(f"{PLUGIN_LOG_PREFIX} Error exporting preview: {e}")
+            return {"status": "error", "message": f"Error exporting preview: {e}"}
 
     def rename_channels_action(self, settings, logger):
         """Apply the standardized names to channels."""
@@ -901,62 +1023,30 @@ class Plugin:
                 data = json.load(f)
             
             all_changes = data.get('changes', [])
-            renamed_channels = [c for c in all_changes if c.get('status') == 'Renamed']
+            channels_to_rename = [c for c in all_changes if c.get('status') == 'Renamed']
             
-            if not renamed_channels:
-                return {"status": "success", "message": "No channels to rename."}
+            if not channels_to_rename:
+                return {"status": "success", "message": "No channels need to be renamed."}
             
-            payload = [{'id': ch['channel_id'], 'name': ch['new_name']} for ch in renamed_channels]
+            # Create payload for bulk update
+            payload = [{'id': ch['channel_id'], 'name': ch['new_name']} for ch in channels_to_rename]
             
-            logger.info(f"Renaming {len(payload)} channels...")
+            logger.info(f"{PLUGIN_LOG_PREFIX} Renaming {len(payload)} channels...")
             self._patch_api_data("/api/channels/channels/edit/bulk/", token, payload, settings, logger)
-            self._trigger_m3u_refresh(token, settings, logger)
+            self._trigger_frontend_refresh(settings, logger)
             
-            # Create CSV file of renamed channels
-            filename = f"channel_mapparr_renamed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-            filepath = os.path.join("/data/exports", filename)
-            os.makedirs("/data/exports", exist_ok=True)
-            
-            with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
-                fieldnames = ['channel_id', 'channel_number', 'channel_group', 'current_name', 'new_name', 'status', 'dbase', 'reason']
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writeheader()
-                
-                # Remap 'matcher' to 'dbase' for CSV output
-                for change in renamed_channels:
-                    csv_row = {
-                        'channel_id': change.get('channel_id'),
-                        'channel_number': change.get('channel_number'),
-                        'channel_group': change.get('channel_group'),
-                        'current_name': change.get('current_name'),
-                        'new_name': change.get('new_name'),
-                        'status': change.get('status'),
-                        'dbase': change.get('matcher'),
-                        'reason': change.get('reason')
-                    }
-                    writer.writerow(csv_row)
-            
-            ota_count = sum(1 for c in renamed_channels if c.get('matcher') == 'networks.json')
-            premium_count = sum(1 for c in renamed_channels if c.get('matcher') == 'channels.txt')
-            
-            message_parts = [
-                f"✓ Successfully renamed {len(payload)} channels.",
-                f"  - OTA: {ota_count}",
-                f"  - Premium/cable: {premium_count}",
-                f"\n✓ Rename report exported to: {filepath}"
-            ]
-            
-            if renamed_channels:
+            message_parts = [f"✓ Successfully renamed {len(payload)} channels."]
+            if channels_to_rename:
                 message_parts.append("\n**Sample Changes:**")
-                for change in renamed_channels[:5]:
+                for change in channels_to_rename[:5]:
                     message_parts.append(f"• '{change['current_name']}' → '{change['new_name']}'")
-                if len(renamed_channels) > 5:
-                    message_parts.append(f"...and {len(renamed_channels) - 5} more.")
+                if len(channels_to_rename) > 5:
+                    message_parts.append(f"...and {len(channels_to_rename) - 5} more.")
             
             return {"status": "success", "message": "\n".join(message_parts)}
 
         except Exception as e:
-            logger.error(f"Error renaming channels: {e}")
+            logger.error(f"{PLUGIN_LOG_PREFIX} Error renaming channels: {e}")
             return {"status": "error", "message": f"Error renaming channels: {e}"}
 
     def rename_unknown_channels_action(self, settings, logger):
@@ -968,10 +1058,10 @@ class Plugin:
                 return {"status": "error", "message": "No processed channels found. Please run 'Load/Process Channels' first."}
             
             # Get suffix with default fallback matching the field default
-            suffix = settings.get("unknown_suffix", " [Unk]")
+            suffix = settings.get("unknown_suffix", self.DEFAULT_UNKNOWN_SUFFIX)
             
             # Log what we received
-            logger.info(f"Suffix setting value: '{suffix}' (length: {len(suffix)})")
+            logger.info(f"{PLUGIN_LOG_PREFIX} Suffix setting value: '{suffix}' (length: {len(suffix)})")
             
             # Only reject if suffix is None or empty after strip
             if not suffix or not suffix.strip():
@@ -993,9 +1083,9 @@ class Plugin:
             # Create payload with suffix appended to current name
             payload = [{'id': ch['channel_id'], 'name': ch['current_name'] + suffix} for ch in skipped_channels]
             
-            logger.info(f"Adding suffix '{suffix}' to {len(payload)} unknown channels...")
+            logger.info(f"{PLUGIN_LOG_PREFIX} Adding suffix '{suffix}' to {len(payload)} unknown channels...")
             self._patch_api_data("/api/channels/channels/edit/bulk/", token, payload, settings, logger)
-            self._trigger_m3u_refresh(token, settings, logger)
+            self._trigger_frontend_refresh(settings, logger)
             
             message_parts = [f"✓ Successfully added suffix '{suffix}' to {len(payload)} unknown channels."]
             if skipped_channels:
@@ -1009,7 +1099,7 @@ class Plugin:
             return {"status": "success", "message": "\n".join(message_parts)}
 
         except Exception as e:
-            logger.error(f"Error renaming unknown channels: {e}")
+            logger.error(f"{PLUGIN_LOG_PREFIX} Error renaming unknown channels: {e}")
             return {"status": "error", "message": f"Error renaming unknown channels: {e}"}
 
     def apply_logos_action(self, settings, logger):
@@ -1027,10 +1117,10 @@ class Plugin:
                 return {"status": "error", "message": error}
             
             # Get all logos from API with pagination
-            logger.info("Fetching all logos from API (with pagination)...")
+            logger.info(f"{PLUGIN_LOG_PREFIX} Fetching all logos from API (with pagination)...")
             all_logos = self._get_api_data("/api/channels/logos/", token, settings, logger, paginated=True)
             
-            logger.info(f"Fetched {len(all_logos)} total logos from API")
+            logger.info(f"{PLUGIN_LOG_PREFIX} Fetched {len(all_logos)} total logos from API")
             
             # Find the logo entry matching the display name
             logo_id = None
@@ -1040,15 +1130,15 @@ class Plugin:
                 # Case-insensitive exact match
                 if logo_name.lower() == default_logo.lower():
                     logo_id = logo.get('id')
-                    logger.info(f"Found logo: '{logo_name}' (ID: {logo_id})")
+                    logger.info(f"{PLUGIN_LOG_PREFIX} Found logo: '{logo_name}' (ID: {logo_id})")
                     break
             
             if not logo_id:
-                logger.error(f"Could not find logo '{default_logo}' in logo manager")
-                logger.info(f"Searched through {len(all_logos)} logos")
-                logger.info("Available logo names (first 30):")
+                logger.error(f"{PLUGIN_LOG_PREFIX} Could not find logo '{default_logo}' in logo manager")
+                logger.info(f"{PLUGIN_LOG_PREFIX} Searched through {len(all_logos)} logos")
+                logger.info(f"{PLUGIN_LOG_PREFIX} Available logo names (first 30):")
                 for logo in all_logos[:30]:
-                    logger.info(f"  - '{logo.get('name', '')}'")
+                    logger.info(f"{PLUGIN_LOG_PREFIX}   - '{logo.get('name', '')}'")
                 
                 return {
                     "status": "error", 
@@ -1056,7 +1146,7 @@ class Plugin:
                 }
             
             # Fetch FRESH channel data from API (not from cache)
-            logger.info("Fetching current channel data from API...")
+            logger.info(f"{PLUGIN_LOG_PREFIX} Fetching current channel data from API...")
             
             # Get groups to filter
             selected_groups_str = settings.get("selected_groups", "").strip()
@@ -1083,7 +1173,7 @@ class Plugin:
                 if channel_logo_id is None or channel_logo_id == 0 or channel_logo_id == '0':
                     channels_without_logos.append(ch)
             
-            logger.info(f"Found {len(channels_without_logos)} channels without logos (or with Default logo)")
+            logger.info(f"{PLUGIN_LOG_PREFIX} Found {len(channels_without_logos)} channels without logos (or with Default logo)")
             
             if not channels_without_logos:
                 return {"status": "success", "message": "All channels already have logos assigned."}
@@ -1091,13 +1181,13 @@ class Plugin:
             # Create payload with logo_id field (not logo)
             payload = [{'id': ch['id'], 'logo_id': int(logo_id)} for ch in channels_without_logos]
             
-            logger.info(f"Applying logo ID {logo_id} to {len(payload)} channels...")
-            logger.info(f"Sample payload: {payload[0] if payload else 'N/A'}")
+            logger.info(f"{PLUGIN_LOG_PREFIX} Applying logo ID {logo_id} to {len(payload)} channels...")
+            logger.info(f"{PLUGIN_LOG_PREFIX} Sample payload: {payload[0] if payload else 'N/A'}")
             
             result = self._patch_api_data("/api/channels/channels/edit/bulk/", token, payload, settings, logger)
-            logger.info(f"Bulk update response: {result}")
+            logger.info(f"{PLUGIN_LOG_PREFIX} Bulk update response: {result}")
             
-            self._trigger_m3u_refresh(token, settings, logger)
+            self._trigger_frontend_refresh(settings, logger)
             
             message_parts = [f"✓ Successfully applied logo '{default_logo}' (ID: {logo_id}) to {len(payload)} channels."]
             
@@ -1111,8 +1201,418 @@ class Plugin:
             return {"status": "success", "message": "\n".join(message_parts)}
 
         except Exception as e:
-            logger.error(f"Error applying logos: {e}")
+            logger.error(f"{PLUGIN_LOG_PREFIX} Error applying logos: {e}")
             return {"status": "error", "message": f"Error applying logos: {e}"}
+
+    def category_groups_dry_run_action(self, settings, logger):
+        """Export a CSV showing which channels would be moved to which category-based groups."""
+        try:
+            import json
+
+            # Load channel data to get categories
+            channels_loaded = self._load_channel_data(settings, logger)
+            if not channels_loaded:
+                return {"status": "error", "message": "Channel databases could not be loaded."}
+            
+            # Get API token
+            token, error = self._get_api_token(settings, logger)
+            if error:
+                return {"status": "error", "message": error}
+            
+            # Get all groups and channels
+            all_groups = self._get_api_data("/api/channels/groups/", token, settings, logger)
+            group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
+            group_id_to_name = {g['id']: g['name'] for g in all_groups if 'name' in g and 'id' in g}
+            
+            # Filter by category groups if specified
+            category_groups_str = settings.get("category_groups", "").strip()
+            if category_groups_str:
+                input_names = {name.strip() for name in category_groups_str.split(',') if name.strip()}
+                valid_names = {n for n in input_names if n in group_name_to_id}
+                target_group_ids = {group_name_to_id[name] for name in valid_names}
+                
+                if not target_group_ids:
+                    return {"status": "error", "message": f"None of the specified category groups could be found."}
+            else:
+                target_group_ids = set(group_name_to_id.values())
+            
+            # Get all channels and filter by group
+            all_channels = self._get_api_data("/api/channels/channels/", token, settings, logger)
+            channels_to_process = [
+                ch for ch in all_channels 
+                if ch.get('channel_group_id') in target_group_ids
+            ]
+            
+            # Build category mapping from channel databases
+            # For broadcast channels: map by callsign
+            category_map_callsign = {}
+            for channel_data in self.matcher.broadcast_channels:
+                callsign = channel_data.get('callsign', '').strip()
+                category = channel_data.get('category', '').strip()
+                if callsign and category:
+                    # Also store without suffix
+                    base_callsign = self.matcher.normalize_callsign(callsign)
+                    category_map_callsign[callsign] = category
+                    if base_callsign != callsign:
+                        category_map_callsign[base_callsign] = category
+
+            # For premium channels: map by channel name
+            category_map_premium = {}
+            for channel_data in self.matcher.premium_channels_full:
+                channel_name = channel_data.get('channel_name', '').strip()
+                category = channel_data.get('category', '').strip()
+                if channel_name and category:
+                    category_map_premium[channel_name.lower()] = (channel_name, category)
+            
+            # Get ignored tags for normalization
+            ignored_tags_str = settings.get("ignored_tags", self.DEFAULT_IGNORED_TAGS)
+            ignored_tags_list = [tag.strip() for tag in ignored_tags_str.split(',') if tag.strip()]
+            
+            # Expand ignored tags
+            expanded_ignored_tags = []
+            for tag in ignored_tags_list:
+                expanded_ignored_tags.append(tag)
+                if tag.startswith('[') and tag.endswith(']'):
+                    inner = tag[1:-1]
+                    expanded_ignored_tags.append(f"({inner})")
+                elif tag.startswith('(') and tag.endswith(')'):
+                    inner = tag[1:-1]
+                    expanded_ignored_tags.append(f"[{inner}]")
+            ignored_tags_list = expanded_ignored_tags
+            
+            # Process channels and determine moves
+            moves = []
+            for channel in channels_to_process:
+                channel_name = channel.get('name', '')
+                channel_id = channel.get('id')
+                current_group_id = channel.get('channel_group_id')
+                current_group_name = group_id_to_name.get(current_group_id, 'No Group')
+                
+                category = None
+                match_type = None
+                match_value = None
+                
+                # Try broadcast channel matching first (by callsign)
+                callsign, station = self.matcher.match_broadcast_channel(channel_name)
+                if callsign and callsign in category_map_callsign:
+                    category = category_map_callsign[callsign]
+                    match_type = "Broadcast (Callsign)"
+                    match_value = callsign
+
+                # If not a broadcast channel, try premium channel matching (by name)
+                if not category:
+                    # Try exact match first
+                    normalized_name = self.matcher.normalize_name(channel_name, ignored_tags_list)
+
+                    if normalized_name.lower() in category_map_premium:
+                        matched_name, category = category_map_premium[normalized_name.lower()]
+                        match_type = "Premium (Exact)"
+                        match_value = matched_name
+                    else:
+                        # Try fuzzy matching
+                        matched_premium, score, fuzzy_match_type = self.matcher.fuzzy_match(
+                            channel_name,
+                            self.matcher.premium_channels,
+                            ignored_tags_list
+                        )
+
+                        if matched_premium and matched_premium.lower() in category_map_premium:
+                            matched_name, category = category_map_premium[matched_premium.lower()]
+                            match_type = f"Premium (Fuzzy - score: {score})"
+                            match_value = matched_name
+                
+                # If we found a category, add to moves
+                if category:
+                    new_group_name = category
+                    
+                    # Check if group exists
+                    group_exists = new_group_name in group_name_to_id
+                    
+                    # Only add to moves if the group is different
+                    if new_group_name != current_group_name:
+                        moves.append({
+                            'channel_id': channel_id,
+                            'channel_name': channel_name,
+                            'current_group': current_group_name,
+                            'new_group': new_group_name,
+                            'category': category,
+                            'match_type': match_type,
+                            'match_value': match_value,
+                            'group_exists': 'Yes' if group_exists else 'No (will be created)'
+                        })
+            
+            if not moves:
+                return {"status": "success", "message": "No channels need to be moved to category-based groups."}
+            
+            # Create export directory
+            export_dir = self.EXPORT_DIR
+            os.makedirs(export_dir, exist_ok=True)
+            
+            # Create CSV
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            csv_filename = f"channel_mapparr_category_groups_preview_{timestamp}.csv"
+            csv_path = os.path.join(export_dir, csv_filename)
+            
+            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+                # Write settings header as comments
+                csvfile.write(self._generate_csv_settings_header(settings))
+
+                fieldnames = ['Channel ID', 'Channel Name', 'Current Group', 'New Group', 'Category', 'Match Type', 'Match Value', 'Group Exists']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+                writer.writeheader()
+                for move in moves:
+                    writer.writerow({
+                        'Channel ID': move['channel_id'],
+                        'Channel Name': move['channel_name'],
+                        'Current Group': move['current_group'],
+                        'New Group': move['new_group'],
+                        'Category': move['category'],
+                        'Match Type': move['match_type'],
+                        'Match Value': move['match_value'],
+                        'Group Exists': move['group_exists']
+                    })
+            
+            logger.info(f"{PLUGIN_LOG_PREFIX} Category groups preview CSV exported to {csv_path}")
+            
+            # Count new groups that need to be created
+            new_groups_needed = sum(1 for m in moves if m['group_exists'] == 'No (will be created)')
+            
+            # Count by match type
+            broadcast_count = sum(1 for m in moves if 'Broadcast' in m['match_type'])
+            premium_count = sum(1 for m in moves if 'Premium' in m['match_type'])
+            
+            return {
+                "status": "success",
+                "message": f"✓ Preview exported to: {csv_filename}\n\n{len(moves)} channels will be moved ({broadcast_count} broadcast, {premium_count} premium).\n{new_groups_needed} new groups will be created."
+            }
+            
+        except Exception as e:
+            logger.error(f"{PLUGIN_LOG_PREFIX} Error generating category groups preview: {e}")
+            return {"status": "error", "message": f"Error generating category groups preview: {e}"}
+
+    def organize_by_category_action(self, settings, logger):
+        """Create groups based on category names and move matching channels to those groups."""
+        try:
+            import json
+
+            # Load channel data to get categories
+            channels_loaded = self._load_channel_data(settings, logger)
+            if not channels_loaded:
+                return {"status": "error", "message": "Channel databases could not be loaded."}
+            
+            # Get API token
+            token, error = self._get_api_token(settings, logger)
+            if error:
+                return {"status": "error", "message": error}
+            
+            # Get all groups and channels
+            all_groups = self._get_api_data("/api/channels/groups/", token, settings, logger)
+            group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
+            group_id_to_name = {g['id']: g['name'] for g in all_groups if 'name' in g and 'id' in g}
+            
+            # Filter by category groups if specified
+            category_groups_str = settings.get("category_groups", "").strip()
+            if category_groups_str:
+                input_names = {name.strip() for name in category_groups_str.split(',') if name.strip()}
+                valid_names = {n for n in input_names if n in group_name_to_id}
+                target_group_ids = {group_name_to_id[name] for name in valid_names}
+                
+                if not target_group_ids:
+                    return {"status": "error", "message": f"None of the specified category groups could be found."}
+            else:
+                target_group_ids = set(group_name_to_id.values())
+            
+            # Get all channels and filter by group
+            all_channels = self._get_api_data("/api/channels/channels/", token, settings, logger)
+            channels_to_process = [
+                ch for ch in all_channels 
+                if ch.get('channel_group_id') in target_group_ids
+            ]
+            
+            # Build category mapping from channel databases
+            # For broadcast channels: map by callsign
+            category_map_callsign = {}
+            for channel_data in self.matcher.broadcast_channels:
+                callsign = channel_data.get('callsign', '').strip()
+                category = channel_data.get('category', '').strip()
+                if callsign and category:
+                    # Also store without suffix
+                    base_callsign = self.matcher.normalize_callsign(callsign)
+                    category_map_callsign[callsign] = category
+                    if base_callsign != callsign:
+                        category_map_callsign[base_callsign] = category
+
+            # For premium channels: map by channel name
+            category_map_premium = {}
+            for channel_data in self.matcher.premium_channels_full:
+                channel_name = channel_data.get('channel_name', '').strip()
+                category = channel_data.get('category', '').strip()
+                if channel_name and category:
+                    category_map_premium[channel_name.lower()] = (channel_name, category)
+            
+            # Get ignored tags for normalization
+            ignored_tags_str = settings.get("ignored_tags", self.DEFAULT_IGNORED_TAGS)
+            ignored_tags_list = [tag.strip() for tag in ignored_tags_str.split(',') if tag.strip()]
+            
+            # Expand ignored tags
+            expanded_ignored_tags = []
+            for tag in ignored_tags_list:
+                expanded_ignored_tags.append(tag)
+                if tag.startswith('[') and tag.endswith(']'):
+                    inner = tag[1:-1]
+                    expanded_ignored_tags.append(f"({inner})")
+                elif tag.startswith('(') and tag.endswith(')'):
+                    inner = tag[1:-1]
+                    expanded_ignored_tags.append(f"[{inner}]")
+            ignored_tags_list = expanded_ignored_tags
+            
+            # Process channels and determine moves
+            moves = []
+            groups_needed = set()
+            
+            for channel in channels_to_process:
+                channel_name = channel.get('name', '')
+                channel_id = channel.get('id')
+                current_group_id = channel.get('channel_group_id')
+                current_group_name = group_id_to_name.get(current_group_id, 'No Group')
+                
+                category = None
+
+                # Try broadcast channel matching first (by callsign)
+                callsign, station = self.matcher.match_broadcast_channel(channel_name)
+                if callsign and callsign in category_map_callsign:
+                    category = category_map_callsign[callsign]
+
+                # If not a broadcast channel, try premium channel matching (by name)
+                if not category:
+                    # Try exact match first
+                    normalized_name = self.matcher.normalize_name(channel_name, ignored_tags_list)
+
+                    if normalized_name.lower() in category_map_premium:
+                        matched_name, category = category_map_premium[normalized_name.lower()]
+                    else:
+                        # Try fuzzy matching
+                        matched_premium, score, fuzzy_match_type = self.matcher.fuzzy_match(
+                            channel_name,
+                            self.matcher.premium_channels,
+                            ignored_tags_list
+                        )
+
+                        if matched_premium and matched_premium.lower() in category_map_premium:
+                            matched_name, category = category_map_premium[matched_premium.lower()]
+                
+                # If we found a category, add to moves
+                if category:
+                    new_group_name = category
+                    
+                    # Track groups that need to be created
+                    if new_group_name not in group_name_to_id:
+                        groups_needed.add(new_group_name)
+                    
+                    # Only add to moves if the group is different
+                    if new_group_name != current_group_name:
+                        moves.append({
+                            'channel_id': channel_id,
+                            'channel_name': channel_name,
+                            'new_group_name': new_group_name
+                        })
+            
+            if not moves:
+                return {"status": "success", "message": "No channels need to be moved to category-based groups."}
+            
+            # Create new groups if needed
+            created_groups = []
+            for group_name in groups_needed:
+                logger.info(f"{PLUGIN_LOG_PREFIX} Creating new group: {group_name}")
+                try:
+                    new_group = self._post_api_data(
+                        "/api/channels/groups/",
+                        token,
+                        {"name": group_name},
+                        settings,
+                        logger
+                    )
+                    group_id = new_group.get('id')
+                    group_name_to_id[group_name] = group_id
+                    created_groups.append(group_name)
+                    logger.info(f"{PLUGIN_LOG_PREFIX} Created group '{group_name}' with ID {group_id}")
+                except Exception as e:
+                    logger.error(f"{PLUGIN_LOG_PREFIX} Failed to create group '{group_name}': {e}")
+            
+            # Build payload for bulk update
+            payload = []
+            for move in moves:
+                new_group_id = group_name_to_id.get(move['new_group_name'])
+                if new_group_id:
+                    payload.append({
+                        'id': move['channel_id'],
+                        'channel_group_id': new_group_id
+                    })
+            
+            if not payload:
+                return {"status": "error", "message": "Failed to create necessary groups. Please check logs."}
+            
+            # Apply the moves
+            logger.info(f"{PLUGIN_LOG_PREFIX} Moving {len(payload)} channels to category-based groups...")
+            self._patch_api_data("/api/channels/channels/edit/bulk/", token, payload, settings, logger)
+            self._trigger_frontend_refresh(settings, logger)
+            
+            message_parts = [f"✓ Successfully organized {len(payload)} channels by category."]
+            
+            if created_groups:
+                message_parts.append(f"\n**New Groups Created:** {', '.join(created_groups)}")
+            
+            message_parts.append(f"\n**Sample Moves:**")
+            for move in moves[:5]:
+                message_parts.append(f"• '{move['channel_name']}' → {move['new_group_name']}")
+            if len(moves) > 5:
+                message_parts.append(f"...and {len(moves) - 5} more.")
+            
+            return {"status": "success", "message": "\n".join(message_parts)}
+            
+        except Exception as e:
+            logger.error(f"{PLUGIN_LOG_PREFIX} Error organizing channels by category: {e}")
+            return {"status": "error", "message": f"Error organizing channels by category: {e}"}
+
+    def clear_csv_exports_action(self, settings, logger):
+        """Delete all CSV export files created by this plugin"""
+        try:
+            export_dir = self.EXPORT_DIR
+            
+            if not os.path.exists(export_dir):
+                return {
+                    "status": "success",
+                    "message": "No export directory found. No files to delete."
+                }
+            
+            # Find all CSV files created by this plugin
+            deleted_count = 0
+            
+            for filename in os.listdir(export_dir):
+                if filename.startswith("channel_mapparr_") and filename.endswith(".csv"):
+                    filepath = os.path.join(export_dir, filename)
+                    try:
+                        os.remove(filepath)
+                        deleted_count += 1
+                        logger.info(f"{PLUGIN_LOG_PREFIX} Deleted CSV file: {filename}")
+                    except Exception as e:
+                        logger.warning(f"{PLUGIN_LOG_PREFIX} Failed to delete {filename}: {e}")
+            
+            if deleted_count == 0:
+                return {
+                    "status": "success",
+                    "message": "No CSV export files found to delete."
+                }
+            
+            return {
+                "status": "success",
+                "message": f"Successfully deleted {deleted_count} CSV export file(s)."
+            }
+            
+        except Exception as e:
+            logger.error(f"{PLUGIN_LOG_PREFIX} Error clearing CSV exports: {e}")
+            return {"status": "error", "message": f"Error clearing CSV exports: {e}"}
 
 # Export fields and actions for Dispatcharr plugin system
 fields = Plugin.fields

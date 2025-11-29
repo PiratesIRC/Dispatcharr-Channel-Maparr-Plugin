@@ -1,0 +1,12 @@
+{
+  "name": "Channel Mapparr",
+  "key": "channel_mapparr",
+  "module": "channel_mapparr.plugin",
+  "class": "Plugin",
+  "description": "A Dispatcharr plugin that standardizes US broadcast (OTA) and premium/cable channel names using FCC network data and curated channel lists.",
+  "author": "community",
+  "homepage": "https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin",
+  "actions": [
+    "run"
+  ]
+}

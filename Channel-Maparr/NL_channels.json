@@ -1,0 +1,647 @@
+{
+  "country_code": "NL",
+  "country_name": "Netherlands",
+  "version": "2025-12-14",
+  "channels": [
+    {
+      "channel_name": "NPO 1",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "NPO 2",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "NPO 3",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "NPO 1 Extra",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "NPO 2 Extra",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "NPO Nieuws",
+      "category": "News",
+      "type": "National"
+    },
+    {
+      "channel_name": "NPO Politiek",
+      "category": "News",
+      "type": "National"
+    },
+    {
+      "channel_name": "NPO Zapp",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "NPO Zappelin",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "RTL 4",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "RTL 5",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "RTL 7",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "RTL 8",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "RTL Z",
+      "category": "News",
+      "type": "National"
+    },
+    {
+      "channel_name": "RTL Lounge",
+      "category": "Lifestyle",
+      "type": "National"
+    },
+    {
+      "channel_name": "RTL Crime",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "RTL Telekids",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "SBS6",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "SBS 6",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "SBS9",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "SBS 9",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "Net5",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "Net 5",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "Veronica",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "Spike",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "FOX",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "Comedy Central",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "Comedy Central Extra",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "MTV",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "MTV Music",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "VH1",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "Nickelodeon",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "Nick Jr.",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "NickToons",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "Disney Channel",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "Disney Junior",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "Disney XD",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "Cartoon Network",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "Cartoonito",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "Boomerang",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "Ketnet",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "JimJam",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "Baby TV",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "ducktv",
+      "category": "Kids",
+      "type": "National"
+    },
+    {
+      "channel_name": "Ziggo Sport",
+      "category": "Sports",
+      "type": "National"
+    },
+    {
+      "channel_name": "Ziggo Sport Voetbal",
+      "category": "Sports",
+      "type": "National"
+    },
+    {
+      "channel_name": "Ziggo Sport Racing",
+      "category": "Sports",
+      "type": "National"
+    },
+    {
+      "channel_name": "Ziggo Sport Golf",
+      "category": "Sports",
+      "type": "National"
+    },
+    {
+      "channel_name": "Ziggo Sport Tennis",
+      "category": "Sports",
+      "type": "National"
+    },
+    {
+      "channel_name": "Ziggo Sport Select",
+      "category": "Sports",
+      "type": "National"
+    },
+    {
+      "channel_name": "ESPN 1",
+      "category": "Sports",
+      "type": "National"
+    },
+    {
+      "channel_name": "ESPN 2",
+      "category": "Sports",
+      "type": "National"
+    },
+    {
+      "channel_name": "ESPN 3",
+      "category": "Sports",
+      "type": "National"
+    },
+    {
+      "channel_name": "ESPN 4",
+      "category": "Sports",
+      "type": "National"
+    },
+    {
+      "channel_name": "Eurosport 1",
+      "category": "Sports",
+      "type": "National"
+    },
+    {
+      "channel_name": "Eurosport 2",
+      "category": "Sports",
+      "type": "National"
+    },
+    {
+      "channel_name": "Extreme Sports",
+      "category": "Sports",
+      "type": "National"
+    },
+    {
+      "channel_name": "Discovery Channel",
+      "category": "Documentary",
+      "type": "National"
+    },
+    {
+      "channel_name": "Discovery Science",
+      "category": "Documentary",
+      "type": "National"
+    },
+    {
+      "channel_name": "Discovery Investigation",
+      "category": "Documentary",
+      "type": "National"
+    },
+    {
+      "channel_name": "TLC",
+      "category": "Lifestyle",
+      "type": "National"
+    },
+    {
+      "channel_name": "Animal Planet",
+      "category": "Documentary",
+      "type": "National"
+    },
+    {
+      "channel_name": "National Geographic",
+      "category": "Documentary",
+      "type": "National"
+    },
+    {
+      "channel_name": "National Geographic Wild",
+      "category": "Documentary",
+      "type": "National"
+    },
+    {
+      "channel_name": "History",
+      "category": "Documentary",
+      "type": "National"
+    },
+    {
+      "channel_name": "Crime + Investigation",
+      "category": "Documentary",
+      "type": "National"
+    },
+    {
+      "channel_name": "24Kitchen",
+      "category": "Lifestyle",
+      "type": "National"
+    },
+    {
+      "channel_name": "Travel Channel",
+      "category": "Lifestyle",
+      "type": "National"
+    },
+    {
+      "channel_name": "Curiosity Channel",
+      "category": "Documentary",
+      "type": "National"
+    },
+    {
+      "channel_name": "BBC One",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "BBC Two",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "BBC Entertainment",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "BBC First",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "BBC World News",
+      "category": "News",
+      "type": "International"
+    },
+    {
+      "channel_name": "CNN",
+      "category": "News",
+      "type": "International"
+    },
+    {
+      "channel_name": "Euronews",
+      "category": "News",
+      "type": "International"
+    },
+    {
+      "channel_name": "Al Jazeera",
+      "category": "News",
+      "type": "International"
+    },
+    {
+      "channel_name": "CNBC",
+      "category": "News",
+      "type": "International"
+    },
+    {
+      "channel_name": "Bloomberg",
+      "category": "News",
+      "type": "International"
+    },
+    {
+      "channel_name": "Film1 Premiere",
+      "category": "Movies",
+      "type": "National"
+    },
+    {
+      "channel_name": "Film1 Action",
+      "category": "Movies",
+      "type": "National"
+    },
+    {
+      "channel_name": "Film1 Family",
+      "category": "Movies",
+      "type": "National"
+    },
+    {
+      "channel_name": "Film1 Drama",
+      "category": "Movies",
+      "type": "National"
+    },
+    {
+      "channel_name": "Pathé Thuis",
+      "category": "Movies",
+      "type": "National"
+    },
+    {
+      "channel_name": "TCM",
+      "category": "Movies",
+      "type": "National"
+    },
+    {
+      "channel_name": "Filmbox",
+      "category": "Movies",
+      "type": "National"
+    },
+    {
+      "channel_name": "AMC",
+      "category": "Movies",
+      "type": "National"
+    },
+    {
+      "channel_name": "Stingray Classica",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "Mezzo",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "192TV",
+      "category": "Entertainment",
+      "type": "National"
+    },
+    {
+      "channel_name": "MyZen TV",
+      "category": "Lifestyle",
+      "type": "National"
+    },
+    {
+      "channel_name": "één",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "Canvas",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "VTM",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "VTM 2",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "VTM 3",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "VTM 4",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "VIER",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "VIJF",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "ZES",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "ARD",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "ZDF",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "WDR",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "NDR",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "RTL Duitsland",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "ProSieben",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "SAT.1",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "VOX",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "TV5Monde",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "France 2",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "France 3",
+      "category": "Entertainment",
+      "type": "International"
+    },
+    {
+      "channel_name": "Omroep Gelderland",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "Omroep Brabant",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "Omroep Flevoland",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "Omroep Zeeland",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "Omroep West",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "RTV Oost",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "Oost",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "RTV Noord",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "RTV Drenthe",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "RTV Utrecht",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "RTV Rijnmond",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "NH Media",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "L1",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "Omrop Fryslân",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "AT5",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "Salto",
+      "category": "Entertainment",
+      "type": "Regional"
+    },
+    {
+      "channel_name": "TV Gelderland",
+      "category": "Entertainment",
+      "type": "Regional"
+    }
+  ]
+}

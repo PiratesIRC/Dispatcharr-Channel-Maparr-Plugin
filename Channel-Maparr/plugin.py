@@ -37,7 +37,7 @@ class Plugin:
     """Channel Mapparr Plugin"""
 
     name = "Channel Mapparr"
-    version = "0.5.0"
+    version = "0.5.1"
     description = "Standardizes US broadcast (OTA) and premium/cable channel names using network data and channel lists."
 
     # ========================================

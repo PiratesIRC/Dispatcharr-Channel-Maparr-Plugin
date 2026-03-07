@@ -158,6 +158,14 @@ class Plugin:
             "help_text": f"Minimum similarity score (0-100) for fuzzy matching. Higher values require closer matches. Default: {self.DEFAULT_FUZZY_MATCH_THRESHOLD}",
         },
         {
+            "id": "debug_top_n",
+            "label": "🔍 Debug Export - Top N Candidates",
+            "type": "number",
+            "default": 5,
+            "placeholder": "5",
+            "help_text": "For the Debug Match Export action, include the top N fuzzy candidates (stage 3 token-sort) per channel.",
+        },
+        {
             "id": "selected_groups",
             "label": "📂 Channel Groups to Process (comma-separated)",
             "type": "string",
@@ -218,6 +226,11 @@ class Plugin:
             "id": "preview_changes",
             "label": "Preview Changes (Dry Run)",
             "description": "Export a CSV showing which channels would be renamed and their new names",
+        },
+        {
+            "id": "debug_export",
+            "label": "Debug Match Export",
+            "description": "Run matching in debug mode and export a CSV with extra details",
         },
         {
             "id": "rename_channels",
@@ -406,6 +419,34 @@ class Plugin:
 
         header_lines.append("#")
         return '\n'.join(header_lines) + '\n'
+
+    def _prepare_csv_export_response(self, csv_path, csv_filename, summary_message):
+        """Prepare CSV export response with file information."""
+        try:
+            # Verify file exists
+            if not os.path.exists(csv_path):
+                return {
+                    "status": "error",
+                    "message": f"CSV file could not be created: {csv_filename}"
+                }
+            
+            # Get file size for info
+            file_size_bytes = os.path.getsize(csv_path)
+            file_size_kb = round(file_size_bytes / 1024, 2)
+            
+            # Return success response with file info
+            return {
+                "status": "success",
+                "message": (
+                    f"{summary_message}\n\n"
+                    f"CSV file saved: {csv_filename} ({file_size_kb} KB)"
+                )
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Error creating CSV export: {str(e)}"
+            }
 
     def _get_api_token(self, settings, logger):
         """Get an API access token using username and password with caching."""
@@ -675,6 +716,36 @@ class Plugin:
 
         return result
 
+    def _expand_ignored_tags(self, ignored_tags_list):
+        """
+        Expand ignored tags to include bracket and parentheses versions plus bare tags.
+        
+        For a tag like "[HD]", returns: ["[HD]", "(HD)", "HD"]
+        For a tag like "(4K)", returns: ["(4K)", "[4K]", "4K"]
+        For a bare tag like "Unknown", returns: ["Unknown"]
+        
+        Args:
+            ignored_tags_list: List of tags from settings (parsed from comma-separated string)
+        
+        Returns:
+            List of expanded tags for comprehensive matching
+        """
+        expanded_ignored_tags = []
+        for tag in ignored_tags_list:
+            expanded_ignored_tags.append(tag)
+            
+            if tag.startswith('[') and tag.endswith(']'):
+                inner = tag[1:-1].strip()
+                expanded_ignored_tags.append(f"({inner})")
+                expanded_ignored_tags.append(inner)
+            
+            elif tag.startswith('(') and tag.endswith(')'):
+                inner = tag[1:-1].strip()
+                expanded_ignored_tags.append(f"[{inner}]")
+                expanded_ignored_tags.append(inner)
+        
+        return expanded_ignored_tags
+
     def run(self, action, params, context):
         """Main plugin entry point"""
         LOGGER.info(f"{self.name} run called with action: {action}")
@@ -692,6 +763,7 @@ class Plugin:
                 "category_groups_dry_run": self.category_groups_dry_run_action,
                 "organize_by_category": self.organize_by_category_action,
                 "clear_csv_exports": self.clear_csv_exports_action,
+                "debug_export": self.debug_export_action,
             }
             
             if action not in action_map:
@@ -777,20 +849,8 @@ class Plugin:
             ignored_tags_str = settings.get("ignored_tags", self.DEFAULT_IGNORED_TAGS)
             ignored_tags_list = [tag.strip() for tag in ignored_tags_str.split(',') if tag.strip()]
             
-            # Also create versions with parentheses for tags that use brackets
-            expanded_ignored_tags = []
-            for tag in ignored_tags_list:
-                expanded_ignored_tags.append(tag)
-                # If tag is in brackets, also add parentheses version
-                if tag.startswith('[') and tag.endswith(']'):
-                    inner = tag[1:-1]
-                    expanded_ignored_tags.append(f"({inner})")
-                # If tag is in parentheses, also add brackets version
-                elif tag.startswith('(') and tag.endswith(')'):
-                    inner = tag[1:-1]
-                    expanded_ignored_tags.append(f"[{inner}]")
-            
-            ignored_tags_list = expanded_ignored_tags
+            # Expand ignored tags to include bracket/parentheses/bare versions
+            ignored_tags_list = self._expand_ignored_tags(ignored_tags_list)
             
             # Track matching statistics
             debug_stats = {
@@ -855,6 +915,10 @@ class Plugin:
                         self.matcher.premium_channels,
                         ignored_tags_list
                     )
+                    
+                    # Map alias back to canonical name
+                    if matched_premium:
+                        matched_premium = self.matcher.premium_alias_map.get(matched_premium, matched_premium)
 
                     if matched_premium:
                         new_name = self.matcher.build_final_channel_name(matched_premium, regional, extra_tags, quality_tags)
@@ -946,6 +1010,170 @@ class Plugin:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error loading and processing channels: {e}")
             return {"status": "error", "message": f"Error loading and processing channels: {e}"}
 
+    
+    def debug_export_action(self, settings, logger):
+        """
+        Run matching in debug mode and export a CSV with:
+        - raw name
+        - extracted tags (regional/extra/quality)
+        - normalized query used for matching
+        - callsign detection result
+        - premium match candidate, score and match stage
+        - top N fuzzy candidates with scores (token-sort stage)
+        """
+        try:
+            import json
+
+            # Load channel data from selected country databases
+            channels_loaded = self._load_channel_data(settings, logger)
+            if not channels_loaded:
+                return {"status": "error", "message": "Channel databases could not be loaded. Please check your channel_databases setting and ensure the files exist."}
+
+            # Get API token
+            token, error = self._get_api_token(settings, logger)
+            if error:
+                return {"status": "error", "message": error}
+
+            # Build group maps
+            all_groups = self._get_api_data("/api/channels/groups/", token, settings, logger)
+            group_id_to_name = {g['id']: g['name'] for g in all_groups if 'name' in g and 'id' in g}
+
+            # Filter by selected groups
+            selected_groups_str = settings.get("selected_groups", "").strip()
+            if selected_groups_str:
+                group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
+                input_names = {name.strip() for name in selected_groups_str.split(',') if name.strip()}
+                valid_names = {n for n in input_names if n in group_name_to_id}
+                target_group_ids = {group_name_to_id[name] for name in valid_names}
+            else:
+                target_group_ids = set(group_id_to_name.keys())
+
+            all_channels = self._get_api_data("/api/channels/channels/", token, settings, logger)
+            channels_to_process = [ch for ch in all_channels if ch.get('channel_group_id') in target_group_ids]
+
+            for ch in channels_to_process:
+                gid = ch.get('channel_group_id')
+                ch['_group_name'] = group_id_to_name.get(gid, 'No Group')
+
+            ota_format = settings.get("ota_format", self.DEFAULT_OTA_FORMAT)
+
+            # Parse ignored tags
+            ignored_tags_str = settings.get("ignored_tags", self.DEFAULT_IGNORED_TAGS)
+            ignored_tags_list = [tag.strip() for tag in ignored_tags_str.split(',') if tag.strip()]
+            
+            # Expand ignored tags to include bracket/parentheses/bare versions
+            ignored_tags_list = self._expand_ignored_tags(ignored_tags_list)
+
+            top_n = int(settings.get("debug_top_n", 5) or 5)
+
+            # Export dir
+            export_dir = self.EXPORT_DIR
+            os.makedirs(export_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            csv_filename = f"channel_mapparr_debug_{timestamp}.csv"
+            csv_path = os.path.join(export_dir, csv_filename)
+
+            # CSV columns
+            fieldnames = [
+                "Channel ID", "Channel Number", "Group", "Current Name",
+                "OTA Callsign", "OTA Station Found", "OTA New Name",
+                "Regional", "Extra Tags", "Quality Tags",
+                "Normalized Query", "Normalized Query NoSpace",
+                "Matched Candidate", "Match Type", "Score",
+                "Stage1 Candidate", "Stage1 Score",
+                "Stage2 Candidate", "Stage2 Score",
+                "Stage3 Top Candidates (score|name|normalized)"
+            ]
+
+            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+                csvfile.write(self._generate_csv_settings_header(settings))
+
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+
+                for ch in channels_to_process:
+                    current_name = (ch.get("name") or "").strip()
+                    channel_id = ch.get("id", "")
+                    channel_number = ch.get("channel_number", "")
+                    group_name = ch.get("_group_name", "No Group")
+
+                    ota_callsign = ""
+                    ota_station_found = False
+                    ota_new_name = ""
+
+                    # OTA attempt (callsign-based - mostly US style)
+                    callsign, station = self.matcher.match_broadcast_channel(current_name) if self.matcher.broadcast_channels else (None, None)
+                    if callsign:
+                        ota_callsign = callsign
+                        if station:
+                            ota_station_found = True
+                            ota_new_name = self._format_ota_name(station, ota_format, callsign) or ""
+
+                    # Premium attempt (only if no callsign was found at all)
+                    regional, extra_tags, quality_tags = self.matcher.extract_tags(current_name, ignored_tags_list)
+
+                    matched = None
+                    score = 0
+                    match_type = None
+                    dbg = {}
+
+                    if self.matcher.premium_channels and not callsign:
+                        # Use debug matcher (added in fuzzy_matcher.py)
+                        if hasattr(self.matcher, "fuzzy_match_debug"):
+                            matched, score, match_type, dbg = self.matcher.fuzzy_match_debug(
+                                current_name,
+                                self.matcher.premium_channels,
+                                ignored_tags_list,
+                                top_n=top_n
+                            )
+                        else:
+                            matched, score, match_type = self.matcher.fuzzy_match(
+                                current_name,
+                                self.matcher.premium_channels,
+                                ignored_tags_list
+                            )
+                            dbg = {"normalized_query": self.matcher.normalize_name(current_name, ignored_tags_list)}
+
+                    stage1 = (dbg.get("stage1_best") or {})
+                    stage2 = (dbg.get("stage2_best") or {})
+                    stage3 = dbg.get("stage3_top") or []
+
+                    stage3_str = "; ".join([
+                        f"{item.get('score')}|{item.get('candidate')}|{item.get('candidate_normalized')}"
+                        for item in stage3
+                    ])
+
+                    writer.writerow({
+                        "Channel ID": channel_id,
+                        "Channel Number": channel_number,
+                        "Group": group_name,
+                        "Current Name": current_name,
+                        "OTA Callsign": ota_callsign,
+                        "OTA Station Found": "Y" if ota_station_found else "",
+                        "OTA New Name": ota_new_name,
+                        "Regional": regional or "",
+                        "Extra Tags": " ".join(extra_tags) if extra_tags else "",
+                        "Quality Tags": " ".join(quality_tags) if quality_tags else "",
+                        "Normalized Query": dbg.get("normalized_query") or "",
+                        "Normalized Query NoSpace": dbg.get("normalized_query_nospace") or "",
+                        "Matched Candidate": matched or "",
+                        "Match Type": match_type or "",
+                        "Score": score or 0,
+                        "Stage1 Candidate": stage1.get("candidate") or "",
+                        "Stage1 Score": stage1.get("score") or "",
+                        "Stage2 Candidate": stage2.get("candidate") or "",
+                        "Stage2 Score": stage2.get("score") or "",
+                        "Stage3 Top Candidates (score|name|normalized)": stage3_str
+                    })
+
+            logger.info(f"{PLUGIN_LOG_PREFIX} Debug CSV exported to {csv_path}")
+            summary = f"✓ Debug export created: {csv_filename}\n\nIncludes normalization + top {top_n} fuzzy candidates per channel."
+            return self._prepare_csv_export_response(csv_path, csv_filename, summary)
+
+        except Exception as e:
+            logger.error(f"{PLUGIN_LOG_PREFIX} Error creating debug export: {e}")
+            return {"status": "error", "message": f"Debug export failed: {e}"}
+
     def preview_changes_action(self, settings, logger):
         """Export a CSV showing the preview of channel renaming changes."""
         try:
@@ -998,10 +1226,8 @@ class Plugin:
             renamed_count = sum(1 for c in all_changes if c.get('status') == 'Renamed')
             skipped_count = sum(1 for c in all_changes if c.get('status') == 'Skipped')
             
-            return {
-                "status": "success", 
-                "message": f"✓ Preview exported to: {csv_filename}\n\n{renamed_count} channels will be renamed, {skipped_count} will be skipped."
-            }
+            summary = f"✓ Preview exported to: {csv_filename}\n\n{renamed_count} channels will be renamed, {skipped_count} will be skipped."
+            return self._prepare_csv_export_response(csv_path, csv_filename, summary)
             
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error exporting preview: {e}")
@@ -1268,17 +1494,8 @@ class Plugin:
             ignored_tags_str = settings.get("ignored_tags", self.DEFAULT_IGNORED_TAGS)
             ignored_tags_list = [tag.strip() for tag in ignored_tags_str.split(',') if tag.strip()]
             
-            # Expand ignored tags
-            expanded_ignored_tags = []
-            for tag in ignored_tags_list:
-                expanded_ignored_tags.append(tag)
-                if tag.startswith('[') and tag.endswith(']'):
-                    inner = tag[1:-1]
-                    expanded_ignored_tags.append(f"({inner})")
-                elif tag.startswith('(') and tag.endswith(')'):
-                    inner = tag[1:-1]
-                    expanded_ignored_tags.append(f"[{inner}]")
-            ignored_tags_list = expanded_ignored_tags
+            # Expand ignored tags to include bracket/parentheses/bare versions
+            ignored_tags_list = self._expand_ignored_tags(ignored_tags_list)
             
             # Process channels and determine moves
             moves = []
@@ -1315,6 +1532,10 @@ class Plugin:
                             self.matcher.premium_channels,
                             ignored_tags_list
                         )
+                        
+                        # Map alias back to canonical name
+                        if matched_premium:
+                            matched_premium = self.matcher.premium_alias_map.get(matched_premium, matched_premium)
 
                         if matched_premium and matched_premium.lower() in category_map_premium:
                             matched_name, category = category_map_premium[matched_premium.lower()]
@@ -1382,10 +1603,8 @@ class Plugin:
             broadcast_count = sum(1 for m in moves if 'Broadcast' in m['match_type'])
             premium_count = sum(1 for m in moves if 'Premium' in m['match_type'])
             
-            return {
-                "status": "success",
-                "message": f"✓ Preview exported to: {csv_filename}\n\n{len(moves)} channels will be moved ({broadcast_count} broadcast, {premium_count} premium).\n{new_groups_needed} new groups will be created."
-            }
+            summary = f"✓ Preview exported to: {csv_filename}\n\n{len(moves)} channels will be moved ({broadcast_count} broadcast, {premium_count} premium).\n{new_groups_needed} new groups will be created."
+            return self._prepare_csv_export_response(csv_path, csv_filename, summary)
             
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error generating category groups preview: {e}")
@@ -1455,17 +1674,8 @@ class Plugin:
             ignored_tags_str = settings.get("ignored_tags", self.DEFAULT_IGNORED_TAGS)
             ignored_tags_list = [tag.strip() for tag in ignored_tags_str.split(',') if tag.strip()]
             
-            # Expand ignored tags
-            expanded_ignored_tags = []
-            for tag in ignored_tags_list:
-                expanded_ignored_tags.append(tag)
-                if tag.startswith('[') and tag.endswith(']'):
-                    inner = tag[1:-1]
-                    expanded_ignored_tags.append(f"({inner})")
-                elif tag.startswith('(') and tag.endswith(')'):
-                    inner = tag[1:-1]
-                    expanded_ignored_tags.append(f"[{inner}]")
-            ignored_tags_list = expanded_ignored_tags
+            # Expand ignored tags to include bracket/parentheses/bare versions
+            ignored_tags_list = self._expand_ignored_tags(ignored_tags_list)
             
             # Process channels and determine moves
             moves = []
@@ -1498,6 +1708,10 @@ class Plugin:
                             self.matcher.premium_channels,
                             ignored_tags_list
                         )
+                        
+                        # Map alias back to canonical name
+                        if matched_premium:
+                            matched_premium = self.matcher.premium_alias_map.get(matched_premium, matched_premium)
 
                         if matched_premium and matched_premium.lower() in category_map_premium:
                             matched_name, category = category_map_premium[matched_premium.lower()]

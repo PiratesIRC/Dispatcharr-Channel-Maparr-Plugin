@@ -8575,166 +8575,331 @@
     },
     {
       "channel_name": "U&alibi",
+      "aliases": [
+        "Alibi",
+        "UK Alibi",
+        "UKTV Alibi"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&alibi +1",
+      "aliases": [
+        "Alibi +1",
+        "UK Alibi +1",
+        "UKTV Alibi +1"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&alibi HD",
+      "aliases": [
+        "Alibi HD",
+        "UK Alibi HD",
+        "UKTV Alibi HD"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Dave",
+      "aliases": [
+        "Dave",
+        "UK Dave",
+        "UKTV Dave"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Dave HD",
+      "aliases": [
+        "Dave HD",
+        "UK Dave HD",
+        "UKTV Dave HD"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&DaveJaVu",
+      "aliases": [
+        "DaveJaVu",
+        "UK DaveJaVu",
+        "UKTV DaveJaVu"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Drama",
+      "aliases": [
+        "Drama",
+        "UK Drama",
+        "UKTV Drama"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Drama HD",
+      "aliases": [
+        "Drama HD",
+        "UK Drama HD",
+        "UKTV Drama HD"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Drama+1",
+      "aliases": [
+        "Drama +1",
+        "UK Drama +1",
+        "UKTV Drama +1"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Eden",
+      "aliases": [
+        "Eden",
+        "UK Eden",
+        "UKTV Eden"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Eden HD",
       "category": "United Kingdom",
-      "type": "Regional"
+      "type": "Regional",
+      "aliases": [
+        "Eden HD",
+        "UK Eden HD",
+        "UKTV Eden HD"
+      ]
     },
     {
       "channel_name": "U&Eden HD",
       "category": "United Kingdom",
-      "type": "Regional"
+      "type": "Regional",
+      "aliases": [
+        "Eden HD",
+        "UK Eden HD",
+        "UKTV Eden HD"
+      ]
     },
     {
       "channel_name": "U&Eden+1",
+      "aliases": [
+        "Eden +1",
+        "UK Eden +1",
+        "UKTV Eden +1"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&GOLD",
+      "aliases": [
+        "Gold",
+        "UK Gold",
+        "UKTV Gold"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&GOLD +1",
+      "aliases": [
+        "Gold +1",
+        "UK Gold +1",
+        "UKTV Gold +1"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&GOLD HD",
+      "aliases": [
+        "Gold HD",
+        "UK Gold HD",
+        "UKTV Gold HD"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Laughs",
+      "aliases": [
+        "Laughs",
+        "UK Laughs",
+        "UKTV Laughs"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Laughs (TiVo)",
+      "aliases": [
+        "Laughs (TiVo)",
+        "UK Laughs (TiVo)",
+        "UKTV Laughs (TiVo)"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Real Heroes",
+      "aliases": [
+        "Real Heroes",
+        "UK Real Heroes",
+        "UKTV Real Heroes"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Real Heroes (TiVo)",
+      "aliases": [
+        "Real Heroes (TiVo)",
+        "UK Real Heroes (TiVo)",
+        "UKTV Real Heroes (TiVo)"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&The Past",
+      "aliases": [
+        "The Past",
+        "UK The Past",
+        "UKTV The Past"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&The Past (TiVo)",
+      "aliases": [
+        "The Past (TiVo)",
+        "UK The Past (TiVo)",
+        "UKTV The Past (TiVo)"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Transport",
+      "aliases": [
+        "Transport",
+        "UK Transport",
+        "UKTV Transport"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Transport (TiVo)",
+      "aliases": [
+        "Transport (TiVo)",
+        "UK Transport (TiVo)",
+        "UKTV Transport (TiVo)"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&W",
+      "aliases": [
+        "W",
+        "UK W",
+        "UKTV W"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&W HD",
+      "aliases": [
+        "W HD",
+        "UK W HD",
+        "UKTV W HD"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&W+1",
+      "aliases": [
+        "W +1",
+        "UK W +1",
+        "UKTV W +1"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Yesterday",
+      "aliases": [
+        "Yesterday",
+        "UK Yesterday",
+        "UKTV Yesterday"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Yesterday HD",
+      "aliases": [
+        "Yesterday HD",
+        "UK Yesterday HD",
+        "UKTV Yesterday HD"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Yesterday HD",
+      "aliases": [
+        "Yesterday HD",
+        "UK Yesterday HD",
+        "UKTV Yesterday HD"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Yesterday+1",
+      "aliases": [
+        "Yesterday +1",
+        "UK Yesterday +1",
+        "UKTV Yesterday +1"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Yesterday+1",
+      "aliases": [
+        "Yesterday +1",
+        "UK Yesterday +1",
+        "UKTV Yesterday +1"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "U&Yesterday+1 (Freeview)",
+      "aliases": [
+        "Yesterday +1 (Freeview)",
+        "UK Yesterday +1 (Freeview)",
+        "UKTV Yesterday +1 (Freeview)"
+      ],
       "category": "United Kingdom",
       "type": "Regional"
     },

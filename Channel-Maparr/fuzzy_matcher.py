@@ -99,6 +99,7 @@ class FuzzyMatcher:
         self.broadcast_channels = []  # Channels with callsigns
         self.premium_channels = []  # Channel names only (for fuzzy matching)
         self.premium_channels_full = []  # Full channel objects with category
+        self.premium_alias_map = {}  # Alias -> canonical channel_name mapping
         self.channel_lookup = {}  # Callsign -> channel data mapping
         self.country_codes = None  # Track which country databases are currently loaded
 
@@ -152,7 +153,18 @@ class FuzzyMatcher:
                         channel_name = channel.get('channel_name', '').strip()
                         if channel_name:
                             self.premium_channels.append(channel_name)
+                            self.premium_alias_map[channel_name] = channel_name
                             self.premium_channels_full.append(channel)
+                            
+                            # Load aliases for fuzzy matching
+                            aliases = channel.get('aliases', [])
+                            if isinstance(aliases, list):
+                                for alias in aliases:
+                                    alias = str(alias).strip()
+                                    if alias:
+                                        self.premium_channels.append(alias)
+                                        self.premium_alias_map[alias] = channel_name
+                            
                             file_premium += 1
                 
                 total_broadcast += file_broadcast
@@ -182,6 +194,7 @@ class FuzzyMatcher:
         self.premium_channels = []
         self.premium_channels_full = []
         self.channel_lookup = {}
+        self.premium_alias_map = {}
 
         # Update country_codes tracking
         self.country_codes = country_codes
@@ -242,7 +255,18 @@ class FuzzyMatcher:
                         channel_name = channel.get('channel_name', '').strip()
                         if channel_name:
                             self.premium_channels.append(channel_name)
+                            self.premium_alias_map[channel_name] = channel_name
                             self.premium_channels_full.append(channel)
+
+                            # Load aliases for fuzzy matching
+                            aliases = channel.get('aliases', [])
+                            if isinstance(aliases, list):
+                                for alias in aliases:
+                                    alias = str(alias).strip()
+                                    if alias:
+                                        self.premium_channels.append(alias)
+                                        self.premium_alias_map[alias] = channel_name
+
                             file_premium += 1
 
                 total_broadcast += file_broadcast
@@ -673,6 +697,133 @@ class FuzzyMatcher:
         
         return None, 0, None
     
+    
+    def fuzzy_match_debug(self, query_name, candidate_names, user_ignored_tags=None, remove_cinemax=False, top_n=5):
+        """
+        Fuzzy match with detailed debug output.
+        Returns: (matched_name, score, match_type, debug_dict)
+        """
+        debug = {
+            "query_name": query_name,
+            "normalized_query": None,
+            "normalized_query_nospace": None,
+            "stage1_best": None,
+            "stage2_best": None,
+            "stage3_top": [],
+            "threshold": self.match_threshold,
+        }
+
+        if not candidate_names:
+            return None, 0, None, debug
+
+        if user_ignored_tags is None:
+            user_ignored_tags = []
+
+        normalized_query = self.normalize_name(query_name, user_ignored_tags)
+        debug["normalized_query"] = normalized_query
+
+        if not normalized_query:
+            return None, 0, None, debug
+
+        normalized_query_lower = normalized_query.lower()
+        debug["normalized_query_nospace"] = re.sub(r'[\s&\-]+', '', normalized_query_lower)
+
+        # Stage 1: Exact / near-exact
+        best_match = None
+        best_ratio = 0.0
+        for candidate in candidate_names:
+            cand_norm = self.normalize_name(candidate, user_ignored_tags, remove_cinemax=remove_cinemax)
+            if not cand_norm or len(cand_norm) < 2:
+                continue
+
+            cand_lower = cand_norm.lower()
+            cand_nospace = re.sub(r'[\s&\-]+', '', cand_lower)
+
+            if debug["normalized_query_nospace"] == cand_nospace:
+                debug["stage1_best"] = {
+                    "candidate": candidate,
+                    "candidate_normalized": cand_norm,
+                    "score": 100,
+                    "type": "exact_nospace"
+                }
+                return candidate, 100, "exact", debug
+
+            ratio = self.calculate_similarity(normalized_query_lower, cand_lower)
+            if ratio >= 0.97 and ratio > best_ratio:
+                best_match = candidate
+                best_ratio = ratio
+                debug["stage1_best"] = {
+                    "candidate": candidate,
+                    "candidate_normalized": cand_norm,
+                    "score": int(ratio * 100),
+                    "type": "near_exact"
+                }
+
+        if best_match:
+            return best_match, int(best_ratio * 100), "exact", debug
+
+        # Stage 2: Substring
+        best_match = None
+        best_ratio = 0.0
+        for candidate in candidate_names:
+            cand_norm = self.normalize_name(candidate, user_ignored_tags, remove_cinemax=remove_cinemax)
+            if not cand_norm or len(cand_norm) < 2:
+                continue
+
+            cand_lower = cand_norm.lower()
+            if normalized_query_lower in cand_lower or cand_lower in normalized_query_lower:
+                ratio = self.calculate_similarity(normalized_query_lower, cand_lower)
+                if ratio > best_ratio:
+                    best_match = candidate
+                    best_ratio = ratio
+                    debug["stage2_best"] = {
+                        "candidate": candidate,
+                        "candidate_normalized": cand_norm,
+                        "score": int(ratio * 100),
+                        "type": "substring"
+                    }
+
+        if best_match and int(best_ratio * 100) >= self.match_threshold:
+            return best_match, int(best_ratio * 100), "substring", debug
+
+        # Stage 3: token-sort fuzzy (capture top N)
+        processed_query = self.process_string_for_matching(normalized_query)
+        scored = []
+        best_score = -1.0
+        best_match = None
+
+        for candidate in candidate_names:
+            cand_norm = self.normalize_name(candidate, user_ignored_tags, remove_cinemax=remove_cinemax)
+            if not cand_norm or len(cand_norm) < 2:
+                continue
+
+            processed_candidate = self.process_string_for_matching(cand_norm)
+            score = self.calculate_similarity(processed_query, processed_candidate)
+
+            scored.append((score, candidate, cand_norm, processed_candidate))
+
+            if score > best_score:
+                best_score = score
+                best_match = candidate
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        debug["stage3_top"] = [
+            {
+                "candidate": c,
+                "candidate_normalized": cn,
+                "processed_query": processed_query,
+                "processed_candidate": pc,
+                "score": int(s * 100)
+            }
+            for (s, c, cn, pc) in scored[:max(1, int(top_n))]
+        ]
+
+        percentage_score = int(best_score * 100) if best_score >= 0 else 0
+        if best_match and percentage_score >= self.match_threshold:
+            return best_match, percentage_score, f"fuzzy ({percentage_score})", debug
+
+        return None, 0, None, debug
+
     def match_broadcast_channel(self, channel_name):
         """
         Match broadcast (OTA) channel by callsign.

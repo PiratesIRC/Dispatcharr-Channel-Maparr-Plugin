@@ -71,10 +71,11 @@ To update Channel Mapparr from a previous version:
 | **Dispatcharr Admin Password**| `password`| - | Password for API authentication. |
 | **Channel Databases** | `string` | `US` | Comma-separated country codes (e.g., `US, UK, CA`). |
 | **Fuzzy Match Threshold** | `number` | `85` | Minimum similarity score (0-100) for matching. Higher values require closer matches. |
+| **Debug Export - Top N Candidates** | `number` | `5` | For the Debug Match Export action, include the top N fuzzy match candidates (stage 3 token-sort) per channel. |
 | **Channel Groups to Process** | `string` | - | Comma-separated group names for renaming operations. Empty = all groups. |
 | **Channel Groups for Category Organization** | `string` | - | Comma-separated group names for category sorting. Empty = all groups. |
 | **OTA Channel Name Format** | `string` | `{NETWORK} - {STATE} {CITY} ({CALLSIGN})` | Format template for OTA channels. Available tags: `{NETWORK}`, `{STATE}`, `{CITY}`, `{CALLSIGN}`. |
-| **Ignored Tags** | `string` | `[4K], [FHD], ...` | Comma-separated list of tags to remove before matching (handles `[]` and `()`). |
+| **Ignored Tags** | `string` | `[4K], [FHD], ...` | Comma-separated list of tags to remove before matching. Tags are auto-expanded to match bracketed, parenthesized, and bare versions (e.g., `[HD]` matches `[HD]`, `(HD)`, and `HD`). |
 | **Suffix for Unknown Channels**| `string` | ` [Unk]` | Suffix to append to unmatched channels. |
 | **Default Logo** | `string` | - | Logo display name from Dispatcharr's logo manager to apply to channels without logos. |
 
@@ -101,6 +102,7 @@ To update Channel Mapparr from a previous version:
 | :--- | :--- |
 | **Load/Process Channels** | Load channels from API and match against selected country databases. |
 | **Preview Changes (Dry Run)** | Export a CSV showing proposed renames and match sources. |
+| **Debug Match Export** | Export a detailed CSV with matching stages, normalized queries, and top fuzzy match candidates. |
 | **Rename Channels** | Apply standardized names to matched channels. |
 | **Add Suffix to Unknown Channels**| Tag unmatched channels with the configured suffix. |
 | **Apply Default Logos** | Bulk assign a logo to channels without artwork. |
@@ -114,7 +116,7 @@ To update Channel Mapparr from a previous version:
 * **Exports**: `/data/exports/` (CSV previews and reports)
 
 ## CSV Export Format
-The plugin generates CSVs for both renaming and categorization previews.
+The plugin generates CSVs for renaming, categorization, and debugging.
 
 **Renaming Preview:**
 * **dbase**: Indicates the source of the match (e.g., `Broadcast (OTA)`, `Premium/Cable`).
@@ -123,6 +125,14 @@ The plugin generates CSVs for both renaming and categorization previews.
 **Category Preview:**
 * **New Group**: The target group based on the channel's category.
 * **Group Exists**: Indicates if the plugin needs to create a new group via the API.
+
+**Debug Match Export:**
+* **OTA Callsign/Station/New Name**: Results from broadcast (OTA) callsign matching.
+* **Regional/Extra Tags/Quality Tags**: Extracted tag components from the channel name.
+* **Normalized Query**: The cleaned channel name used for fuzzy matching.
+* **Matched Candidate**: The best match found in the channel database.
+* **Stage1/Stage2/Stage3**: Intermediate fuzzy matching stages with candidates and scores.
+* **Stage3 Top Candidates**: The top N fuzzy match candidates (configurable via Debug Export - Top N Candidates setting).
 
 ## Performance Notes
 * **Token Caching**: API tokens are cached for 30 minutes to reduce authentication overhead.

@@ -1,12 +1,134 @@
 {
   "name": "Channel Mapparr",
-  "key": "channel_mapparr",
-  "module": "channel_mapparr.plugin",
-  "class": "Plugin",
-  "description": "A Dispatcharr plugin that standardizes US broadcast (OTA) and premium/cable channel names using FCC network data and curated channel lists.",
+  "version": "0.7.0a",
+  "description": "Standardizes broadcast (OTA) and premium/cable channel names using network data and channel lists.",
   "author": "community",
-  "homepage": "https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin",
+  "help_url": "https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin",
+  "fields": [
+    {
+      "id": "version_status",
+      "label": "Plugin Version Status",
+      "type": "info"
+    },
+    {
+      "id": "channel_databases",
+      "label": "Channel Databases (comma-separated country codes)",
+      "type": "string",
+      "default": "US"
+    },
+    {
+      "id": "fuzzy_match_threshold",
+      "label": "Fuzzy Match Threshold (0-100)",
+      "type": "number",
+      "default": 85
+    },
+    {
+      "id": "selected_groups",
+      "label": "Channel Groups to Process (comma-separated)",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "id": "category_groups",
+      "label": "Channel Groups for Category Organization (comma-separated)",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "id": "m3u_sources",
+      "label": "M3U Sources (comma-separated, prioritized)",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "id": "m3u_group_filter",
+      "label": "M3U Group Filter (comma-separated)",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "id": "m3u_category_filter",
+      "label": "Channel Database Category Filter (comma-separated)",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "id": "m3u_custom_group_name",
+      "label": "Imported Channel Group Name",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "id": "dry_run_mode",
+      "label": "Dry Run Mode",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "id": "ota_format",
+      "label": "OTA Channel Name Format",
+      "type": "string",
+      "default": "{NETWORK} - {STATE} {CITY} ({CALLSIGN})"
+    },
+    {
+      "id": "unknown_suffix",
+      "label": "Suffix for Unknown Channels",
+      "type": "string",
+      "default": " [Unk]"
+    },
+    {
+      "id": "ignored_tags",
+      "label": "Ignored Tags (comma-separated)",
+      "type": "string",
+      "default": "[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]"
+    },
+    {
+      "id": "default_logo",
+      "label": "Default Logo",
+      "type": "string",
+      "default": ""
+    }
+  ],
   "actions": [
-    "run"
+    {
+      "id": "validate_settings",
+      "label": "Validate Settings",
+      "description": "Check database connectivity, channel databases, and settings configuration"
+    },
+    {
+      "id": "load_and_process_channels",
+      "label": "Load/Process Channels",
+      "description": "Load channels from groups and determine new names"
+    },
+    {
+      "id": "rename_channels",
+      "label": "Rename Channels",
+      "description": "Apply the standardized names to channels"
+    },
+    {
+      "id": "rename_unknown_channels",
+      "label": "Add Suffix to Unknown Channels",
+      "description": "Add suffix to channels that could not be matched"
+    },
+    {
+      "id": "apply_logos",
+      "label": "Apply Default Logos",
+      "description": "Apply default logo to channels without logos"
+    },
+    {
+      "id": "organize_by_category",
+      "label": "Organize Channels by Category",
+      "description": "Create groups based on category names and move matching channels"
+    },
+    {
+      "id": "import_m3u_streams",
+      "label": "Import Streams from M3U",
+      "description": "Create channels from M3U streams organized into category-based groups"
+    },
+    {
+      "id": "clear_csv_exports",
+      "label": "Clear CSV Exports",
+      "description": "Delete all CSV export files created by this plugin"
+    }
   ]
 }

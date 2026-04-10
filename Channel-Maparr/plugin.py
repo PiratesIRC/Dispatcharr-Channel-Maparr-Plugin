@@ -3,22 +3,25 @@ Channel Mapparr Plugin
 Standardizes US broadcast (OTA) and premium/cable channel names.
 """
 
+import copy
 import logging
 import csv
 import os
 import re
 import json
 import time
+import tempfile
+import threading
 import urllib.request
 import urllib.error
 from datetime import datetime
-from glob import glob
 
 # Import the fuzzy matcher module
 from .fuzzy_matcher import FuzzyMatcher
 
 # Django model imports
 from apps.channels.models import Channel, ChannelGroup, Logo, Stream, ChannelStream
+from apps.m3u.models import M3UAccount
 from django.db import transaction
 from core.utils import send_websocket_update
 
@@ -28,24 +31,23 @@ LOGGER = logging.getLogger("plugins.channel_mapparr")
 # Plugin name prefix for all log messages
 PLUGIN_LOG_PREFIX = "[Channel Mapparr]"
 
-class Plugin:
-    """Channel Mapparr Plugin"""
 
-    name = "Channel Mapparr"
-    version = "0.7.0a"
-    description = "Standardizes US broadcast (OTA) and premium/cable channel names using network data and channel lists."
+class PluginConfig:
+    """Configuration constants for Channel Maparr."""
 
-    # ========================================
-    # CONFIGURATION DEFAULTS
-    # ========================================
-    # Modify these values to change plugin defaults
+    PLUGIN_VERSION = "1.26.1001200"
 
     # Channel Database Settings
     DEFAULT_CHANNEL_DATABASES = "US"
 
     # Fuzzy Matching Settings
-    DEFAULT_FUZZY_MATCH_THRESHOLD = 85  # Minimum similarity score (0-100)
-    INITIAL_MATCH_THRESHOLD = 85  # Used during initialization, overridden by settings
+    DEFAULT_FUZZY_MATCH_THRESHOLD = 80
+    SENSITIVITY_MAP = {
+        "relaxed": 70,
+        "normal": 80,
+        "strict": 90,
+        "exact": 95,
+    }
 
     # Channel Naming Settings
     DEFAULT_OTA_FORMAT = "{NETWORK} - {STATE} {CITY} ({CALLSIGN})"
@@ -57,7 +59,100 @@ class Plugin:
     VERSION_CHECK_FILE = "/data/channel_mapparr_version_check.json"
     EXPORT_DIR = "/data/exports"
 
-    # ========================================
+    # Rate Limiting
+    RATE_LIMIT_NONE = 0.0
+    RATE_LIMIT_LOW = 0.1
+    RATE_LIMIT_MEDIUM = 0.5
+    RATE_LIMIT_HIGH = 2.0
+
+    # ETA estimation (seconds per item)
+    ESTIMATED_SECONDS_PER_STREAM_MATCH = 0.5
+
+
+class ProgressTracker:
+    """Tracks operation progress with periodic logging and WebSocket updates."""
+
+    def __init__(self, total_items, action_id, logger):
+        self.total_items = max(total_items, 1)
+        self.action_id = action_id
+        self.logger = logger
+        self.start_time = time.time()
+        self.last_update_time = self.start_time
+        # Adaptive interval: shorter for smaller jobs
+        self.update_interval = 3 if total_items <= 50 else 5 if total_items <= 200 else 10
+        self.processed_items = 0
+        logger.info(f"{PLUGIN_LOG_PREFIX} [{action_id}] Starting: {total_items} items to process")
+        send_websocket_update('updates', 'update', {
+            "type": "plugin", "plugin": "Channel Mapparr",
+            "message": f"{action_id}: Starting ({total_items} items)"
+        })
+
+    def update(self, items_processed=1):
+        self.processed_items += items_processed
+        now = time.time()
+        if now - self.last_update_time >= self.update_interval:
+            self.last_update_time = now
+            elapsed = now - self.start_time
+            pct = (self.processed_items / self.total_items) * 100
+            remaining = (elapsed / self.processed_items) * (self.total_items - self.processed_items) if self.processed_items > 0 else 0
+            eta_str = self._format_eta(remaining)
+            self.logger.info(
+                f"{PLUGIN_LOG_PREFIX} [{self.action_id}] {pct:.0f}% "
+                f"({self.processed_items}/{self.total_items}) - ETA: {eta_str}"
+            )
+            send_websocket_update('updates', 'update', {
+                "type": "plugin", "plugin": "Channel Mapparr",
+                "message": f"{self.action_id}: {pct:.0f}% ({self.processed_items}/{self.total_items}) - ETA: {eta_str}"
+            })
+
+    def finish(self):
+        elapsed = time.time() - self.start_time
+        eta_str = self._format_eta(elapsed)
+        self.logger.info(
+            f"{PLUGIN_LOG_PREFIX} [{self.action_id}] Complete: "
+            f"{self.processed_items}/{self.total_items} in {eta_str}"
+        )
+        send_websocket_update('updates', 'update', {
+            "type": "plugin", "plugin": "Channel Mapparr",
+            "message": f"{self.action_id}: Complete ({self.processed_items}/{self.total_items}) in {eta_str}"
+        })
+
+    @staticmethod
+    def _format_eta(seconds):
+        if seconds < 60:
+            return f"{int(seconds)}s"
+        elif seconds < 3600:
+            return f"{int(seconds // 60)}m {int(seconds % 60)}s"
+        else:
+            h = int(seconds // 3600)
+            m = int((seconds % 3600) // 60)
+            return f"{h}h {m}m"
+
+
+class SmartRateLimiter:
+    """Rate limiting for DB operations."""
+
+    DELAYS = {
+        "none": PluginConfig.RATE_LIMIT_NONE,
+        "low": PluginConfig.RATE_LIMIT_LOW,
+        "medium": PluginConfig.RATE_LIMIT_MEDIUM,
+        "high": PluginConfig.RATE_LIMIT_HIGH,
+    }
+
+    def __init__(self, setting_value="none"):
+        self.delay = self.DELAYS.get(setting_value, 0.0)
+
+    def wait(self):
+        if self.delay > 0:
+            time.sleep(self.delay)
+
+
+class Plugin:
+    """Channel Mapparr Plugin"""
+
+    name = "Channel Mapparr"
+    version = PluginConfig.PLUGIN_VERSION
+    description = "Standardizes broadcast (OTA) and premium/cable channel names using network data and channel lists."
 
     # Settings rendered by UI
     @property
@@ -104,182 +199,230 @@ class Plugin:
             LOGGER.debug(f"{PLUGIN_LOG_PREFIX} Error during version check: {e}")
             version_message = f"⚠️ Error checking for updates: {str(e)}"
 
+        # Discover M3U sources from database
+        m3u_source_options = [{"value": "_all", "label": "All sources (no filter)"}]
+        try:
+            for acc in M3UAccount.objects.all().values('id', 'name').order_by('name'):
+                m3u_source_options.append({"value": acc['name'], "label": acc['name']})
+        except Exception:
+            pass
+
         # Build the fields list dynamically
         return [
             {
                 "id": "version_status",
-                "label": "📦 Plugin Version Status",
+                "label": "Plugin Version",
                 "type": "info",
                 "help_text": version_message
             },
-        {
-            "id": "channel_databases",
-            "label": "📚 Channel Databases (comma-separated country codes)",
-            "type": "string",
-            "default": self.DEFAULT_CHANNEL_DATABASES,
-            "placeholder": "US, UK, CA, AU",
-            "help_text": "Select which channel databases to load. Available: AU (Australia, v2025-11-10), BR (Brazil, v2025-11-11), CA (Canada, v2025-11-10), DE (Germany, v2025-11-10), ES (Spain, v2025-11-10), FR (France, v2025-11-25), IN (India, v2025-11-10), MX (Mexico, v2025-11-10), UK (United Kingdom, v2025-11-10), US (United States, v2025-10-30). Example: US, UK, CA",
-        },
-        {
-            "id": "fuzzy_match_threshold",
-            "label": "🎯 Fuzzy Match Threshold (0-100)",
-            "type": "number",
-            "default": self.DEFAULT_FUZZY_MATCH_THRESHOLD,
-            "placeholder": str(self.DEFAULT_FUZZY_MATCH_THRESHOLD),
-            "help_text": f"Minimum similarity score (0-100) for fuzzy matching channel names and M3U streams. Higher values require closer matches. Set to 0 to disable fuzzy matching. Default: {self.DEFAULT_FUZZY_MATCH_THRESHOLD}. Note: Fuzzy matching is slower but catches more matches.",
-        },
-        {
-            "id": "selected_groups",
-            "label": "📂 Channel Groups to Process (comma-separated)",
-            "type": "string",
-            "default": "",
-            "placeholder": "Locals, News, Entertainment",
-            "help_text": "Apply renaming and logo actions only to specific channel groups. Leave empty to apply to all groups.",
-        },
-        {
-            "id": "category_groups",
-            "label": "📁 Channel Groups for Category Organization (comma-separated)",
-            "type": "string",
-            "default": "",
-            "placeholder": "Locals, News, Entertainment",
-            "help_text": "Source groups for category-based organization. Channels in these groups will be moved to new groups based on their category in channels.json. Leave empty to apply to all groups.",
-        },
-        {
-            "id": "m3u_sources",
-            "label": "📡 M3U Sources (comma-separated, prioritized)",
-            "type": "string",
-            "default": "",
-            "placeholder": "Source1, Source2, Source3",
-            "help_text": "Specific M3U sources to use when matching, or leave empty for all M3U sources. Multiple M3U sources can be specified separated by commas. Order matters: streams from earlier M3U sources are prioritized over later ones when creating duplicate channels.",
-        },
-        {
-            "id": "m3u_group_filter",
-            "label": "📂 M3U Group Filter (comma-separated)",
-            "type": "string",
-            "default": "",
-            "placeholder": "USA Premium, Sports, Movies",
-            "help_text": "Only process streams from these M3U groups (group-title). This filters BEFORE matching. Leave empty to process all M3U groups. Multiple groups can be specified separated by commas. Examples: USA Premium, UK Entertainment, Sports HD, etc.",
-        },
-        {
-            "id": "m3u_category_filter",
-            "label": "📺 Channel Database Category Filter (comma-separated)",
-            "type": "string",
-            "default": "",
-            "placeholder": "Broadcast, Sports, News",
-            "help_text": "Only import streams that match channels with these categories in the channel database. This filters AFTER matching. Leave empty to import all matched streams. Multiple categories can be specified separated by commas. Examples: Broadcast, Sports, Movies, News, Entertainment, Religious, etc.",
-        },
-        {
-            "id": "m3u_custom_group_name",
-            "label": "📺 Imported Channel Group Name",
-            "type": "string",
-            "default": "",
-            "placeholder": "My Custom Group",
-            "help_text": "Override the default category-based group naming for imported M3U streams. When specified, ALL imported streams will be placed in this single group instead of being organized by their database category. Leave empty to use automatic category-based organization (e.g., Entertainment, Sports, News groups).",
-        },
-        {
-            "id": "dry_run_mode",
-            "label": "🔍 Dry Run Mode",
-            "type": "boolean",
-            "default": False,
-            "help_text": "When enabled, all actions will only preview changes without making actual modifications to channels or streams. Useful for testing and validation before applying changes.",
-        },
-        {
-            "id": "ota_format",
-            "label": "📺 OTA Channel Name Format",
-            "type": "string",
-            "default": self.DEFAULT_OTA_FORMAT,
-            "placeholder": self.DEFAULT_OTA_FORMAT,
-            "help_text": "Format for OTA channel names. Available tags: {NETWORK}, {STATE}, {CITY}, {CALLSIGN}. Channels missing required fields will be skipped.",
-        },
-        {
-            "id": "unknown_suffix",
-            "label": "🏷️ Suffix for Unknown Channels",
-            "type": "string",
-            "default": self.DEFAULT_UNKNOWN_SUFFIX,
-            "placeholder": self.DEFAULT_UNKNOWN_SUFFIX,
-            "help_text": "Suffix to append to channels that cannot be matched (OTA and premium/cable). Leave empty for no suffix.",
-        },
-        {
-            "id": "ignored_tags",
-            "label": "🚫 Ignored Tags (comma-separated)",
-            "type": "string",
-            "default": self.DEFAULT_IGNORED_TAGS,
-            "placeholder": self.DEFAULT_IGNORED_TAGS,
-            "help_text": "Tags in brackets or parentheses to ignore/remove. Case-insensitive. Examples: [HD], (H), [4K]. Separate with commas.",
-        },
-        {
-            "id": "default_logo",
-            "label": "🖼️ Default Logo",
-            "type": "string",
-            "default": "",
-            "placeholder": "abc-logo-2013-garnet-us",
-            "help_text": "Logo display name from Dispatcharr's logo manager (not the filename). Find the exact name in Dispatcharr's Logos page. Leave empty to skip logo assignment.",
-        },
+            {
+                "id": "channel_databases",
+                "label": "Channel Databases",
+                "type": "string",
+                "default": PluginConfig.DEFAULT_CHANNEL_DATABASES,
+                "placeholder": "US, UK, CA, AU",
+                "help_text": "Comma-separated country codes. Available: AU, BR, CA, DE, ES, FR, IN, MX, NL, UK, US",
+            },
+            {
+                "id": "match_sensitivity",
+                "label": "Match Sensitivity",
+                "type": "select",
+                "default": "normal",
+                "options": [
+                    {"value": "relaxed", "label": "Relaxed \u2014 more matches, more false positives"},
+                    {"value": "normal", "label": "Normal \u2014 balanced"},
+                    {"value": "strict", "label": "Strict \u2014 fewer matches, high confidence"},
+                    {"value": "exact", "label": "Exact \u2014 near-exact matches only"},
+                ],
+                "help_text": "How closely stream names must match channel names. Lower = more matches but more errors.",
+            },
+            {
+                "id": "selected_groups",
+                "label": "Channel Groups to Process",
+                "type": "string",
+                "default": "",
+                "placeholder": "Locals, News, Entertainment",
+                "help_text": "Comma-separated. Limits rename/logo actions to these groups. Leave empty for all.",
+            },
+            {
+                "id": "category_groups",
+                "label": "Category Organization Groups",
+                "type": "string",
+                "default": "",
+                "placeholder": "Locals, News, Entertainment",
+                "help_text": "Source groups for category-based reorganization. Leave empty for all.",
+            },
+            {
+                "id": "m3u_sources",
+                "label": "M3U Source",
+                "type": "select",
+                "default": "_all",
+                "options": m3u_source_options,
+                "help_text": "Filter streams to a specific M3U source.",
+            },
+            {
+                "id": "m3u_group_filter",
+                "label": "M3U Group Filter",
+                "type": "string",
+                "default": "",
+                "placeholder": "USA Premium, Sports, Movies",
+                "help_text": "Comma-separated. Only process streams from these M3U groups (pre-match filter).",
+            },
+            {
+                "id": "m3u_category_filter",
+                "label": "Category Filter",
+                "type": "string",
+                "default": "",
+                "placeholder": "Broadcast, Sports, News",
+                "help_text": "Comma-separated. Only import matched streams with these database categories (post-match filter).",
+            },
+            {
+                "id": "m3u_custom_group_name",
+                "label": "Custom Import Group Name",
+                "type": "string",
+                "default": "",
+                "placeholder": "My Custom Group",
+                "help_text": "Place all imports into this single group instead of auto-organizing by category.",
+            },
+            {
+                "id": "ota_format",
+                "label": "OTA Name Format",
+                "type": "string",
+                "default": PluginConfig.DEFAULT_OTA_FORMAT,
+                "placeholder": PluginConfig.DEFAULT_OTA_FORMAT,
+                "help_text": "Tags: {NETWORK}, {STATE}, {CITY}, {CALLSIGN}. Channels missing fields are skipped.",
+            },
+            {
+                "id": "unknown_suffix",
+                "label": "Unknown Channel Suffix",
+                "type": "string",
+                "default": PluginConfig.DEFAULT_UNKNOWN_SUFFIX,
+                "placeholder": PluginConfig.DEFAULT_UNKNOWN_SUFFIX,
+                "help_text": "Appended to channels that cannot be matched. Leave empty to skip.",
+            },
+            {
+                "id": "ignored_tags",
+                "label": "Ignored Tags",
+                "type": "string",
+                "default": PluginConfig.DEFAULT_IGNORED_TAGS,
+                "placeholder": PluginConfig.DEFAULT_IGNORED_TAGS,
+                "help_text": "Comma-separated tags to strip before matching. e.g. [HD], (H), [4K]",
+            },
+            {
+                "id": "default_logo",
+                "label": "Default Logo",
+                "type": "string",
+                "default": "",
+                "placeholder": "abc-logo-2013-garnet-us",
+                "help_text": "Logo display name from Dispatcharr's Logos page. Leave empty to skip.",
+            },
+            {
+                "id": "dry_run_mode",
+                "label": "Dry Run Mode",
+                "type": "boolean",
+                "default": False,
+                "help_text": "Preview changes without modifying anything. Actions export CSV reports instead.",
+            },
+            {
+                "id": "rate_limiting",
+                "label": "Rate Limiting",
+                "type": "select",
+                "default": "none",
+                "options": [
+                    {"value": "none", "label": "None \u2014 fastest"},
+                    {"value": "low", "label": "Low \u2014 slight delay"},
+                    {"value": "medium", "label": "Medium \u2014 moderate delay"},
+                    {"value": "high", "label": "High \u2014 gentlest on database"},
+                ],
+                "help_text": "Delay between DB writes during large imports to reduce server load.",
+            },
         ]
 
     # Actions for Dispatcharr UI
     actions = [
         {
             "id": "validate_settings",
-            "label": "✅ Validate Settings",
-            "description": "Check database connectivity, channel databases, and settings configuration",
+            "label": "\u2705 Validate Settings",
+            "description": "Check database connectivity, channel databases, and settings",
+            "button_variant": "outline",
+            "button_color": "blue",
         },
         {
             "id": "load_and_process_channels",
-            "label": "📥 Load/Process Channels",
-            "description": "Load channels from groups and determine new names",
+            "label": "\u25b6 Load & Process Channels",
+            "description": "Scan channel groups and determine standardized names",
+            "button_variant": "filled",
+            "button_color": "green",
         },
         {
             "id": "rename_channels",
-            "label": "✏️ Rename Channels",
-            "description": "Apply the standardized names to channels. When Dry Run mode is enabled, exports a CSV preview instead.",
-            "confirm": { "required": True, "title": "Rename Channels?", "message": "This will rename channels to the standardized format. This action is irreversible. Continue?" }
+            "label": "\u270f\ufe0f Rename Channels",
+            "description": "Apply standardized names. Dry Run exports a CSV preview instead.",
+            "button_variant": "filled",
+            "button_color": "green",
+            "confirm": {"message": "This will rename channels to the standardized format. This action is irreversible. Continue?"},
         },
         {
             "id": "rename_unknown_channels",
-            "label": "🏷️ Add Suffix to Unknown Channels",
-            "description": "Add suffix to channels that could not be matched (OTA and premium/cable)",
-            "confirm": { "required": True, "title": "Rename Unknown Channels?", "message": "This will append the configured suffix to unmatched channels. Continue?" }
+            "label": "\u2696 Tag Unknown Channels",
+            "description": "Append suffix to unmatched OTA and premium channels",
+            "button_variant": "filled",
+            "button_color": "green",
+            "confirm": {"message": "This will append the configured suffix to unmatched channels. Continue?"},
         },
         {
             "id": "apply_logos",
-            "label": "🖼️ Apply Default Logos",
-            "description": "Apply default logo to channels without logos",
-            "confirm": { "required": True, "title": "Apply Logos?", "message": "This will apply the default logo to channels that do not have a logo assigned. Continue?" }
+            "label": "\u2b50 Apply Logos",
+            "description": "Assign the default logo to channels that don't have one",
+            "button_variant": "filled",
+            "button_color": "green",
+            "confirm": {"message": "This will apply the default logo to channels without a logo. Continue?"},
         },
         {
             "id": "organize_by_category",
-            "label": "📂 Organize Channels by Category",
-            "description": "Create groups based on category names and move matching channels to those groups. When Dry Run mode is enabled, exports a CSV preview instead.",
-            "confirm": { "required": True, "title": "Organize by Category?", "message": "This will create new groups (if needed) and move channels to category-based groups. Continue?" }
+            "label": "\u2630 Organize by Category",
+            "description": "Move channels into category-based groups. Runs in background. Dry Run exports a CSV preview.",
+            "button_variant": "filled",
+            "button_color": "green",
+            "confirm": {"message": "This will create new groups (if needed) and move channels to category-based groups. Continue?"},
+            "background": True,
         },
         {
             "id": "import_m3u_streams",
-            "label": "📡 Import Streams from M3U",
-            "description": "Create channels from M3U streams organized into category-based groups. When Dry Run mode is enabled, exports a CSV preview instead.",
-            "confirm": { "required": True, "title": "Import M3U Streams?", "message": "This will create new channels from M3U streams and organize them into category-based groups. Duplicate channel names will be created with suffixes. Continue?" }
+            "label": "\u21e9 Import M3U Streams",
+            "description": "Create channels from M3U streams organized by category. Runs in background. Dry Run exports a CSV preview.",
+            "button_variant": "filled",
+            "button_color": "violet",
+            "confirm": {"message": "This will create new channels from M3U streams and organize them into groups. Duplicates get suffixes. Continue?"},
         },
         {
             "id": "clear_csv_exports",
-            "label": "🗑️ Clear CSV Exports",
+            "label": "\u2717 Clear CSV Exports",
             "description": "Delete all CSV export files created by this plugin",
-            "confirm": { "required": True, "title": "Clear CSV Exports?", "message": "This will delete all CSV export files created by this plugin. Continue?" }
+            "button_variant": "outline",
+            "button_color": "red",
+            "confirm": {"message": "Delete all Channel Mapparr CSV exports?"},
         },
     ]
 
     def __init__(self):
         self.loaded_channels = []
-        self.processing_status = {"current": 0, "total": 0, "status": "idle", "start_time": None}
-        self.results_file = self.RESULTS_FILE
+        self.results_file = PluginConfig.RESULTS_FILE
         self.group_name_map = {}
 
         # Version check cache state
-        self.version_check_file = self.VERSION_CHECK_FILE
+        self.version_check_file = PluginConfig.VERSION_CHECK_FILE
         self.cached_version_info = None
+
+        # Background threading
+        self._thread = None
+        self._thread_lock = threading.Lock()
+        self._stop_event = threading.Event()
+        self._last_bg_result = None
 
         # Initialize the fuzzy matcher (will load databases on first use)
         plugin_dir = os.path.dirname(__file__)
-        self.matcher = FuzzyMatcher(plugin_dir=plugin_dir, match_threshold=self.INITIAL_MATCH_THRESHOLD, logger=LOGGER)
+        self.matcher = FuzzyMatcher(plugin_dir=plugin_dir, match_threshold=PluginConfig.DEFAULT_FUZZY_MATCH_THRESHOLD, logger=LOGGER)
 
         LOGGER.info(f"{PLUGIN_LOG_PREFIX} {self.name} Plugin v{self.version} initialized")
 
@@ -289,6 +432,37 @@ class Plugin:
             LOGGER.info(f"{PLUGIN_LOG_PREFIX} Using fuzzy_matcher.py v{fuzzy_matcher.__version__}")
         except Exception:
             LOGGER.info(f"{PLUGIN_LOG_PREFIX} Using fuzzy_matcher.py")
+
+    def _try_start_thread(self, target, args):
+        """Atomically check if a thread is running and start a new one.
+        Returns True if started, False if another operation is running."""
+        with self._thread_lock:
+            if self._thread and self._thread.is_alive():
+                return False
+            self._stop_event.clear()
+            self._thread = threading.Thread(target=target, args=args, daemon=True)
+            self._thread.start()
+            return True
+
+    def stop(self, context):
+        """Called by Dispatcharr when the user requests cancellation."""
+        self._stop_event.set()
+        LOGGER.info(f"{PLUGIN_LOG_PREFIX} Stop requested. Cancelling current operation...")
+        return {"status": "ok", "message": "Cancellation requested."}
+
+    def _resolve_threshold(self, settings, logger):
+        """Resolve match sensitivity setting to a numeric threshold."""
+        sensitivity = settings.get("match_sensitivity", "normal")
+        threshold = PluginConfig.SENSITIVITY_MAP.get(sensitivity)
+        if threshold is None:
+            # Fallback: legacy numeric field
+            try:
+                threshold = int(settings.get("fuzzy_match_threshold", PluginConfig.DEFAULT_FUZZY_MATCH_THRESHOLD))
+            except (ValueError, TypeError):
+                threshold = PluginConfig.DEFAULT_FUZZY_MATCH_THRESHOLD
+        threshold = max(0, min(100, threshold))
+        logger.info(f"{PLUGIN_LOG_PREFIX} Match sensitivity: {sensitivity} (threshold: {threshold})")
+        return threshold
 
     def _get_latest_version(self, owner, repo):
         """
@@ -383,7 +557,7 @@ class Plugin:
         # Map field IDs to their labels
         field_labels = {
             'channel_databases': 'Channel Databases',
-            'fuzzy_match_threshold': 'Fuzzy Match Threshold',
+            'match_sensitivity': 'Match Sensitivity',
             'selected_groups': 'Channel Groups to Process',
             'category_groups': 'Channel Groups for Category Organization',
             'm3u_sources': 'M3U Sources',
@@ -424,7 +598,7 @@ class Plugin:
 
     def _get_all_channels(self, logger, group_ids=None):
         """Fetch channels via Django ORM, optionally filtered by group IDs."""
-        qs = Channel.objects.select_related('channel_group', 'logo').all()
+        qs = Channel.objects.all()
         if group_ids:
             qs = qs.filter(channel_group_id__in=group_ids)
         return list(qs.values('id', 'name', 'channel_number', 'channel_group_id', 'logo_id'))
@@ -498,21 +672,9 @@ class Plugin:
             logger.error(f"{PLUGIN_LOG_PREFIX} Invalid channel_databases setting: '{channel_databases_str}'")
             return False
 
-        # Get and apply fuzzy match threshold from settings
-        fuzzy_threshold = settings.get("fuzzy_match_threshold", self.DEFAULT_FUZZY_MATCH_THRESHOLD)
-        try:
-            fuzzy_threshold = int(fuzzy_threshold)
-            # Validate threshold is in range
-            if fuzzy_threshold < 0 or fuzzy_threshold > 100:
-                logger.warning(f"{PLUGIN_LOG_PREFIX} Invalid fuzzy match threshold {fuzzy_threshold}, using default {self.DEFAULT_FUZZY_MATCH_THRESHOLD}")
-                fuzzy_threshold = self.DEFAULT_FUZZY_MATCH_THRESHOLD
-        except (ValueError, TypeError):
-            logger.warning(f"{PLUGIN_LOG_PREFIX} Invalid fuzzy match threshold format, using default {self.DEFAULT_FUZZY_MATCH_THRESHOLD}")
-            fuzzy_threshold = self.DEFAULT_FUZZY_MATCH_THRESHOLD
-
-        # Update matcher threshold
+        # Resolve match sensitivity to threshold
+        fuzzy_threshold = self._resolve_threshold(settings, logger)
         self.matcher.match_threshold = fuzzy_threshold
-        logger.info(f"{PLUGIN_LOG_PREFIX} Fuzzy match threshold set to: {fuzzy_threshold}")
 
         logger.info(f"{PLUGIN_LOG_PREFIX} Loading channel databases: {', '.join(country_codes)}")
 
@@ -592,12 +754,10 @@ class Plugin:
 
     def run(self, action, params, context):
         """Main plugin entry point"""
-        LOGGER.info(f"{self.name} run called with action: {action}")
+        logger = context.get("logger", LOGGER)
+        settings = context.get("settings", {})
 
         try:
-            settings = context.get("settings", {})
-            logger = context.get("logger", LOGGER)
-
             action_map = {
                 "validate_settings": self.validate_settings_action,
                 "load_and_process_channels": self.load_and_process_channels_action,
@@ -609,20 +769,37 @@ class Plugin:
                 "clear_csv_exports": self.clear_csv_exports_action,
             }
 
-            if action not in action_map:
+            handler = action_map.get(action)
+            if not handler:
+                logger.warning(f"{PLUGIN_LOG_PREFIX} Unknown action: {action}")
                 return {"status": "error", "message": f"Unknown action: {action}"}
 
-            return action_map[action](settings, logger)
+            logger.info(f"{PLUGIN_LOG_PREFIX} Action triggered: {action}")
+            result = handler(settings, logger)
+
+            status = result.get("status", "?") if isinstance(result, dict) else "ok"
+            msg = result.get("message", "")[:200] if isinstance(result, dict) else ""
+            is_bg = result.get("background", False) if isinstance(result, dict) else False
+
+            logger.info(f"{PLUGIN_LOG_PREFIX} Action complete: {action} -> {status} | {msg}")
+
+            # Send GUI notification for non-background actions
+            if not is_bg:
+                send_websocket_update('updates', 'update', {
+                    "type": "plugin", "plugin": self.name,
+                    "message": f"{action}: {msg[:100]}" if msg else action
+                })
+
+            return result
 
         except Exception as e:
-            self.processing_status['status'] = 'idle'
-            LOGGER.error(f"Error in plugin run: {str(e)}")
+            LOGGER.exception(f"{PLUGIN_LOG_PREFIX} Error in action '{action}': {e}")
             return {"status": "error", "message": str(e)}
 
     def load_and_process_channels_action(self, settings, logger):
         """Load channels from database and process them with channel data."""
         try:
-            import json
+
 
             # Load channel data from selected country databases
             channels_loaded = self._load_channel_data(settings, logger)
@@ -669,19 +846,13 @@ class Plugin:
 
             # Process channels
             logger.info(f"{PLUGIN_LOG_PREFIX} Processing {len(self.loaded_channels)} channels...")
-            self.processing_status = {
-                "current": 0,
-                "total": len(self.loaded_channels),
-                "status": "running",
-                "start_time": datetime.now().isoformat()
-            }
 
             renamed_channels = []
             skipped_channels = []
-            ota_format = settings.get("ota_format", self.DEFAULT_OTA_FORMAT)
+            ota_format = settings.get("ota_format", PluginConfig.DEFAULT_OTA_FORMAT)
 
             # Parse ignored tags from settings
-            ignored_tags_str = settings.get("ignored_tags", self.DEFAULT_IGNORED_TAGS)
+            ignored_tags_str = settings.get("ignored_tags", PluginConfig.DEFAULT_IGNORED_TAGS)
             ignored_tags_list = [tag.strip() for tag in ignored_tags_str.split(',') if tag.strip()]
 
             # Also create versions with parentheses for tags that use brackets
@@ -699,6 +870,15 @@ class Plugin:
 
             ignored_tags_list = expanded_ignored_tags
 
+            # Pre-compute normalizations for both loaded channels and premium channels
+            if self.matcher.premium_channels:
+                channel_names = [ch.get('name', '') for ch in self.loaded_channels if ch.get('name', '')]
+                all_names = channel_names + self.matcher.premium_channels
+                self.matcher.precompute_normalizations(all_names, ignored_tags_list)
+                self.matcher.build_token_index(self.matcher.premium_channels, ignored_tags_list)
+
+            progress = ProgressTracker(len(self.loaded_channels), "process_channels", logger)
+
             # Track matching statistics
             debug_stats = {
                 "ota_attempted": 0,
@@ -711,11 +891,9 @@ class Plugin:
             }
 
             for i, channel in enumerate(self.loaded_channels):
-                self.processing_status["current"] = i + 1
-
-                # Periodic progress logging every 50 channels
-                if (i + 1) % 50 == 0 or (i + 1) == len(self.loaded_channels):
-                    logger.info(f"{PLUGIN_LOG_PREFIX} Processing progress: {i + 1}/{len(self.loaded_channels)} channels...")
+                if self._stop_event.is_set():
+                    logger.info(f"{PLUGIN_LOG_PREFIX} Channel processing cancelled by user.")
+                    break
 
                 current_name = channel.get('name', '').strip()
                 channel_id = channel.get('id')
@@ -756,12 +934,18 @@ class Plugin:
                     # Extract tags to preserve them
                     regional, extra_tags, quality_tags = self.matcher.extract_tags(current_name, ignored_tags_list)
 
-                    # Use fuzzy matcher to find best match
-                    matched_premium, score, match_type = self.matcher.fuzzy_match(
-                        current_name,
-                        self.matcher.premium_channels,
-                        ignored_tags_list
-                    )
+                    # Use fuzzy matcher with token-based pre-filtering
+                    candidates = self.matcher.get_candidates(current_name, ignored_tags_list)
+                    if candidates is None:
+                        candidates = self.matcher.premium_channels
+                    if candidates:
+                        matched_premium, score, match_type = self.matcher.fuzzy_match(
+                            current_name,
+                            candidates,
+                            ignored_tags_list
+                        )
+                    else:
+                        matched_premium, score, match_type = None, 0, None
 
                     if matched_premium:
                         new_name = self.matcher.build_final_channel_name(matched_premium, regional, extra_tags, quality_tags)
@@ -814,7 +998,9 @@ class Plugin:
                         'reason': skip_reason
                     })
 
-            self.processing_status['status'] = 'complete'
+                progress.update()
+
+            progress.finish()
 
             # Log completion
             logger.info(f"{PLUGIN_LOG_PREFIX} Processing complete. {len(renamed_channels)} to rename, {len(skipped_channels)} skipped.")
@@ -856,7 +1042,7 @@ class Plugin:
     def preview_changes_action(self, settings, logger):
         """Export a CSV showing the preview of channel renaming changes."""
         try:
-            import json
+
 
             if not os.path.exists(self.results_file):
                 return {"status": "error", "message": "No processed channels found. Please run 'Load/Process Channels' first."}
@@ -870,7 +1056,7 @@ class Plugin:
                 return {"status": "success", "message": "No changes to preview."}
 
             # Create export directory if it does not exist
-            export_dir = self.EXPORT_DIR
+            export_dir = PluginConfig.EXPORT_DIR
             os.makedirs(export_dir, exist_ok=True)
 
             # Create timestamp for filename
@@ -878,27 +1064,36 @@ class Plugin:
             csv_filename = f"channel_mapparr_preview_{timestamp}.csv"
             csv_path = os.path.join(export_dir, csv_filename)
 
-            # Write CSV
-            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                # Write settings header as comments
-                csvfile.write(self._generate_csv_settings_header(settings))
+            # Write CSV atomically (temp file + rename to prevent corrupt partial writes)
+            tmp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(mode='w', newline='', encoding='utf-8',
+                                                 dir=export_dir, suffix='.csv', delete=False) as csvfile:
+                    tmp_path = csvfile.name
+                    # Write settings header as comments
+                    csvfile.write(self._generate_csv_settings_header(settings))
 
-                fieldnames = ['Channel ID', 'Channel Number', 'Group', 'Current Name', 'New Name', 'Status', 'Matcher', 'Match Method', 'Reason']
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    fieldnames = ['Channel ID', 'Channel Number', 'Group', 'Current Name', 'New Name', 'Status', 'Matcher', 'Match Method', 'Reason']
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-                writer.writeheader()
-                for change in all_changes:
-                    writer.writerow({
-                        'Channel ID': change.get('channel_id', ''),
-                        'Channel Number': change.get('channel_number', ''),
-                        'Group': change.get('channel_group', ''),
-                        'Current Name': change.get('current_name', ''),
-                        'New Name': change.get('new_name', ''),
-                        'Status': change.get('status', ''),
-                        'Matcher': change.get('matcher', ''),
-                        'Match Method': change.get('match_method', ''),
-                        'Reason': change.get('reason', '')
-                    })
+                    writer.writeheader()
+                    for change in all_changes:
+                        writer.writerow({
+                            'Channel ID': change.get('channel_id', ''),
+                            'Channel Number': change.get('channel_number', ''),
+                            'Group': change.get('channel_group', ''),
+                            'Current Name': change.get('current_name', ''),
+                            'New Name': change.get('new_name', ''),
+                            'Status': change.get('status', ''),
+                            'Matcher': change.get('matcher', ''),
+                            'Match Method': change.get('match_method', ''),
+                            'Reason': change.get('reason', '')
+                        })
+                os.replace(tmp_path, csv_path)
+            except Exception:
+                if tmp_path and os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Preview CSV exported to {csv_path}")
 
@@ -917,7 +1112,7 @@ class Plugin:
     def rename_channels_action(self, settings, logger):
         """Apply the standardized names to channels."""
         try:
-            import json
+
 
             # Check if dry run mode is enabled
             dry_run = settings.get("dry_run_mode", False)
@@ -962,13 +1157,13 @@ class Plugin:
     def rename_unknown_channels_action(self, settings, logger):
         """Append suffix to channels that could not be matched (OTA and premium/cable)."""
         try:
-            import json
+
 
             if not os.path.exists(self.results_file):
                 return {"status": "error", "message": "No processed channels found. Please run 'Load/Process Channels' first."}
 
             # Get suffix with default fallback matching the field default
-            suffix = settings.get("unknown_suffix", self.DEFAULT_UNKNOWN_SUFFIX)
+            suffix = settings.get("unknown_suffix", PluginConfig.DEFAULT_UNKNOWN_SUFFIX)
 
             # Log what we received
             logger.info(f"{PLUGIN_LOG_PREFIX} Suffix setting value: '{suffix}' (length: {len(suffix)})")
@@ -1011,7 +1206,7 @@ class Plugin:
     def apply_logos_action(self, settings, logger):
         """Apply default logo to channels without logos."""
         try:
-            import json
+
 
             default_logo = settings.get("default_logo", "").strip()
 
@@ -1101,7 +1296,7 @@ class Plugin:
     def category_groups_dry_run_action(self, settings, logger):
         """Export a CSV showing which channels would be moved to which category-based groups."""
         try:
-            import json
+
 
             # Load channel data to get categories
             channels_loaded = self._load_channel_data(settings, logger)
@@ -1151,7 +1346,7 @@ class Plugin:
                     category_map_premium[channel_name.lower()] = (channel_name, category)
 
             # Get ignored tags for normalization
-            ignored_tags_str = settings.get("ignored_tags", self.DEFAULT_IGNORED_TAGS)
+            ignored_tags_str = settings.get("ignored_tags", PluginConfig.DEFAULT_IGNORED_TAGS)
             ignored_tags_list = [tag.strip() for tag in ignored_tags_str.split(',') if tag.strip()]
 
             # Expand ignored tags
@@ -1165,6 +1360,14 @@ class Plugin:
                     inner = tag[1:-1]
                     expanded_ignored_tags.append(f"[{inner}]")
             ignored_tags_list = expanded_ignored_tags
+
+            # Pre-compute normalizations for channel names AND premium channels (both needed for matching)
+            channel_names_to_norm = [ch.get('name', '') for ch in channels_to_process if ch.get('name', '')]
+            all_names = channel_names_to_norm + self.matcher.premium_channels
+            self.matcher.precompute_normalizations(all_names, ignored_tags_list)
+
+            # Build token index for fast fuzzy candidate pre-filtering
+            self.matcher.build_token_index(self.matcher.premium_channels, ignored_tags_list)
 
             # Process channels and determine moves
             moves = []
@@ -1187,20 +1390,26 @@ class Plugin:
 
                 # If not a broadcast channel, try premium channel matching (by name)
                 if not category:
-                    # Try exact match first
-                    normalized_name = self.matcher.normalize_name(channel_name, ignored_tags_list)
+                    # Try normalized match first (uses cache)
+                    norm_lower, _ = self.matcher._get_cached_norm(channel_name, ignored_tags_list)
 
-                    if normalized_name.lower() in category_map_premium:
-                        matched_name, category = category_map_premium[normalized_name.lower()]
+                    if norm_lower and norm_lower in category_map_premium:
+                        matched_name, category = category_map_premium[norm_lower]
                         match_type = "Premium (Exact)"
                         match_value = matched_name
                     else:
-                        # Try fuzzy matching
-                        matched_premium, score, fuzzy_match_type = self.matcher.fuzzy_match(
-                            channel_name,
-                            self.matcher.premium_channels,
-                            ignored_tags_list
-                        )
+                        # Try fuzzy matching with token-based pre-filtering
+                        candidates = self.matcher.get_candidates(channel_name, ignored_tags_list)
+                        if candidates is None:
+                            candidates = self.matcher.premium_channels
+                        if candidates:
+                            matched_premium, score, fuzzy_match_type = self.matcher.fuzzy_match(
+                                channel_name,
+                                candidates,
+                                ignored_tags_list
+                            )
+                        else:
+                            matched_premium, score, fuzzy_match_type = None, 0, None
 
                         if matched_premium and matched_premium.lower() in category_map_premium:
                             matched_name, category = category_map_premium[matched_premium.lower()]
@@ -1231,7 +1440,7 @@ class Plugin:
                 return {"status": "success", "message": "No channels need to be moved to category-based groups."}
 
             # Create export directory
-            export_dir = self.EXPORT_DIR
+            export_dir = PluginConfig.EXPORT_DIR
             os.makedirs(export_dir, exist_ok=True)
 
             # Create CSV
@@ -1280,7 +1489,7 @@ class Plugin:
     def organize_by_category_action(self, settings, logger):
         """Create groups based on category names and move matching channels to those groups."""
         try:
-            import json
+
 
             # Check if dry run mode is enabled
             dry_run = settings.get("dry_run_mode", False)
@@ -1337,7 +1546,7 @@ class Plugin:
                     category_map_premium[channel_name.lower()] = (channel_name, category)
 
             # Get ignored tags for normalization
-            ignored_tags_str = settings.get("ignored_tags", self.DEFAULT_IGNORED_TAGS)
+            ignored_tags_str = settings.get("ignored_tags", PluginConfig.DEFAULT_IGNORED_TAGS)
             ignored_tags_list = [tag.strip() for tag in ignored_tags_str.split(',') if tag.strip()]
 
             # Expand ignored tags
@@ -1351,6 +1560,14 @@ class Plugin:
                     inner = tag[1:-1]
                     expanded_ignored_tags.append(f"[{inner}]")
             ignored_tags_list = expanded_ignored_tags
+
+            # Pre-compute normalizations for channel names AND premium channels
+            channel_names_to_norm = [ch.get('name', '') for ch in channels_to_process if ch.get('name', '')]
+            all_names = channel_names_to_norm + self.matcher.premium_channels
+            self.matcher.precompute_normalizations(all_names, ignored_tags_list)
+
+            # Build token index for fast fuzzy candidate pre-filtering
+            self.matcher.build_token_index(self.matcher.premium_channels, ignored_tags_list)
 
             # Process channels and determine moves
             moves = []
@@ -1371,18 +1588,24 @@ class Plugin:
 
                 # If not a broadcast channel, try premium channel matching (by name)
                 if not category:
-                    # Try exact match first
-                    normalized_name = self.matcher.normalize_name(channel_name, ignored_tags_list)
+                    # Try normalized match first (uses cache)
+                    norm_lower, _ = self.matcher._get_cached_norm(channel_name, ignored_tags_list)
 
-                    if normalized_name.lower() in category_map_premium:
-                        matched_name, category = category_map_premium[normalized_name.lower()]
+                    if norm_lower and norm_lower in category_map_premium:
+                        matched_name, category = category_map_premium[norm_lower]
                     else:
-                        # Try fuzzy matching
-                        matched_premium, score, fuzzy_match_type = self.matcher.fuzzy_match(
-                            channel_name,
-                            self.matcher.premium_channels,
-                            ignored_tags_list
-                        )
+                        # Try fuzzy matching with token-based pre-filtering
+                        candidates = self.matcher.get_candidates(channel_name, ignored_tags_list)
+                        if candidates is None:
+                            candidates = self.matcher.premium_channels
+                        if candidates:
+                            matched_premium, score, fuzzy_match_type = self.matcher.fuzzy_match(
+                                channel_name,
+                                candidates,
+                                ignored_tags_list
+                            )
+                        else:
+                            matched_premium, score, fuzzy_match_type = None, 0, None
 
                         if matched_premium and matched_premium.lower() in category_map_premium:
                             matched_name, category = category_map_premium[matched_premium.lower()]
@@ -1466,7 +1689,7 @@ class Plugin:
         # Get M3U sources from settings
         m3u_sources_str = settings.get("m3u_sources", "").strip()
 
-        if not m3u_sources_str:
+        if not m3u_sources_str or m3u_sources_str == "_all":
             # If empty, fetch from ALL M3U sources
             logger.info(f"{PLUGIN_LOG_PREFIX} No M3U sources specified, fetching from all M3U accounts")
             m3u_sources = None
@@ -1480,7 +1703,9 @@ class Plugin:
         if m3u_sources is None:
             # Fetch all streams (no filtering)
             logger.info(f"{PLUGIN_LOG_PREFIX} Querying all streams from database...")
-            streams_qs = Stream.objects.select_related('m3u_account').all()
+            streams_qs = Stream.objects.only(
+                'id', 'name', 'm3u_account_id', 'channel_group_id'
+            ).all()
 
             for stream in streams_qs:
                 stream_dict = {
@@ -1500,9 +1725,9 @@ class Plugin:
                 logger.info(f"{PLUGIN_LOG_PREFIX} Querying streams for M3U source: {m3u_source}")
 
                 try:
-                    streams_qs = Stream.objects.select_related('m3u_account').filter(
-                        m3u_account__name=m3u_source
-                    )
+                    streams_qs = Stream.objects.only(
+                        'id', 'name', 'm3u_account_id', 'channel_group_id'
+                    ).filter(m3u_account__name=m3u_source)
 
                     count = 0
                     for stream in streams_qs:
@@ -1603,7 +1828,7 @@ class Plugin:
         logger.info(f"{PLUGIN_LOG_PREFIX} Matching {total_streams} streams to channel databases...")
 
         # Build fast lookup dictionaries for exact and normalized matches
-        ignored_tags_str = settings.get("ignored_tags", self.DEFAULT_IGNORED_TAGS)
+        ignored_tags_str = settings.get("ignored_tags", PluginConfig.DEFAULT_IGNORED_TAGS)
         ignored_tags = [tag.strip() for tag in ignored_tags_str.split(',') if tag.strip()]
 
         logger.info(f"{PLUGIN_LOG_PREFIX} Building fast lookup index for {len(self.matcher.premium_channels_full)} channels...")
@@ -1620,43 +1845,34 @@ class Plugin:
             # Exact match lookup
             exact_lookup[channel_name.lower()] = channel_data
 
-            # Normalized match lookup
-            normalized_name = self.matcher.normalize_name(channel_name, ignored_tags, remove_country_prefix=True)
-            if normalized_name:
-                normalized_lookup[normalized_name.lower()] = channel_data
+            # Normalized match lookup (uses cache when available)
+            norm_lower, _ = self.matcher._get_cached_norm(channel_name, ignored_tags)
+            if norm_lower:
+                normalized_lookup[norm_lower] = channel_data
 
         logger.info(f"{PLUGIN_LOG_PREFIX} Lookup index built: {len(exact_lookup)} exact, {len(normalized_lookup)} normalized entries")
 
-        # Progress tracking
-        from collections import deque
-        start_time = time.time()
-        last_progress_time = start_time
-        last_stream_time = start_time  # Track per-stream timing
-        progress_interval = 60  # Log progress every 60 seconds (1 minute)
+        # Pre-compute normalizations for ALL names (streams + channels) in a single pass
+        # Both must be in the cache for matching to work correctly
+        stream_names = [s.get('name', '').strip() for s in streams if s.get('name', '').strip()]
+        all_names = stream_names + self.matcher.premium_channels
+        self.matcher.precompute_normalizations(all_names, ignored_tags)
+        logger.info(f"{PLUGIN_LOG_PREFIX} Pre-computed normalizations for {len(stream_names)} streams + {len(self.matcher.premium_channels)} channels")
 
-        # Track recent per-stream processing times for accurate ETA
-        # Using a sliding window of last N streams
-        recent_stream_times = deque(maxlen=15)  # Keep last 15 stream times
+        # Build token index on channel names for fast candidate pre-filtering
+        # This reduces fuzzy matching from O(streams * channels) to O(streams * ~50-200)
+        self.matcher.build_token_index(self.matcher.premium_channels, ignored_tags)
 
-        # Get fuzzy match threshold (unified for both channel and M3U matching)
-        fuzzy_threshold = settings.get("fuzzy_match_threshold", self.DEFAULT_FUZZY_MATCH_THRESHOLD)
-        try:
-            fuzzy_threshold = int(fuzzy_threshold)
-            if fuzzy_threshold < 0 or fuzzy_threshold > 100:
-                logger.warning(f"{PLUGIN_LOG_PREFIX} Invalid fuzzy threshold '{fuzzy_threshold}', using default {self.DEFAULT_FUZZY_MATCH_THRESHOLD}")
-                fuzzy_threshold = self.DEFAULT_FUZZY_MATCH_THRESHOLD
-        except (ValueError, TypeError):
-            logger.warning(f"{PLUGIN_LOG_PREFIX} Invalid fuzzy threshold format, using default {self.DEFAULT_FUZZY_MATCH_THRESHOLD}")
-            fuzzy_threshold = self.DEFAULT_FUZZY_MATCH_THRESHOLD
+        progress = ProgressTracker(total_streams, "match_streams", logger)
 
-        if fuzzy_threshold > 0:
-            logger.info(f"{PLUGIN_LOG_PREFIX} Fuzzy matching enabled with threshold: {fuzzy_threshold}")
-        else:
-            logger.info(f"{PLUGIN_LOG_PREFIX} Fuzzy matching disabled (threshold set to 0)")
+        # Resolve match sensitivity to threshold
+        fuzzy_threshold = self._resolve_threshold(settings, logger)
+        self.matcher.match_threshold = fuzzy_threshold
 
         for idx, stream in enumerate(streams):
-            # Track time for this specific stream
-            stream_start_time = time.time()
+            if self._stop_event.is_set():
+                logger.info(f"{PLUGIN_LOG_PREFIX} Stream matching cancelled by user.")
+                break
 
             stream_name = stream.get('name', '').strip()
 
@@ -1665,6 +1881,7 @@ class Plugin:
                     'stream': stream,
                     'reason': 'Empty stream name'
                 })
+                progress.update()
                 continue
 
             # Try OTA broadcast match first
@@ -1684,6 +1901,7 @@ class Plugin:
                 if category not in matched_by_category:
                     matched_by_category[category] = []
                 matched_by_category[category].append(matched_stream)
+                progress.update()
                 continue
 
             # Try premium/cable match (exact first, then normalized, then fuzzy)
@@ -1696,20 +1914,27 @@ class Plugin:
                 premium_channel = exact_lookup[stream_name_lower]
                 match_method = "Exact match"
 
-            # Try normalized match (fast)
+            # Try normalized match (fast, uses cache)
             if not premium_channel:
-                normalized_stream = self.matcher.normalize_name(stream_name, ignored_tags, remove_country_prefix=True)
-                if normalized_stream and normalized_stream.lower() in normalized_lookup:
-                    premium_channel = normalized_lookup[normalized_stream.lower()]
+                norm_lower, _ = self.matcher._get_cached_norm(stream_name, ignored_tags)
+                if norm_lower and norm_lower in normalized_lookup:
+                    premium_channel = normalized_lookup[norm_lower]
                     match_method = "Normalized match"
 
             # Try fuzzy match if not matched yet and fuzzy matching is enabled
+            # Use token index to pre-filter candidates (typically ~50-200 instead of 31K)
             if not premium_channel and fuzzy_threshold > 0:
-                matched_premium_name, score, match_type = self.matcher.fuzzy_match(
-                    stream_name,
-                    self.matcher.premium_channels,
-                    ignored_tags
-                )
+                candidates = self.matcher.get_candidates(stream_name, ignored_tags)
+                if candidates is None:
+                    candidates = self.matcher.premium_channels  # fallback if no index
+                if candidates:
+                    matched_premium_name, score, match_type = self.matcher.fuzzy_match(
+                        stream_name,
+                        candidates,
+                        ignored_tags
+                    )
+                else:
+                    matched_premium_name, score, match_type = None, 0, None
 
                 if matched_premium_name and score >= fuzzy_threshold:
                     premium_channel = next(
@@ -1733,33 +1958,7 @@ class Plugin:
                 if category not in matched_by_category:
                     matched_by_category[category] = []
                 matched_by_category[category].append(matched_stream)
-
-                # Track timing for matched stream
-                stream_end_time = time.time()
-                stream_duration = stream_end_time - stream_start_time
-                recent_stream_times.append(stream_duration)
-
-                # Progress logging
-                if stream_end_time - last_progress_time >= progress_interval:
-                    processed = idx + 1
-                    percent_complete = (processed / total_streams) * 100
-                    remaining = total_streams - processed
-
-                    # Calculate ETA using windowed average
-                    if len(recent_stream_times) >= 5:
-                        avg_recent_time = sum(recent_stream_times) / len(recent_stream_times)
-                        eta_seconds = remaining * avg_recent_time
-                    else:
-                        elapsed = stream_end_time - start_time
-                        avg_time = elapsed / processed if processed > 0 else 1.0
-                        eta_seconds = remaining * avg_time
-
-                    eta_mins = int(eta_seconds // 60)
-                    eta_secs = int(eta_seconds % 60)
-
-                    logger.info(f"{PLUGIN_LOG_PREFIX} Progress: {processed}/{total_streams} ({percent_complete:.1f}%) - ETA: {eta_mins}m {eta_secs}s")
-                    last_progress_time = stream_end_time
-
+                progress.update()
                 continue
 
             # No match found
@@ -1767,40 +1966,9 @@ class Plugin:
                 'stream': stream,
                 'reason': 'No match in channel databases'
             })
+            progress.update()
 
-            # Track per-stream processing time and update ETA
-            stream_end_time = time.time()
-            stream_duration = stream_end_time - stream_start_time
-            recent_stream_times.append(stream_duration)
-
-            # Progress logging with adaptive ETA
-            if stream_end_time - last_progress_time >= progress_interval:
-                processed = idx + 1
-                percent_complete = (processed / total_streams) * 100
-                remaining = total_streams - processed
-
-                # Calculate ETA using windowed average of recent streams
-                if len(recent_stream_times) >= 5:
-                    # Use average of recent streams for accurate prediction
-                    avg_recent_time = sum(recent_stream_times) / len(recent_stream_times)
-                    eta_seconds = remaining * avg_recent_time
-                else:
-                    # Not enough samples, use overall average
-                    elapsed = stream_end_time - start_time
-                    avg_time = elapsed / processed if processed > 0 else 1.0
-                    eta_seconds = remaining * avg_time
-
-                eta_mins = int(eta_seconds // 60)
-                eta_secs = int(eta_seconds % 60)
-
-                logger.info(f"{PLUGIN_LOG_PREFIX} Progress: {processed}/{total_streams} ({percent_complete:.1f}%) - ETA: {eta_mins}m {eta_secs}s")
-                last_progress_time = stream_end_time
-
-        # Final progress log
-        total_elapsed = time.time() - start_time
-        elapsed_mins = int(total_elapsed // 60)
-        elapsed_secs = int(total_elapsed % 60)
-        logger.info(f"{PLUGIN_LOG_PREFIX} Matching complete: {total_streams} streams processed in {elapsed_mins}m {elapsed_secs}s")
+        progress.finish()
         logger.info(f"{PLUGIN_LOG_PREFIX} Matched {len(streams) - len(unmatched_streams)} streams, {len(unmatched_streams)} unmatched")
 
         # Apply category filter if specified
@@ -1945,16 +2113,20 @@ class Plugin:
 
         # Calculate total streams to import for progress tracking
         total_streams_to_import = sum(len(matches) for matches in matched_by_category.values())
-        streams_processed = 0
-        start_time = time.time()
-        last_progress_time = start_time
-        progress_interval = 5  # Log progress every 5 seconds
 
-        logger.info(f"{PLUGIN_LOG_PREFIX} Starting import of {total_streams_to_import} streams...")
+        progress = ProgressTracker(total_streams_to_import, "import_streams", logger)
+        rate_limiter = SmartRateLimiter(settings.get("rate_limiting", "none"))
 
         # Get group name mapping for logging
         all_groups = self._get_all_groups(logger)
         group_id_to_name = {g['id']: g['name'] for g in all_groups}
+
+        # Prefetch all stream objects to avoid N+1 queries in the import loop
+        all_stream_ids = set()
+        for matched_streams in matched_by_category.values():
+            for matched in matched_streams:
+                all_stream_ids.add(matched['stream']['id'])
+        stream_objects = {s.id: s for s in Stream.objects.filter(id__in=all_stream_ids)}
 
         # Sort categories for consistent ordering
         for category in sorted(matched_by_category.keys()):
@@ -1983,21 +2155,9 @@ class Plugin:
 
                 # Process each stream (creates separate channels for duplicates)
                 for matched in stream_matches:
-                    # Progress tracking
-                    streams_processed += 1
-                    current_time = time.time()
-                    if current_time - last_progress_time >= progress_interval:
-                        elapsed = current_time - start_time
-                        percent_complete = (streams_processed / total_streams_to_import) * 100
-                        rate = streams_processed / elapsed if elapsed > 0 else 0
-                        remaining = total_streams_to_import - streams_processed
-                        eta_seconds = remaining / rate if rate > 0 else 0
-
-                        eta_mins = int(eta_seconds // 60)
-                        eta_secs = int(eta_seconds % 60)
-
-                        logger.info(f"{PLUGIN_LOG_PREFIX} Import progress: {streams_processed}/{total_streams_to_import} ({percent_complete:.1f}%) - ETA: {eta_mins}m {eta_secs}s")
-                        last_progress_time = current_time
+                    if self._stop_event.is_set():
+                        logger.info(f"{PLUGIN_LOG_PREFIX} Import cancelled by user.")
+                        return {"status": "ok", "message": f"Import cancelled. {import_results['total_imported']} channels created before cancellation."}
 
                     stream = matched['stream']
                     stream_id = stream['id']
@@ -2028,8 +2188,12 @@ class Plugin:
                                 channel_group_id=group_id,
                             )
 
-                            # Link stream to channel
-                            stream_obj = Stream.objects.get(id=stream_id)
+                            # Link stream to channel (uses prefetched stream objects)
+                            stream_obj = stream_objects.get(stream_id)
+                            if stream_obj is None:
+                                logger.warning(f"{PLUGIN_LOG_PREFIX} Stream {stream_id} not found (may have been deleted), skipping")
+                                progress.update()
+                                continue
                             ChannelStream.objects.create(
                                 channel=new_channel,
                                 stream=stream_obj,
@@ -2058,6 +2222,7 @@ class Plugin:
                         })
 
                         next_channel_num += 1.0
+                        rate_limiter.wait()
 
                     except Exception as e:
                         logger.error(f"{PLUGIN_LOG_PREFIX} Failed to create channel from stream {stream_id}: {e}")
@@ -2070,12 +2235,9 @@ class Plugin:
                             'status': 'failed',
                             'error': str(e)
                         })
+                    progress.update()
 
-        # Final progress log
-        total_elapsed = time.time() - start_time
-        elapsed_mins = int(total_elapsed // 60)
-        elapsed_secs = int(total_elapsed % 60)
-        logger.info(f"{PLUGIN_LOG_PREFIX} Import complete: {import_results['total_imported']} channels created in {elapsed_mins}m {elapsed_secs}s")
+        progress.finish()
         return import_results
 
     def _export_m3u_import_preview(self, matched_by_category, unmatched_streams, category_to_group_id, settings, logger):
@@ -2085,11 +2247,8 @@ class Plugin:
         Returns:
             tuple: (csv_path, csv_filename)
         """
-        import csv
-        from datetime import datetime
-
         # Create export directory
-        export_dir = self.EXPORT_DIR
+        export_dir = PluginConfig.EXPORT_DIR
         os.makedirs(export_dir, exist_ok=True)
 
         # Create timestamp for filename
@@ -2097,37 +2256,60 @@ class Plugin:
         csv_filename = f"channel_mapparr_m3u_import_preview_{timestamp}.csv"
         csv_path = os.path.join(export_dir, csv_filename)
 
-        # Write CSV
-        with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-            # Write settings header
-            csvfile.write(self._generate_csv_settings_header(settings))
-            csvfile.write("#\n")
-            csvfile.write("# M3U Import Preview\n")
-            csvfile.write("#\n")
+        # Write CSV atomically (temp file + rename to prevent corrupt partial writes)
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', newline='', encoding='utf-8',
+                                             dir=export_dir, suffix='.csv', delete=False) as csvfile:
+                tmp_path = csvfile.name
+                # Write settings header
+                csvfile.write(self._generate_csv_settings_header(settings))
+                csvfile.write("#\n")
+                csvfile.write("# M3U Import Preview\n")
+                csvfile.write("#\n")
 
-            fieldnames = [
-                'Stream ID',
-                'Stream Name',
-                'M3U Source',
-                'Priority',
-                'Match Type',
-                'Match Method',
-                'Category',
-                'Target Group',
-                'Group Exists',
-                'Will Import',
-                'Notes'
-            ]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
+                fieldnames = [
+                    'Stream ID',
+                    'Stream Name',
+                    'M3U Source',
+                    'Priority',
+                    'Match Type',
+                    'Match Method',
+                    'Category',
+                    'Target Group',
+                    'Group Exists',
+                    'Will Import',
+                    'Notes'
+                ]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
 
-            # Write matched streams
-            for category in sorted(matched_by_category.keys()):
-                matched_streams = matched_by_category[category]
-                group_exists = category in category_to_group_id
+                # Write matched streams
+                for category in sorted(matched_by_category.keys()):
+                    matched_streams = matched_by_category[category]
+                    group_exists = category in category_to_group_id
 
-                for matched in matched_streams:
-                    stream = matched['stream']
+                    for matched in matched_streams:
+                        stream = matched['stream']
+                        m3u_account_id = stream.get('m3u_account', 'Unknown')
+                        m3u_source = f"M3U-{m3u_account_id}" if m3u_account_id != 'Unknown' else 'Unknown'
+                        writer.writerow({
+                            'Stream ID': stream.get('id', ''),
+                            'Stream Name': stream.get('name', ''),
+                            'M3U Source': m3u_source,
+                            'Priority': stream.get('priority', 0),
+                            'Match Type': matched['match_type'],
+                            'Match Method': matched['match_method'],
+                            'Category': category,
+                            'Target Group': category,
+                            'Group Exists': 'Yes' if group_exists else 'No (will create)',
+                            'Will Import': 'Yes',
+                            'Notes': ''
+                        })
+
+                # Write unmatched streams
+                for unmatched in unmatched_streams:
+                    stream = unmatched['stream']
                     m3u_account_id = stream.get('m3u_account', 'Unknown')
                     m3u_source = f"M3U-{m3u_account_id}" if m3u_account_id != 'Unknown' else 'Unknown'
                     writer.writerow({
@@ -2135,33 +2317,19 @@ class Plugin:
                         'Stream Name': stream.get('name', ''),
                         'M3U Source': m3u_source,
                         'Priority': stream.get('priority', 0),
-                        'Match Type': matched['match_type'],
-                        'Match Method': matched['match_method'],
-                        'Category': category,
-                        'Target Group': category,
-                        'Group Exists': 'Yes' if group_exists else 'No (will create)',
-                        'Will Import': 'Yes',
-                        'Notes': ''
+                        'Match Type': 'None',
+                        'Match Method': 'No match',
+                        'Category': '',
+                        'Target Group': '',
+                        'Group Exists': 'N/A',
+                        'Will Import': 'No',
+                        'Notes': unmatched['reason']
                     })
-
-            # Write unmatched streams
-            for unmatched in unmatched_streams:
-                stream = unmatched['stream']
-                m3u_account_id = stream.get('m3u_account', 'Unknown')
-                m3u_source = f"M3U-{m3u_account_id}" if m3u_account_id != 'Unknown' else 'Unknown'
-                writer.writerow({
-                    'Stream ID': stream.get('id', ''),
-                    'Stream Name': stream.get('name', ''),
-                    'M3U Source': m3u_source,
-                    'Priority': stream.get('priority', 0),
-                    'Match Type': 'None',
-                    'Match Method': 'No match',
-                    'Category': '',
-                    'Target Group': '',
-                    'Group Exists': 'N/A',
-                    'Will Import': 'No',
-                    'Notes': unmatched['reason']
-                })
+            os.replace(tmp_path, csv_path)
+        except Exception:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
 
         logger.info(f"{PLUGIN_LOG_PREFIX} M3U import preview exported to {csv_path}")
         return csv_path, csv_filename
@@ -2173,9 +2341,6 @@ class Plugin:
         Returns:
             str: Path to results file
         """
-        import json
-        from datetime import datetime
-
         results_file = "/data/channel_mapparr_m3u_import_results.json"
 
         results_data = {
@@ -2256,84 +2421,104 @@ class Plugin:
             logger.error(f"{PLUGIN_LOG_PREFIX} M3U import dry run failed: {e}")
             return {"status": "error", "message": f"Dry run failed: {str(e)}"}
 
-    def import_m3u_streams_action(self, settings, logger):
-        """
-        Import action: Create channels from M3U streams.
-        """
-        try:
-            # Check if dry run mode is enabled
-            dry_run = settings.get("dry_run_mode", False)
+    def _do_import_m3u_streams(self, settings, logger):
+        """Core M3U import logic."""
+        logger.info(f"{PLUGIN_LOG_PREFIX} Starting M3U stream import...")
 
-            if dry_run:
-                logger.info(f"{PLUGIN_LOG_PREFIX} Dry Run Mode enabled - calling import_m3u_streams_dry_run_action")
-                return self.import_m3u_streams_dry_run_action(settings, logger)
+        # Step 1: Fetch streams from M3U sources
+        streams = self._fetch_streams_from_m3u_sources(settings, logger)
 
-            logger.info(f"{PLUGIN_LOG_PREFIX} Starting M3U stream import...")
+        if not streams:
+            return {"status": "error", "message": "No streams found in specified M3U sources"}
 
-            # Step 1: Fetch streams from M3U sources
-            streams = self._fetch_streams_from_m3u_sources(settings, logger)
+        # Step 2: Match streams to categories
+        matched_by_category, unmatched_streams = self._match_streams_to_categories(
+            streams, settings, logger
+        )
 
-            if not streams:
-                return {"status": "error", "message": "No streams found in specified M3U sources"}
-
-            # Step 2: Match streams to categories
-            matched_by_category, unmatched_streams = self._match_streams_to_categories(
-                streams, settings, logger
-            )
-
-            if not matched_by_category:
-                return {
-                    "status": "error",
-                    "message": f"No streams matched to channel databases. {len(unmatched_streams)} unmatched streams."
-                }
-
-            # Step 3: Ensure category groups exist
-            categories = list(matched_by_category.keys())
-            category_to_group_id = self._ensure_category_groups_exist(
-                categories, settings, logger
-            )
-
-            # Step 4: Import matched streams as channels
-            import_results = self._import_matched_streams(
-                matched_by_category,
-                category_to_group_id,
-                settings,
-                logger,
-            )
-
-            # Step 5: Save results to JSON
-            results_file = self._save_m3u_import_results(
-                import_results,
-                unmatched_streams,
-                settings
-            )
-
-            # Step 6: Export CSV with final results
-            csv_path, csv_filename = self._export_m3u_import_preview(
-                matched_by_category,
-                unmatched_streams,
-                category_to_group_id,
-                settings,
-                logger
-            )
-
-            # Calculate statistics
-            total_success = sum(1 for imp in import_results['imports'] if imp['status'] == 'success')
-            total_failed = sum(1 for imp in import_results['imports'] if imp['status'] == 'failed')
-
+        if not matched_by_category:
             return {
-                "status": "success",
-                "message": f"✓ M3U import complete!\n\n"
-                          f"Channels created: {total_success}\n"
-                          f"Failed: {total_failed}\n"
-                          f"Unmatched streams skipped: {len(unmatched_streams)}\n"
-                          f"Categories: {len(categories)}\n\n"
-                          f"Results exported to: {csv_filename}"
+                "status": "error",
+                "message": f"No streams matched to channel databases. {len(unmatched_streams)} unmatched streams."
             }
 
+        # Step 3: Ensure category groups exist
+        categories = list(matched_by_category.keys())
+        category_to_group_id = self._ensure_category_groups_exist(
+            categories, settings, logger
+        )
+
+        # Step 4: Import matched streams as channels
+        import_results = self._import_matched_streams(
+            matched_by_category,
+            category_to_group_id,
+            settings,
+            logger,
+        )
+
+        # Step 5: Save results to JSON
+        results_file = self._save_m3u_import_results(
+            import_results,
+            unmatched_streams,
+            settings
+        )
+
+        # Step 6: Export CSV with final results
+        csv_path, csv_filename = self._export_m3u_import_preview(
+            matched_by_category,
+            unmatched_streams,
+            category_to_group_id,
+            settings,
+            logger
+        )
+
+        # Calculate statistics
+        total_success = sum(1 for imp in import_results['imports'] if imp['status'] == 'success')
+        total_failed = sum(1 for imp in import_results['imports'] if imp['status'] == 'failed')
+
+        return {
+            "status": "success",
+            "message": f"✓ M3U import complete!\n\n"
+                      f"Channels created: {total_success}\n"
+                      f"Failed: {total_failed}\n"
+                      f"Unmatched streams skipped: {len(unmatched_streams)}\n"
+                      f"Categories: {len(categories)}\n\n"
+                      f"Results exported to: {csv_filename}"
+        }
+
+    def _do_import_m3u_streams_bg(self, settings, logger):
+        """Background wrapper for M3U import."""
+        try:
+            result = self._do_import_m3u_streams(settings, logger)
+            self._last_bg_result = result
+            msg = result.get("message", "Import complete.")
+            logger.info(f"{PLUGIN_LOG_PREFIX} IMPORT COMPLETED: {msg}")
+            send_websocket_update('updates', 'update', {
+                "type": "plugin", "plugin": self.name,
+                "message": msg
+            })
         except Exception as e:
-            logger.error(f"{PLUGIN_LOG_PREFIX} M3U import failed: {e}")
-            return {"status": "error", "message": f"Import failed: {str(e)}"}
+            self._last_bg_result = {"status": "error", "message": str(e)}
+            logger.exception(f"{PLUGIN_LOG_PREFIX} Import error: {e}")
+            send_websocket_update('updates', 'update', {
+                "type": "plugin", "plugin": self.name,
+                "message": f"Import error: {e}"
+            })
+
+    def import_m3u_streams_action(self, settings, logger):
+        """Import action: Create channels from M3U streams."""
+        dry_run = settings.get("dry_run_mode", False)
+        if dry_run:
+            return self.import_m3u_streams_dry_run_action(settings, logger)
+
+        if not self._try_start_thread(self._do_import_m3u_streams_bg, (copy.deepcopy(settings), logger)):
+            return {"status": "error", "message": "An operation is already running. Please wait for it to finish."}
+
+        return {
+            "status": "ok",
+            "message": "M3U import started in background. Check notifications for progress.",
+            "background": True,
+        }
 
     def validate_settings_action(self, settings, logger):
         """Comprehensive validation of plugin settings and database connectivity"""
@@ -2358,7 +2543,7 @@ class Plugin:
             validation_results.append(db_status)
 
             # 2. Validate channel databases
-            channel_databases_str = settings.get("channel_databases", self.DEFAULT_CHANNEL_DATABASES).strip()
+            channel_databases_str = settings.get("channel_databases", PluginConfig.DEFAULT_CHANNEL_DATABASES).strip()
             if not channel_databases_str:
                 validation_results.append("❌ No databases configured")
                 error_count += 1
@@ -2433,7 +2618,7 @@ class Plugin:
     def clear_csv_exports_action(self, settings, logger):
         """Delete all CSV export files created by this plugin"""
         try:
-            export_dir = self.EXPORT_DIR
+            export_dir = PluginConfig.EXPORT_DIR
 
             if not os.path.exists(export_dir):
                 return {

@@ -12,10 +12,28 @@ import unicodedata
 from glob import glob
 
 # Version: YY.DDD.HHMM (Julian date format: Year.DayOfYear.Time)
-__version__ = "26.018.0100"
+__version__ = "26.100.1200"
 
 # Setup logging
 LOGGER = logging.getLogger("plugins.fuzzy_matcher")
+
+# Conditional import: rapidfuzz (10-100x faster) → thefuzz → built-in Levenshtein
+try:
+    from rapidfuzz import fuzz as _rfuzz
+    _USE_RAPIDFUZZ = True
+    _HAS_SCORE_CUTOFF = True
+    LOGGER.info("Using rapidfuzz for similarity calculations")
+except ImportError:
+    try:
+        from thefuzz import fuzz as _rfuzz
+        _USE_RAPIDFUZZ = True
+        _HAS_SCORE_CUTOFF = False  # thefuzz.fuzz.ratio() does not support score_cutoff
+        LOGGER.info("Using thefuzz for similarity calculations (install rapidfuzz for 10-100x speedup)")
+    except ImportError:
+        _rfuzz = None
+        _USE_RAPIDFUZZ = False
+        _HAS_SCORE_CUTOFF = False
+        LOGGER.info("Using built-in Levenshtein for similarity calculations (install rapidfuzz for 10-100x speedup)")
 
 # Categorized regex patterns for granular control during fuzzy matching
 # Note: All patterns are applied with re.IGNORECASE flag in normalize_name()
@@ -43,12 +61,10 @@ QUALITY_PATTERNS = [
     r'\s+\b(4K|8K|UHD|FHD|HD|SD|FD|Unknown|Unk|Slow|Dead)\b\s+',
 ]
 
-# Regional indicator patterns: East, West, Pacific, Central, Mountain, Atlantic
+# Regional indicator patterns: Pacific, Central, Mountain, Atlantic
+# NOTE: East/West are intentionally NOT stripped — they distinguish separate channel feeds
+# (e.g., "HBO East" and "HBO West" are different channels)
 REGIONAL_PATTERNS = [
-    # Regional: " East" or " east" (word with space prefix)
-    r'\s[Ee][Aa][Ss][Tt]',
-    # Regional: " West" or " west" (word with space prefix)
-    r'\s[Ww][Ee][Ss][Tt]',
     # Regional: " Pacific" or " pacific" (word with space prefix)
     r'\s[Pp][Aa][Cc][Ii][Ff][Ii][Cc]',
     # Regional: " Central" or " central" (word with space prefix)
@@ -57,10 +73,6 @@ REGIONAL_PATTERNS = [
     r'\s[Mm][Oo][Uu][Nn][Tt][Aa][Ii][Nn]',
     # Regional: " Atlantic" or " atlantic" (word with space prefix)
     r'\s[Aa][Tt][Ll][Aa][Nn][Tt][Ii][Cc]',
-    # Regional: (East) or (EAST) (parenthesized format)
-    r'\s*\([Ee][Aa][Ss][Tt]\)\s*',
-    # Regional: (West) or (WEST) (parenthesized format)
-    r'\s*\([Ww][Ee][Ss][Tt]\)\s*',
     # Regional: (Pacific) or (PACIFIC) (parenthesized format)
     r'\s*\([Pp][Aa][Cc][Ii][Ff][Ii][Cc]\)\s*',
     # Regional: (Central) or (CENTRAL) (parenthesized format)
@@ -94,6 +106,13 @@ GEOGRAPHIC_PATTERNS = [
     r'\[[A-Z]{2,3}\]\s*',
 ]
 
+# Enhanced provider prefix patterns for IPTV-specific naming
+PROVIDER_PREFIX_PATTERNS = [
+    r'^(?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\s*[:\-\|]\s*',
+    r'^\s*\((?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\)\s*',
+    r'\s*\|\s*(?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\s*$',
+]
+
 # Miscellaneous patterns: (CX), (Backup), single-letter tags, etc.
 MISC_PATTERNS = [
     # Remove ALL content within parentheses (e.g., (CX), (B), (PRIME), (Backup), etc.)
@@ -103,8 +122,11 @@ MISC_PATTERNS = [
 
 class FuzzyMatcher:
     """Handles fuzzy matching for channel and stream names with normalization and database loading."""
-    
-    def __init__(self, plugin_dir=None, match_threshold=85, logger=None):
+
+    # Common words excluded from token indexing (too generic to be discriminating)
+    _COMMON_TOKENS = frozenset({"the", "and", "of", "in", "on", "at", "to", "for", "a", "an", "tv", "channel", "network"})
+
+    def __init__(self, plugin_dir=None, match_threshold=80, logger=None):
         """
         Initialize the fuzzy matcher.
 
@@ -124,10 +146,142 @@ class FuzzyMatcher:
         self.channel_lookup = {}  # Callsign -> channel data mapping
         self.country_codes = None  # Track which country databases are currently loaded
 
+        # Cache for pre-normalized stream names (performance optimization)
+        self._norm_cache = {}       # raw_name -> normalized_lower
+        self._norm_nospace_cache = {} # raw_name -> normalized_nospace
+        self._processed_cache = {}   # raw_name -> processed_for_matching
+
+        # Inverted token index for candidate pre-filtering (built by build_token_index)
+        self._token_index = {}      # token -> set of original candidate names
+        self._indexed_names = set() # all names in the token index
+
         # Load all channel databases if plugin_dir is provided
         if self.plugin_dir:
             self._load_channel_databases()
     
+    def precompute_normalizations(self, names, user_ignored_tags=None):
+        """
+        Pre-normalize a list of names and cache the results.
+        Call this once before matching many queries against the same candidate list.
+
+        Not thread-safe — do not call concurrently from multiple threads.
+        """
+        self._norm_cache.clear()
+        self._norm_nospace_cache.clear()
+        self._processed_cache.clear()
+
+        for name in names:
+            norm = self.normalize_name(name, user_ignored_tags)
+            if norm and len(norm) >= 2:
+                norm_lower = norm.lower()
+                self._norm_cache[name] = norm_lower
+                self._norm_nospace_cache[name] = re.sub(r'[\s&\-]+', '', norm_lower)
+                self._processed_cache[name] = self.process_string_for_matching(norm)
+
+        self.logger.info(f"Pre-normalized {len(self._norm_cache)} names (from {len(names)} total)")
+
+    def build_token_index(self, names, user_ignored_tags=None, min_token_len=2):
+        """
+        Build an inverted index mapping normalized tokens to candidate names.
+        Call once before using get_candidates() to pre-filter fuzzy match candidates.
+
+        Args:
+            names: List of candidate names to index (e.g., premium_channels)
+            user_ignored_tags: Tags to strip during normalization
+            min_token_len: Minimum token length to include in index
+        """
+        self._token_index.clear()
+        self._indexed_names = set(names)
+
+        for name in names:
+            norm_lower, _ = self._get_cached_norm(name, user_ignored_tags)
+            if not norm_lower:
+                norm = self.normalize_name(name, user_ignored_tags)
+                if not norm or len(norm) < 2:
+                    continue
+                norm_lower = norm.lower()
+
+            # Extract tokens, skip common words and very short tokens
+            tokens = set()
+            for token in re.split(r'[\s&\-]+', norm_lower):
+                if len(token) >= min_token_len and token not in self._COMMON_TOKENS:
+                    tokens.add(token)
+
+            for token in tokens:
+                if token not in self._token_index:
+                    self._token_index[token] = set()
+                self._token_index[token].add(name)
+
+        self.logger.info(f"Token index built: {len(self._token_index)} unique tokens across {len(names)} names")
+
+    def get_candidates(self, query_name, user_ignored_tags=None, max_candidates=2000):
+        """
+        Use the token index to find candidate names likely to match the query.
+        Returns a subset of indexed names that share at least one significant token.
+
+        Args:
+            query_name: Name to find candidates for
+            user_ignored_tags: Tags to strip during normalization
+            max_candidates: Safety cap on returned candidates
+
+        Returns:
+            List of candidate names from the index, or None if no index built
+        """
+        if not self._token_index:
+            return None  # No index — caller should fall back to full list
+
+        # Normalize the query
+        norm_lower, _ = self._get_cached_norm(query_name, user_ignored_tags)
+        if not norm_lower:
+            norm = self.normalize_name(query_name, user_ignored_tags)
+            if not norm or len(norm) < 2:
+                return []
+            norm_lower = norm.lower()
+
+        # Extract query tokens
+        query_tokens = set()
+        for token in re.split(r'[\s&\-]+', norm_lower):
+            if len(token) >= 2 and token not in self._COMMON_TOKENS:
+                query_tokens.add(token)
+
+        if not query_tokens:
+            return []
+
+        # Collect candidates that share at least one token
+        candidates = set()
+        for token in query_tokens:
+            if token in self._token_index:
+                candidates.update(self._token_index[token])
+
+        if len(candidates) > max_candidates:
+            # Rank by token overlap count so most likely matches survive the cap
+            ranked = sorted(candidates, key=lambda c: sum(
+                1 for t in query_tokens if t in self._token_index and c in self._token_index[t]
+            ), reverse=True)
+            self.logger.debug(f"Token pre-filter: {len(candidates)} candidates truncated to {max_candidates} for '{query_name}'")
+            return ranked[:max_candidates]
+
+        return list(candidates)
+
+    def _get_cached_norm(self, name, user_ignored_tags=None):
+        """Get cached normalization or compute on the fly."""
+        if name in self._norm_cache:
+            return self._norm_cache[name], self._norm_nospace_cache[name]
+        norm = self.normalize_name(name, user_ignored_tags)
+        if not norm or len(norm) < 2:
+            return None, None
+        norm_lower = norm.lower()
+        return norm_lower, re.sub(r'[\s&\-]+', '', norm_lower)
+
+    def _get_cached_processed(self, name, user_ignored_tags=None):
+        """Get cached processed string or compute on the fly."""
+        if name in self._processed_cache:
+            return self._processed_cache[name]
+        norm = self.normalize_name(name, user_ignored_tags)
+        if not norm or len(norm) < 2:
+            return None
+        return self.process_string_for_matching(norm)
+
     def _load_channel_databases(self):
         """Load all *_channels.json files from the plugin directory."""
         pattern = os.path.join(self.plugin_dir, "*_channels.json")
@@ -375,6 +529,10 @@ class FuzzyMatcher:
                 break
             name = new_name
 
+        # Remove IPTV provider prefixes (common in M3U streams)
+        for pattern in PROVIDER_PREFIX_PATTERNS:
+            name = re.sub(pattern, '', name, flags=re.IGNORECASE)
+
         # Remove country code prefix if requested (e.g., "CA:", "UK ", "USA: ")
         # This handles multi-country databases where streams may be prefixed with country codes
         if remove_country_prefix:
@@ -539,23 +697,43 @@ class FuzzyMatcher:
         
         return regional, extra_tags, quality_tags
     
-    def calculate_similarity(self, str1, str2):
+    def calculate_similarity(self, str1, str2, min_ratio=0.0):
         """
         Calculate Levenshtein distance-based similarity ratio between two strings.
+        Uses rapidfuzz/thefuzz when available (10-100x faster), falls back to
+        built-in Levenshtein with early termination via min_ratio.
 
         Returns:
             Similarity ratio between 0.0 and 1.0
         """
+        if len(str1) == 0 or len(str2) == 0:
+            return 0.0
+
+        # Use rapidfuzz/thefuzz when available (returns 0-100, we need 0.0-1.0)
+        if _USE_RAPIDFUZZ:
+            if _HAS_SCORE_CUTOFF and min_ratio > 0:
+                score = _rfuzz.ratio(str1, str2, score_cutoff=min_ratio * 100)
+            else:
+                score = _rfuzz.ratio(str1, str2)
+            return score / 100.0
+
+        # Built-in Levenshtein with early termination
         if len(str1) < len(str2):
             str1, str2 = str2, str1
+        len1, len2 = len(str1), len(str2)
 
-        # Empty strings should not match anything (including other empty strings)
-        # This prevents false positives when normalization strips everything
-        if len(str2) == 0 or len(str1) == 0:
-            return 0.0
-        
-        previous_row = list(range(len(str2) + 1))
-        
+        total_len = len1 + len2
+        # Length-difference pre-check: even with 0 substitutions, the distance
+        # is at least (len1 - len2), so the max possible ratio is bounded.
+        if min_ratio > 0:
+            max_possible = (total_len - (len1 - len2)) / total_len
+            if max_possible < min_ratio:
+                return 0.0
+            # Max allowed distance to still meet min_ratio
+            max_distance = int(total_len * (1.0 - min_ratio))
+
+        previous_row = list(range(len2 + 1))
+
         for i, c1 in enumerate(str1):
             current_row = [i + 1]
             for j, c2 in enumerate(str2):
@@ -563,17 +741,51 @@ class FuzzyMatcher:
                 deletions = current_row[j] + 1
                 substitutions = previous_row[j] + (c1 != c2)
                 current_row.append(min(insertions, deletions, substitutions))
+            # Early termination: if the minimum value in this row already
+            # exceeds max_distance, no subsequent row can produce a valid result
+            if min_ratio > 0 and min(current_row) > max_distance:
+                return 0.0
             previous_row = current_row
-        
+
         distance = previous_row[-1]
-        total_len = len(str1) + len(str2)
-        
-        if total_len == 0:
-            return 1.0
-        
-        ratio = (total_len - distance) / total_len
-        return ratio
+        return (total_len - distance) / total_len
     
+    @staticmethod
+    def _length_scaled_threshold(base_threshold, shorter_len):
+        """Require higher similarity for shorter strings to avoid false positives.
+        Short names (<=4 chars) need 95%, medium (<=8) need 90%."""
+        if shorter_len <= 4:
+            return max(base_threshold, 95)
+        elif shorter_len <= 8:
+            return max(base_threshold, 90)
+        return base_threshold
+
+    @staticmethod
+    def _has_token_overlap(str_a, str_b, min_token_len=4, require_majority=False):
+        """Check that distinctive tokens are shared between two strings.
+
+        Basic mode: at least one token (>= min_token_len) must be shared.
+        Majority mode: uses all tokens (>= 2 chars) and requires more than
+        half of the smaller set overlaps."""
+        common_words = {"the", "and", "of", "in", "on", "at", "to", "for", "a", "an"}
+
+        if require_majority:
+            tokens_a = {t for t in str_a.split() if t not in common_words and len(t) >= 2}
+            tokens_b = {t for t in str_b.split() if t not in common_words and len(t) >= 2}
+            if not tokens_a or not tokens_b:
+                return True
+            shared = tokens_a & tokens_b
+            if not shared:
+                return False
+            smaller = min(len(tokens_a), len(tokens_b))
+            return len(shared) > smaller / 2
+
+        tokens_a = {t for t in str_a.split() if t not in common_words and len(t) >= min_token_len}
+        tokens_b = {t for t in str_b.split() if t not in common_words and len(t) >= min_token_len}
+        if not tokens_a or not tokens_b:
+            return True
+        return bool(tokens_a & tokens_b)
+
     def process_string_for_matching(self, s):
         """
         Normalize a string for token-sort fuzzy matching.
@@ -651,31 +863,36 @@ class FuzzyMatcher:
         best_match = None
 
         for candidate in candidate_names:
-            # Normalize candidate (stream name) with Cinemax removal if requested
-            candidate_normalized = self.normalize_name(candidate, user_ignored_tags,
-                                                        ignore_quality=ignore_quality,
-                                                        ignore_regional=ignore_regional,
-                                                        ignore_geographic=ignore_geographic,
-                                                        ignore_misc=ignore_misc,
-                                                        remove_cinemax=remove_cinemax)
-
-            # Skip candidates that normalize to empty or very short strings
-            if not candidate_normalized or len(candidate_normalized) < 2:
+            candidate_lower, _ = self._get_cached_norm(candidate, user_ignored_tags)
+            if not candidate_lower:
+                continue
+            processed_candidate = self._get_cached_processed(candidate, user_ignored_tags)
+            if not processed_candidate:
                 continue
 
-            processed_candidate = self.process_string_for_matching(candidate_normalized)
-            score = self.calculate_similarity(processed_query, processed_candidate)
+            score = self.calculate_similarity(processed_query, processed_candidate,
+                                                min_ratio=max(self.match_threshold / 100.0, best_score))
 
             if score > best_score:
                 best_score = score
                 best_match = candidate
-        
+
         # Convert to percentage and check threshold
         percentage_score = int(best_score * 100)
-        
+
         if percentage_score >= self.match_threshold:
-            return best_match, percentage_score
-        
+            # Apply false-positive guards
+            best_processed = self._get_cached_processed(best_match, user_ignored_tags)
+            if best_processed:
+                shorter_len = min(len(processed_query), len(best_processed))
+                effective_threshold = self._length_scaled_threshold(self.match_threshold, shorter_len)
+                need_majority = percentage_score < 90
+                if percentage_score >= effective_threshold and self._has_token_overlap(
+                        processed_query, best_processed, require_majority=need_majority):
+                    return best_match, percentage_score
+            else:
+                return best_match, percentage_score
+
         return None, 0
     
     def fuzzy_match(self, query_name, candidate_names, user_ignored_tags=None, remove_cinemax=False,
@@ -722,28 +939,16 @@ class FuzzyMatcher:
         normalized_query_nospace = re.sub(r'[\s&\-]+', '', normalized_query_lower)
 
         for candidate in candidate_names:
-            # Normalize candidate (stream name) with Cinemax removal if requested
-            candidate_normalized = self.normalize_name(candidate, user_ignored_tags,
-                                                        ignore_quality=ignore_quality,
-                                                        ignore_regional=ignore_regional,
-                                                        ignore_geographic=ignore_geographic,
-                                                        ignore_misc=ignore_misc,
-                                                        remove_cinemax=remove_cinemax)
-
-            # Skip candidates that normalize to empty or very short strings (< 2 chars)
-            # This prevents false positives where multiple streams all normalize to ""
-            if not candidate_normalized or len(candidate_normalized) < 2:
+            candidate_lower, candidate_nospace = self._get_cached_norm(candidate, user_ignored_tags)
+            if not candidate_lower:
                 continue
-
-            candidate_lower = candidate_normalized.lower()
-            candidate_nospace = re.sub(r'[\s&\-]+', '', candidate_lower)
 
             # Exact match
             if normalized_query_nospace == candidate_nospace:
                 return candidate, 100, "exact"
 
             # Very high similarity (97%+)
-            ratio = self.calculate_similarity(normalized_query_lower, candidate_lower)
+            ratio = self.calculate_similarity(normalized_query_lower, candidate_lower, min_ratio=0.97)
             if ratio >= 0.97 and ratio > best_ratio:
                 best_match = candidate
                 best_ratio = ratio
@@ -754,37 +959,35 @@ class FuzzyMatcher:
 
         # Stage 2: Substring matching
         for candidate in candidate_names:
-            # Normalize candidate (stream name) with Cinemax removal if requested
-            candidate_normalized = self.normalize_name(candidate, user_ignored_tags,
-                                                        ignore_quality=ignore_quality,
-                                                        ignore_regional=ignore_regional,
-                                                        ignore_geographic=ignore_geographic,
-                                                        ignore_misc=ignore_misc,
-                                                        remove_cinemax=remove_cinemax)
-
-            # Skip candidates that normalize to empty or very short strings
-            if not candidate_normalized or len(candidate_normalized) < 2:
+            candidate_lower, _ = self._get_cached_norm(candidate, user_ignored_tags)
+            if not candidate_lower:
                 continue
-
-            candidate_lower = candidate_normalized.lower()
 
             # Check if one is a substring of the other
             if normalized_query_lower in candidate_lower or candidate_lower in normalized_query_lower:
-                # CRITICAL FIX: Add length ratio requirement to prevent false positives
-                # like "story" matching "history" (story is 5 chars, history is 7 chars)
                 # Require strings to be within 75% of same length for substring match
-                # This ensures substring matches are semantically meaningful
                 length_ratio = min(len(normalized_query_lower), len(candidate_lower)) / max(len(normalized_query_lower), len(candidate_lower))
                 if length_ratio >= 0.75:
-                    # Calculate similarity score
-                    ratio = self.calculate_similarity(normalized_query_lower, candidate_lower)
+                    ratio = self.calculate_similarity(normalized_query_lower, candidate_lower,
+                                                        min_ratio=self.match_threshold / 100.0)
                     if ratio > best_ratio:
                         best_match = candidate
                         best_ratio = ratio
                         match_type = "substring"
 
         if best_match and int(best_ratio * 100) >= self.match_threshold:
-            return best_match, int(best_ratio * 100), match_type
+            sub_score = int(best_ratio * 100)
+            # Apply false-positive guards
+            best_candidate_lower, _ = self._get_cached_norm(best_match, user_ignored_tags)
+            if best_candidate_lower:
+                shorter_len = min(len(normalized_query_lower), len(best_candidate_lower))
+                effective_threshold = self._length_scaled_threshold(self.match_threshold, shorter_len)
+                need_majority = sub_score < 90
+                if sub_score >= effective_threshold and self._has_token_overlap(
+                        normalized_query_lower, best_candidate_lower, require_majority=need_majority):
+                    return best_match, sub_score, match_type
+            else:
+                return best_match, sub_score, match_type
 
         # Stage 3: Fuzzy matching with token sorting
         fuzzy_match, score = self.find_best_match(query_name, candidate_names, user_ignored_tags,
@@ -797,7 +1000,91 @@ class FuzzyMatcher:
             return fuzzy_match, score, f"fuzzy ({score})"
         
         return None, 0, None
-    
+
+    def match_all_streams(self, query_name, candidate_names, user_ignored_tags=None,
+                          remove_cinemax=False, ignore_quality=True, ignore_regional=True,
+                          ignore_geographic=True, ignore_misc=True):
+        """
+        Full matching pipeline returning ALL matches above threshold, sorted by score desc.
+        Useful for CSV preview exports showing top N alternatives per channel.
+
+        Returns:
+            List of (stream_name, score, match_type) tuples sorted by score descending.
+        """
+        if not candidate_names:
+            return []
+
+        if user_ignored_tags is None:
+            user_ignored_tags = []
+
+        all_matches = {}  # stream_name -> (score, match_type)
+
+        normalized_query = self.normalize_name(query_name, user_ignored_tags,
+                                               ignore_quality=ignore_quality,
+                                               ignore_regional=ignore_regional,
+                                               ignore_geographic=ignore_geographic,
+                                               ignore_misc=ignore_misc)
+        if not normalized_query:
+            return []
+
+        normalized_query_lower = normalized_query.lower()
+        normalized_query_nospace = re.sub(r'[\s&\-]+', '', normalized_query_lower)
+        processed_query = self.process_string_for_matching(normalized_query)
+        threshold_ratio = self.match_threshold / 100.0
+
+        for candidate in candidate_names:
+            candidate_lower, candidate_nospace = self._get_cached_norm(candidate, user_ignored_tags)
+            if not candidate_lower:
+                continue
+
+            score = 0
+            mtype = None
+
+            # Exact
+            if normalized_query_nospace == candidate_nospace:
+                score = 100
+                mtype = "exact"
+            else:
+                ratio = self.calculate_similarity(normalized_query_lower, candidate_lower, min_ratio=0.97)
+                if ratio >= 0.97:
+                    score = int(ratio * 100)
+                    mtype = "exact"
+
+            # Substring
+            if not mtype:
+                if normalized_query_lower in candidate_lower or candidate_lower in normalized_query_lower:
+                    length_ratio = min(len(normalized_query_lower), len(candidate_lower)) / max(len(normalized_query_lower), len(candidate_lower))
+                    if length_ratio >= 0.75:
+                        ratio = self.calculate_similarity(normalized_query_lower, candidate_lower, min_ratio=threshold_ratio)
+                        sub_score = int(ratio * 100)
+                        shorter_len = min(len(normalized_query_lower), len(candidate_lower))
+                        sub_threshold = self._length_scaled_threshold(self.match_threshold, shorter_len)
+                        need_majority = sub_score < 90
+                        if sub_score >= sub_threshold and self._has_token_overlap(normalized_query_lower, candidate_lower, require_majority=need_majority):
+                            score = sub_score
+                            mtype = "substring"
+
+            # Fuzzy token-sort
+            if not mtype:
+                processed_candidate = self._get_cached_processed(candidate, user_ignored_tags)
+                if processed_candidate:
+                    ratio = self.calculate_similarity(processed_query, processed_candidate, min_ratio=threshold_ratio)
+                    fuzzy_score = int(ratio * 100)
+                    shorter_len = min(len(processed_query), len(processed_candidate))
+                    fuzzy_threshold = self._length_scaled_threshold(self.match_threshold, shorter_len)
+                    need_majority = fuzzy_score < 90
+                    if fuzzy_score >= fuzzy_threshold and self._has_token_overlap(processed_query, processed_candidate, require_majority=need_majority):
+                        score = fuzzy_score
+                        mtype = f"fuzzy ({fuzzy_score})"
+
+            if mtype and score > 0:
+                all_matches[candidate] = (score, mtype)
+
+        # Convert to sorted list
+        results = [(name, score, mtype) for name, (score, mtype) in all_matches.items()]
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results
+
     def match_broadcast_channel(self, channel_name):
         """
         Match broadcast (OTA) channel by callsign.

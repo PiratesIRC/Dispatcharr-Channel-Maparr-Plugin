@@ -13,127 +13,113 @@ A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel
 ![License](https://img.shields.io/github/license/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin)
 
 ## Features
-* **Multi-Country Support**: Load channel databases for multiple regions, including US, UK, CA, AU, BR, DE, ES, FR, IN, and MX.
+* **Multi-Country Support**: Load channel databases for AU, BR, CA, DE, ES, FR, IN, MX, NL, UK, and US (42,800+ channels total).
+* **M3U Stream Import**: Create channels from M3U streams with automatic category-based organization. Runs in background with progress tracking.
 * **Category-Based Organization**: Automatically move channels into specific groups based on their content category (e.g., News, Sports, Entertainment).
 * **Customizable OTA Formatting**: Use tags like `{NETWORK}`, `{STATE}`, `{CITY}`, `{CALLSIGN}` to format broadcast channel names.
-* **Configurable Fuzzy Matching**: Adjust the matching sensitivity threshold to fine-tune accuracy for channel name variations.
-* **Automatic Update Checking**: Checks for plugin updates on GitHub and notifies via the settings UI.
-* **Intelligent Matching Logic**: Handles regional indicators, quality tags, and country suffixes while preventing false positives.
+* **High-Performance Fuzzy Matching**: Token-based candidate pre-filtering with `rapidfuzz` integration matches 19K streams against 31K channels in seconds.
+* **Match Sensitivity Presets**: Select from Relaxed (70), Normal (80), Strict (90), or Exact (95) sensitivity levels.
+* **False-Positive Guards**: Length-scaled thresholds and token overlap checks prevent incorrect matches on short or similar names.
+* **Normalization Caching**: Pre-computed normalizations avoid redundant processing across matching loops.
 * **Configurable Ignored Tags**: Define a custom list of tags to be removed from channel names before matching.
 * **Logo Management**: Bulk apply default logos to channels without artwork.
-* **CSV Export**: Preview renaming and grouping changes before applying them with detailed dry-run reports.
-* **Group Filtering**: Target specific channel groups for processing or organization.
-* **Performance Optimization**: Features API token caching and WebSocket frontend refreshes for efficient operation.
+* **CSV Export**: Preview renaming, categorization, and import changes with detailed dry-run reports.
+* **Background Threading**: Long-running operations (M3U import, organize) run in background threads with progress tracking via WebSocket.
+* **Atomic File Writes**: CSV exports use temp files with atomic rename to prevent corrupt partial writes.
+* **Rate Limiting**: Configurable delay between database writes during large imports (None/Low/Medium/High).
 
 ## Requirements
-* Active Dispatcharr installation
-* Admin username and password for API access
-* Internet access (for version checking and initial database loading)
+* Dispatcharr v0.20.0+
+* Internet access (for version checking)
 
 ## Installation
-1.  Log in to Dispatcharr's web UI.
-2.  Navigate to **Plugins**.
-3.  Click **Import Plugin** and upload the plugin zip file.
-4.  Enable the plugin after installation.
+1. Log in to Dispatcharr's web UI.
+2. Navigate to **Plugins**.
+3. Click **Import Plugin** and upload the plugin zip file.
+4. Enable the plugin after installation.
 
 ## Updating the Plugin
 To update Channel Mapparr from a previous version:
 
 ### 1. Remove Old Version
-1.  Navigate to **Plugins** in Dispatcharr.
-2.  Click the trash icon next to the old Channel Mapparr plugin.
-3.  Confirm deletion.
+1. Navigate to **Plugins** in Dispatcharr.
+2. Click the trash icon next to the old Channel Mapparr plugin.
+3. Confirm deletion.
 
 ### 2. Restart Dispatcharr
-1.  Log out of Dispatcharr.
-2.  Restart the Docker container:
-    ```bash
-    docker restart dispatcharr
-    ```
+```bash
+docker restart dispatcharr
+```
 
 ### 3. Install New Version
-1.  Log back into Dispatcharr.
-2.  Navigate to **Plugins**.
-3.  Click **Import Plugin** and upload the new plugin zip file.
-4.  Enable the plugin after installation.
+1. Log back into Dispatcharr.
+2. Navigate to **Plugins**.
+3. Click **Import Plugin** and upload the new plugin zip file.
+4. Enable the plugin after installation.
 
 ### 4. Verify Installation
-1.  Check that the new version number appears in the plugin list.
-2.  Reconfigure your settings if needed.
-3.  Run **Load/Process Channels** to test the update.
+1. Check that the new version number appears in the plugin list.
+2. Reconfigure your settings if needed.
+3. Run **Validate Settings** to confirm everything is working.
 
 ## Settings Reference
 
 | Setting | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| **Dispatcharr URL** | `string` | - | Full URL of your Dispatcharr instance (e.g., `http://127.0.0.1:9191`). |
-| **Dispatcharr Admin Username**| `string` | - | Username for API authentication. |
-| **Dispatcharr Admin Password**| `password`| - | Password for API authentication. |
-| **Channel Databases** | `string` | `US` | Comma-separated country codes (e.g., `US, UK, CA`). |
-| **Fuzzy Match Threshold** | `number` | `85` | Minimum similarity score (0-100) for matching. Higher values require closer matches. |
+| **Channel Databases** | `string` | `US` | Comma-separated country codes (AU, BR, CA, DE, ES, FR, IN, MX, NL, UK, US). |
+| **Match Sensitivity** | `select` | `normal` | Relaxed (70), Normal (80), Strict (90), Exact (95). |
 | **Channel Groups to Process** | `string` | - | Comma-separated group names for renaming operations. Empty = all groups. |
 | **Channel Groups for Category Organization** | `string` | - | Comma-separated group names for category sorting. Empty = all groups. |
-| **OTA Channel Name Format** | `string` | `{NETWORK} - {STATE} {CITY} ({CALLSIGN})` | Format template for OTA channels. Available tags: `{NETWORK}`, `{STATE}`, `{CITY}`, `{CALLSIGN}`. |
-| **Ignored Tags** | `string` | `[4K], [FHD], ...` | Comma-separated list of tags to remove before matching (handles `[]` and `()`). |
-| **Suffix for Unknown Channels**| `string` | ` [Unk]` | Suffix to append to unmatched channels. |
-| **Default Logo** | `string` | - | Logo display name from Dispatcharr's logo manager to apply to channels without logos. |
+| **M3U Source** | `select` | `All sources` | Filter streams to a specific M3U account. |
+| **M3U Group Filter** | `string` | - | Pre-match filter by M3U group-title. |
+| **Category Filter** | `string` | - | Post-match filter by database category. |
+| **Custom Import Group Name** | `string` | - | Override category-based group naming for imports. |
+| **OTA Channel Name Format** | `string` | `{NETWORK} - {STATE} {CITY} ({CALLSIGN})` | Format template for broadcast channels. |
+| **Suffix for Unknown Channels** | `string` | ` [Unk]` | Suffix to append to unmatched channels. |
+| **Ignored Tags** | `string` | `[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]` | Tags removed before matching (handles `[]` and `()`). |
+| **Default Logo** | `string` | - | Logo display name from Dispatcharr's Logos page. |
+| **Dry Run Mode** | `boolean` | `false` | Preview changes without modifying anything. |
+| **Rate Limiting** | `select` | `None` | Delay between DB writes (None/Low/Medium/High). |
 
-## Usage Guide
+## Recommended Action Order
 
-### Renaming Channels
-1.  **Configure Settings**: Set your Dispatcharr credentials, select your **Channel Databases** (e.g., `US, UK`), and adjust the **Fuzzy Match Threshold** if needed.
-2.  **Load and Process**: Run **Load/Process Channels**. This loads the selected databases and attempts to match your current channels.
-3.  **Preview**: Run **Preview Changes (Dry Run)** to generate a CSV report of proposed name changes.
-4.  **Apply**: Run **Rename Channels** to apply the standardized names.
+The action buttons are listed in the recommended execution order:
 
-### Organizing by Category
-1.  **Configure Groups**: Optionally set **Channel Groups for Category Organization** to limit which channels are moved.
-2.  **Preview**: Run **Category Groups Dry Run**. This exports a CSV showing which channels will be moved and if new groups (e.g., "News", "Sports") need to be created.
-3.  **Apply**: Run **Organize Channels by Category** to move channels into their respective category groups.
+1. **Validate Settings** - Check DB connectivity and settings.
+2. **Load & Process Channels** - Scan groups and determine standardized names.
+3. **Rename Channels** - Apply names (or CSV preview in Dry Run).
+4. **Tag Unknown Channels** - Append suffix to unmatched channels.
+5. **Apply Logos** - Assign default logo to channels without one.
+6. **Organize by Category** - Move channels into category groups (or CSV preview).
+7. **Import M3U Streams** - Create channels from M3U streams (or CSV preview).
+8. **Clear CSV Exports** - Delete all plugin CSV files.
 
-### Managing Logos and Unknowns
-* **Apply Default Logos**: If you have channels missing artwork, configure a **Default Logo** name and run this action to fill in the gaps.
-* **Unknown Channels**: Use **Add Suffix to Unknown Channels** to tag channels that could not be matched against the loaded databases.
+Rename before Import ensures duplicate detection is accurate (standardized names prevent duplicates).
 
-## Action Reference
+## Performance
 
-| Action | Description |
-| :--- | :--- |
-| **Load/Process Channels** | Load channels from API and match against selected country databases. |
-| **Preview Changes (Dry Run)** | Export a CSV showing proposed renames and match sources. |
-| **Rename Channels** | Apply standardized names to matched channels. |
-| **Add Suffix to Unknown Channels**| Tag unmatched channels with the configured suffix. |
-| **Apply Default Logos** | Bulk assign a logo to channels without artwork. |
-| **Category Groups Dry Run** | Export a CSV showing proposed channel moves based on categories. |
-| **Organize Channels by Category** | Move channels to groups based on their category (creates groups if needed). |
-| **Clear CSV Exports** | Delete all CSV export files created by the plugin. |
+Channel Mapparr uses several optimization layers for fast matching:
+
+1. **Exact lookup** (O(1) hash) - catches most real matches instantly.
+2. **Normalized lookup** (O(1) hash) - matches after stripping tags, prefixes, and noise.
+3. **Token-indexed fuzzy matching** - inverted index reduces candidates from 31K to ~50-200 before fuzzy comparison.
+4. **`rapidfuzz` C extension** - 10-100x faster than pure-Python Levenshtein when available.
+5. **Early termination** - skips impossible matches via length pre-check and row-level abort.
+
+Benchmark: 19,147 streams matched against 31,621 channels in **6 seconds**.
 
 ## File Locations
 * **Processing Cache**: `/data/channel_mapparr_loaded_channels.json`
 * **Version Cache**: `/data/channel_mapparr_version_check.json`
+* **Import Results**: `/data/channel_mapparr_m3u_import_results.json`
 * **Exports**: `/data/exports/` (CSV previews and reports)
-
-## CSV Export Format
-The plugin generates CSVs for both renaming and categorization previews.
-
-**Renaming Preview:**
-* **dbase**: Indicates the source of the match (e.g., `Broadcast (OTA)`, `Premium/Cable`).
-* **match_method**: Details the specific logic used (e.g., `Callsign Match`, `Fuzzy Match - score: 92`).
-
-**Category Preview:**
-* **New Group**: The target group based on the channel's category.
-* **Group Exists**: Indicates if the plugin needs to create a new group via the API.
-
-## Performance Notes
-* **Token Caching**: API tokens are cached for 30 minutes to reduce authentication overhead.
-* **WebSocket Updates**: The plugin triggers a WebSocket frontend refresh upon completion, ensuring the UI updates immediately without a full page reload.
-* **Bulk Operations**: Channel updates are performed in bulk to minimize API calls.
 
 ## Troubleshooting
 * **"Logo not found"**: Ensure you are using the logo's *display name* from the Dispatcharr Logos page, not the filename.
-* **"No match found"**: Try lowering the **Fuzzy Match Threshold** slightly (e.g., to 75 or 80) if channels are being skipped due to minor spelling differences.
+* **"No match found"**: Try lowering the Match Sensitivity to Normal or Relaxed if channels are being skipped.
 * **Database Loading Errors**: Ensure the `Channel Databases` setting uses valid 2-letter country codes (e.g., `US`, `UK`).
-* **Update Checks**: If the version check fails, ensure your container has internet access to reach GitHub.
+* **Slow matching**: Install `rapidfuzz` in your Dispatcharr container for 10-100x faster fuzzy matching. Check logs for "Using rapidfuzz" vs "Using built-in Levenshtein".
+* **Worker timeout on Organize**: Ensure you're running v1.26.1001200+ which runs organize in a background thread.
 
 ## License
 This plugin integrates with Dispatcharr's plugin system and follows its licensing terms.

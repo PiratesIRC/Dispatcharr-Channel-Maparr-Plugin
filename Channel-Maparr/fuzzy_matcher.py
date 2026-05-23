@@ -11,6 +11,14 @@ import logging
 import unicodedata
 from glob import glob
 
+try:
+    from .aliases import CHANNEL_ALIASES as _BUILTIN_ALIASES
+except (ImportError, ValueError):
+    try:
+        from aliases import CHANNEL_ALIASES as _BUILTIN_ALIASES
+    except ImportError:
+        _BUILTIN_ALIASES = {}
+
 # Version: YY.DDD.HHMM (Julian date format: Year.DayOfYear.Time)
 __version__ = "26.100.1200"
 
@@ -89,9 +97,12 @@ GEOGRAPHIC_PATTERNS = [
     # Matches patterns like: US, USA, FR, UK, CA, DE, etc.
     # With separators: US:, USA:, |FR|, US -, FR -, etc.
     
-    # Format: XX: or XXX: (e.g., US:, USA:, FR:, UK:)
-    # This is safe because the colon clearly indicates a prefix
-    r'\b[A-Z]{2,3}:\s*',
+    # Format: XX: or XXX: (e.g., US:, USA:, FR:, UK:). The optional
+    # second 2-3 letter group catches provider sub-tags like "CA FR:",
+    # "US ES:", "UK FHD:" so both pieces are stripped, not just the
+    # piece adjacent to the colon (which would otherwise leave "CA"
+    # stranded as a token).
+    r'\b[A-Z]{2,3}(?:\s+[A-Z]{2,4})?:\s*',
     
     # Format: XX - or XXX - (e.g., US - , USA - , FR - )
     # Safe because the dash clearly indicates a separator
@@ -118,6 +129,18 @@ MISC_PATTERNS = [
     # Remove ALL content within parentheses (e.g., (CX), (B), (PRIME), (Backup), etc.)
     r'\s*\([^)]*\)\s*',
 ]
+
+# Spelled-out numbers normalized to digits inside normalize_name() so brands
+# like "BBC Three" share tokens with "BBC 3".
+NUM_WORDS = {
+    "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
+    "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
+    "eleven": "11", "twelve": "12",
+}
+NUM_WORDS_RE = re.compile(
+    r'\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b',
+    re.IGNORECASE,
+)
 
 
 class FuzzyMatcher:
@@ -150,6 +173,17 @@ class FuzzyMatcher:
         self._norm_cache = {}       # raw_name -> normalized_lower
         self._norm_nospace_cache = {} # raw_name -> normalized_nospace
         self._processed_cache = {}   # raw_name -> processed_for_matching
+        self._callsign_cache = {}    # raw_name -> (callsign, is_high_confidence)
+
+        # Alias map: channel_name -> [stream-name variants]. Builtins ship in
+        # aliases.py; users can extend at runtime via set_user_aliases().
+        # _reverse_alias_index maps normalized-variant -> canonical channel,
+        # rebuilt by _rebuild_reverse_alias_index() whenever alias_map changes.
+        # It enables O(1) alias lookup when the QUERY is a stream name and
+        # the CANDIDATES are channel names (Channel-Maparr's pipeline).
+        self.alias_map = dict(_BUILTIN_ALIASES)
+        self._reverse_alias_index = {}
+        self._rebuild_reverse_alias_index()
 
         # Inverted token index for candidate pre-filtering (built by build_token_index)
         self._token_index = {}      # token -> set of original candidate names
@@ -169,6 +203,7 @@ class FuzzyMatcher:
         self._norm_cache.clear()
         self._norm_nospace_cache.clear()
         self._processed_cache.clear()
+        self._callsign_cache.clear()
 
         for name in names:
             norm = self.normalize_name(name, user_ignored_tags)
@@ -432,43 +467,147 @@ class FuzzyMatcher:
         self.logger.info(f"Total channels loaded: {total_broadcast} broadcast, {total_premium} premium")
         return True
 
-    def extract_callsign(self, channel_name):
+    # Words shape-identical to US callsigns (K/W + 2-4 letters) that are never
+    # real broadcast callsigns. The Priority 4 loose pattern would otherwise
+    # mis-extract them — e.g. "with" in "Bizarre Foods with Andrew Zimmern".
+    # Sourced from Lineuparr's denylist; WWE/WWF/WCW are wrestling brands.
+    _CALLSIGN_DENYLIST = frozenset({
+        'WWE', 'WWF', 'WCW', 'EAST',
+        'WAR', 'WARS', 'WARM', 'WASH', 'WATCH', 'WAVE', 'WAVES', 'WAY', 'WAYS',
+        'WEB', 'WEEK', 'WELL', 'WENT', 'WERE', 'WEST', 'WHAT', 'WHEN', 'WHERE',
+        'WHICH', 'WHILE', 'WHITE', 'WHO', 'WHY', 'WIDE', 'WIFE', 'WILD', 'WILL',
+        'WIND', 'WINE', 'WING', 'WINGS', 'WINS', 'WIRE', 'WISE', 'WISH', 'WITH',
+        'WOLF', 'WOMAN', 'WOMEN', 'WOOD', 'WORD', 'WORDS', 'WORK', 'WORKS',
+        'WORLD', 'WORM', 'WORN', 'WRAP',
+        'KEEN', 'KEEP', 'KEPT', 'KEY', 'KEYS', 'KICK', 'KID', 'KIDS', 'KILL',
+        'KIND', 'KING', 'KINGS', 'KISS', 'KITE', 'KNEE', 'KNEW', 'KNOW', 'KNOWN',
+    })
+
+    def _compute_callsign_with_confidence(self, channel_name):
         """
-        Extract US TV callsign from channel name with priority order.
-        Returns None if common false positives appear alone.
+        Extract US TV callsign with a confidence flag.
+
+        Returns (callsign, is_high_confidence). High confidence =
+        Priorities 1-3 (parenthesized / suffixed-paren / end-of-name).
+        Priority 4 (any loose word) is low confidence — useful as a hint
+        but should not floor or hard-reject a match on its own.
         """
-        # Remove common prefixes
         channel_name = re.sub(r'^D\d+-', '', channel_name)
         channel_name = re.sub(r'^USA?\s*[^a-zA-Z0-9]*\s*', '', channel_name, flags=re.IGNORECASE)
-        
-        # Priority 1: Callsigns in parentheses (most reliable)
+
+        # Priority 1: Callsigns in parentheses
         paren_match = re.search(r'\(([KW][A-Z]{3})(?:-[A-Z\s]+)?\)', channel_name, re.IGNORECASE)
         if paren_match:
             callsign = paren_match.group(1).upper()
-            if callsign not in ['WEST', 'EAST', 'KIDS', 'WOMEN', 'WILD', 'WORLD']:
-                return callsign
-        
-        # Priority 2: Callsigns with suffix in parentheses
+            if callsign not in self._CALLSIGN_DENYLIST:
+                return callsign, True
+
+        # Priority 2: Callsigns with broadcast suffix in parentheses
         paren_suffix_match = re.search(r'\(([KW][A-Z]{2,4}-(?:TV|CD|LP|DT|LD))\)', channel_name, re.IGNORECASE)
         if paren_suffix_match:
-            callsign = paren_suffix_match.group(1).upper()
-            return callsign
-        
-        # Priority 3: Callsigns at the end
+            return paren_suffix_match.group(1).upper(), True
+
+        # Priority 3: Callsigns at end of name
         end_match = re.search(r'\b([KW][A-Z]{2,4}(?:-(?:TV|CD|LP|DT|LD))?)\s*(?:\.[a-z]+)?\s*$', channel_name, re.IGNORECASE)
         if end_match:
             callsign = end_match.group(1).upper()
-            if callsign not in ['WEST', 'EAST', 'KIDS', 'WOMEN', 'WILD', 'WORLD']:
-                return callsign
-        
-        # Priority 4: Any word matching callsign pattern
+            if callsign not in self._CALLSIGN_DENYLIST:
+                return callsign, True
+
+        # Priority 4: Any loose callsign-shaped word (low confidence)
         word_match = re.search(r'\b([KW][A-Z]{2,4}(?:-(?:TV|CD|LP|DT|LD))?)\b', channel_name, re.IGNORECASE)
         if word_match:
             callsign = word_match.group(1).upper()
-            if callsign not in ['WEST', 'EAST', 'KIDS', 'WOMEN', 'WILD', 'WORLD']:
-                return callsign
-        
-        return None
+            if callsign not in self._CALLSIGN_DENYLIST:
+                return callsign, False
+
+        return None, False
+
+    def _extract_callsign_with_confidence(self, channel_name):
+        """Cached wrapper. Cache cleared in precompute_normalizations.
+        Size cap protects long-lived workers from unbounded growth when
+        extract_callsign is called on raw channel names that never appear
+        in the precomputed stream-candidate list."""
+        cached = self._callsign_cache.get(channel_name)
+        if cached is not None:
+            return cached
+        if len(self._callsign_cache) >= 50000:
+            self._callsign_cache.clear()
+        result = self._compute_callsign_with_confidence(channel_name)
+        self._callsign_cache[channel_name] = result
+        return result
+
+    def extract_callsign(self, channel_name):
+        """
+        Extract US TV callsign from channel name with priority order.
+        Returns None if no callsign found or only a denylisted word was matched.
+        """
+        callsign, _ = self._extract_callsign_with_confidence(channel_name)
+        return callsign
+
+    def set_user_aliases(self, user_aliases):
+        """Merge user-supplied aliases on top of the builtin set. Pass a dict
+        of channel_name -> [variants]; values are appended (deduped) to any
+        existing builtin entry. Pass None or {} to reset to builtins only."""
+        self.alias_map = dict(_BUILTIN_ALIASES)
+        if user_aliases:
+            for canonical, variants in user_aliases.items():
+                existing = self.alias_map.get(canonical, [])
+                merged = list(dict.fromkeys(existing + list(variants)))
+                self.alias_map[canonical] = merged
+        self._rebuild_reverse_alias_index()
+
+    def _rebuild_reverse_alias_index(self):
+        """Build {normalized_variant: canonical_channel_name} for fast lookup.
+        Skips variants whose normalized form collides with the canonical of a
+        DIFFERENT channel (keeps the first-seen mapping; a future collision
+        is logged but not raised — alias_map is curated by humans, conflicts
+        are an authoring error not a runtime error)."""
+        self._reverse_alias_index = {}
+        for canonical, variants in self.alias_map.items():
+            for variant in [canonical] + list(variants):
+                norm = self.normalize_name(variant)
+                if not norm:
+                    continue
+                key_spaced = norm.lower()
+                key_nospace = re.sub(r'[\s&\-]+', '', key_spaced)
+                for key in (key_spaced, key_nospace):
+                    existing = self._reverse_alias_index.get(key)
+                    if existing and existing != canonical:
+                        self.logger.debug(
+                            f"Alias collision: '{variant}' maps to both "
+                            f"'{existing}' and '{canonical}'; keeping first."
+                        )
+                        continue
+                    self._reverse_alias_index[key] = canonical
+
+    def alias_match(self, query_name, candidate_names, user_ignored_tags=None):
+        """
+        Stage 0 of matching. Normalizes the query (typically a stream name)
+        and looks it up in the reverse alias index. If the resulting canonical
+        channel name is present in `candidate_names`, returns it with score
+        100. Returns (None, 0, None) on miss.
+        """
+        if not self._reverse_alias_index:
+            return None, 0, None
+
+        norm = self.normalize_name(query_name, user_ignored_tags)
+        if not norm:
+            return None, 0, None
+        key_spaced = norm.lower()
+        canonical = (self._reverse_alias_index.get(key_spaced)
+                     or self._reverse_alias_index.get(re.sub(r'[\s&\-]+', '', key_spaced)))
+        if not canonical:
+            return None, 0, None
+
+        if canonical in candidate_names:
+            return canonical, 100, "alias"
+        # Case-insensitive fallback — candidate lists may have inconsistent casing.
+        cl = canonical.lower()
+        for cand in candidate_names:
+            if cand.lower() == cl:
+                return cand, 100, "alias"
+        return None, 0, None
     
     def normalize_callsign(self, callsign):
         """Remove suffix from callsign for display."""
@@ -520,7 +659,33 @@ class FuzzyMatcher:
         # This ensures "UK-ITV" becomes "UK ITV" and matches properly
         # Common patterns: "UK-ITV 1", "US-CNN", etc.
         name = re.sub(r'-', ' ', name)
-        
+
+        # Replace dots between word chars with spaces (e.g. "JusticeCentral.TV"
+        # → "JusticeCentral TV"). Keeps the dot-suffix variant equivalent to
+        # the spaced form. Trailing-dot URLs like ".com" are unaffected.
+        name = re.sub(r'(?<=\w)\.(?=\w)', ' ', name)
+
+        # Number-word → digit so "BBC Three" matches "BBC 3" and
+        # "Three Angels Broadcasting" matches "3 Angels Broadcasting Network".
+        # Word boundaries protect brand names with embedded letters ("Onesimus").
+        name = NUM_WORDS_RE.sub(lambda m: NUM_WORDS[m.group(0).lower()], name)
+
+        # Split CamelCase: "JusticeCentral" → "Justice Central",
+        # "DangerTV" → "Danger TV". The 4-char floor on the acronym rule
+        # protects short brand names like "MeTV" / "truTV" whose existing
+        # matches depend on the un-split form.
+        name = re.sub(r'([a-z])([A-Z][a-z])', r'\1 \2', name)
+        name = re.sub(r'([a-z]{4,})([A-Z]{2,})\b', r'\1 \2', name)
+
+        # Preserve parenthesized East/West (and the (E)/(W) abbreviations) as
+        # bare words so they survive the leading-parenthetical strip below
+        # AND the generic MISC_PATTERNS strip. Without this, a zoned lineup
+        # entry like "Cartoon Network (W)" loses its zone and can't match
+        # "US: Cartoon Network West". Only E/W are promoted — other single
+        # letters (A/S/H/F/X/D) are stream-source/quality tags.
+        name = re.sub(r'\(\s*(?:east|e)\s*\)', ' East ', name, flags=re.IGNORECASE)
+        name = re.sub(r'\(\s*(?:west|w)\s*\)', ' West ', name, flags=re.IGNORECASE)
+
         # Remove ALL leading parenthetical prefixes like (US) (PRIME2), (SP2), (D1), etc.
         # Loop until no more leading parentheses are found
         while name.lstrip().startswith('('):
@@ -765,26 +930,95 @@ class FuzzyMatcher:
         """Check that distinctive tokens are shared between two strings.
 
         Basic mode: at least one token (>= min_token_len) must be shared.
-        Majority mode: uses all tokens (>= 2 chars) and requires more than
-        half of the smaller set overlaps."""
-        common_words = {"the", "and", "of", "in", "on", "at", "to", "for", "a", "an"}
+        Majority mode: uses all tokens (>= 2 chars), requires that more than
+        half of the smaller set overlaps, and applies subset/divergent/numeric
+        guards to reject sibling-channel false positives even when a fuzzy
+        score is high. Sourced from Lineuparr; catches:
+          - "ABC News" vs "BBC News"  (no shared distinctive token)
+          - "Sky Cinema Disney" vs "Sky Cinema Decades"  (divergent unique tokens)
+          - "In Country Television" vs "Country Music Television"  (subset)
+          - "BBC One" vs "BBC Two"  (numeric divergence)
+        "network"/"channel"/"television" are demoted to common — they're brand
+        suffixes, not distinguishing tokens.
+        """
+        common_words = {
+            "the", "and", "of", "in", "on", "at", "to", "for", "a", "an",
+            "network", "channel", "television",
+        }
 
         if require_majority:
-            tokens_a = {t for t in str_a.split() if t not in common_words and len(t) >= 2}
-            tokens_b = {t for t in str_b.split() if t not in common_words and len(t) >= 2}
+            # Single-digit tokens (1,2,3,...) are channel-distinguishing
+            # (BBC 1 vs BBC 2, ESPN 1 vs ESPN 2) even though only 1 char,
+            # so keep them as meaningful.
+            def _meaningful(t):
+                if t in common_words:
+                    return False
+                return len(t) >= 2 or t.isdigit()
+            tokens_a = {t for t in str_a.split() if _meaningful(t)}
+            tokens_b = {t for t in str_b.split() if _meaningful(t)}
             if not tokens_a or not tokens_b:
                 return True
             shared = tokens_a & tokens_b
             if not shared:
                 return False
             smaller = min(len(tokens_a), len(tokens_b))
-            return len(shared) > smaller / 2
+            if not len(shared) > smaller / 2:
+                return False
+
+            unique_a = tokens_a - tokens_b
+            unique_b = tokens_b - tokens_a
+
+            # Subset guard: when one side is a strict subset of the other AND
+            # the larger side has a distinctive (>=5 char) token the smaller
+            # lacks, the candidate is a more specific channel than the query.
+            # Catches "In Country Television" {country} vs "Country Music
+            # Television" {country, music} — "music" distinguishes them.
+            # Short extras like "live"/"two" do not trigger this, preserving
+            # legitimate matches like "ABC News" → "ABC News Live".
+            if not unique_a:
+                if any(len(t) >= 5 for t in unique_b):
+                    return False
+            elif not unique_b:
+                if any(len(t) >= 5 for t in unique_a):
+                    return False
+
+            # Divergent guard: BOTH sides have unique tokens AND at least one
+            # of those unique tokens is a distinctive (>=4 char) word — they
+            # describe different brands. Catches "Sky Cinema Disney" vs
+            # "Sky Cinema Decades" (decades = 7 chars).
+            if unique_a and unique_b:
+                if any(len(t) >= 4 for t in unique_a | unique_b):
+                    return False
+
+            # Numeric/ordinal divergent guard: BOTH sides have a unique
+            # numeric/ordinal token — sibling channels distinguished by number
+            # (BBC One vs BBC Two; ESPN 1 vs ESPN 2). Short tokens like
+            # "one"/"two" wouldn't trip the >=4 guard so they need this check.
+            _NUMERIC = {
+                "one", "two", "three", "four", "five", "six", "seven", "eight",
+                "nine", "ten", "eleven", "twelve",
+                "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12",
+                "first", "second", "third", "fourth", "fifth",
+            }
+            if (unique_a & _NUMERIC) and (unique_b & _NUMERIC):
+                return False
+
+            return True
 
         tokens_a = {t for t in str_a.split() if t not in common_words and len(t) >= min_token_len}
         tokens_b = {t for t in str_b.split() if t not in common_words and len(t) >= min_token_len}
         if not tokens_a or not tokens_b:
             return True
         return bool(tokens_a & tokens_b)
+
+    @staticmethod
+    def _trailing_number(name):
+        """Integer value of a space-separated, purely-numeric trailing token,
+        or None. 'HBO 2' → 2, 'ESPN' → None, 'ESPN2' → None (digit not
+        space-separated). Used to reject 'Foo 1' vs 'Foo 2' false positives
+        — sibling channels that otherwise fuzzy-match almost perfectly."""
+        m = re.search(r'(?:^|\s)(\d{1,4})\s*$', name or "")
+        return int(m.group(1)) if m else None
 
     def process_string_for_matching(self, s):
         """
@@ -858,41 +1092,42 @@ class FuzzyMatcher:
         
         # Process query for token-sort matching
         processed_query = self.process_string_for_matching(normalized_query)
+        normalized_query_lower = normalized_query.lower()
+        query_trailing_num = self._trailing_number(normalized_query_lower)
 
         best_score = -1.0
         best_match = None
 
+        # Guards inside the loop: a high-scoring guard-rejected candidate must
+        # not suppress a lower-scoring valid one.
         for candidate in candidate_names:
             candidate_lower, _ = self._get_cached_norm(candidate, user_ignored_tags)
             if not candidate_lower:
                 continue
+            if query_trailing_num is not None:
+                cand_trailing_num = self._trailing_number(candidate_lower)
+                if cand_trailing_num is not None and cand_trailing_num != query_trailing_num:
+                    continue
             processed_candidate = self._get_cached_processed(candidate, user_ignored_tags)
             if not processed_candidate:
                 continue
 
             score = self.calculate_similarity(processed_query, processed_candidate,
                                                 min_ratio=max(self.match_threshold / 100.0, best_score))
+            if score <= best_score:
+                continue
+            pct = int(score * 100)
+            shorter_len = min(len(processed_query), len(processed_candidate))
+            effective_threshold = self._length_scaled_threshold(self.match_threshold, shorter_len)
+            if pct < effective_threshold:
+                continue
+            if not self._has_token_overlap(processed_query, processed_candidate, require_majority=True):
+                continue
+            best_score = score
+            best_match = candidate
 
-            if score > best_score:
-                best_score = score
-                best_match = candidate
-
-        # Convert to percentage and check threshold
-        percentage_score = int(best_score * 100)
-
-        if percentage_score >= self.match_threshold:
-            # Apply false-positive guards
-            best_processed = self._get_cached_processed(best_match, user_ignored_tags)
-            if best_processed:
-                shorter_len = min(len(processed_query), len(best_processed))
-                effective_threshold = self._length_scaled_threshold(self.match_threshold, shorter_len)
-                need_majority = percentage_score < 90
-                if percentage_score >= effective_threshold and self._has_token_overlap(
-                        processed_query, best_processed, require_majority=need_majority):
-                    return best_match, percentage_score
-            else:
-                return best_match, percentage_score
-
+        if best_match is not None:
+            return best_match, int(best_score * 100)
         return None, 0
     
     def fuzzy_match(self, query_name, candidate_names, user_ignored_tags=None, remove_cinemax=False,
@@ -920,23 +1155,30 @@ class FuzzyMatcher:
         if user_ignored_tags is None:
             user_ignored_tags = []
 
+        # Stage 0: Alias hit — O(1) lookup against curated channel-name variants.
+        # Skips fuzzy entirely when a known alias matches.
+        alias_hit, alias_score, alias_type = self.alias_match(query_name, candidate_names, user_ignored_tags)
+        if alias_hit:
+            return alias_hit, alias_score, alias_type
+
         # Normalize query (channel name - don't remove Cinemax from it)
         normalized_query = self.normalize_name(query_name, user_ignored_tags,
                                                 ignore_quality=ignore_quality,
                                                 ignore_regional=ignore_regional,
                                                 ignore_geographic=ignore_geographic,
                                                 ignore_misc=ignore_misc)
-        
+
         if not normalized_query:
             return None, 0, None
-        
+
         best_match = None
         best_ratio = 0
         match_type = None
-        
+
         # Stage 1: Exact match (after normalization)
         normalized_query_lower = normalized_query.lower()
         normalized_query_nospace = re.sub(r'[\s&\-]+', '', normalized_query_lower)
+        query_trailing_num = self._trailing_number(normalized_query_lower)
 
         for candidate in candidate_names:
             candidate_lower, candidate_nospace = self._get_cached_norm(candidate, user_ignored_tags)
@@ -947,9 +1189,16 @@ class FuzzyMatcher:
             if normalized_query_nospace == candidate_nospace:
                 return candidate, 100, "exact"
 
-            # Very high similarity (97%+)
+            if query_trailing_num is not None:
+                cand_trailing_num = self._trailing_number(candidate_lower)
+                if cand_trailing_num is not None and cand_trailing_num != query_trailing_num:
+                    continue
+
+            # Very high similarity (97%+) — require majority token overlap so
+            # near-identical but distinct brands ("ABC News" vs "BBC News") don't slip through.
             ratio = self.calculate_similarity(normalized_query_lower, candidate_lower, min_ratio=0.97)
-            if ratio >= 0.97 and ratio > best_ratio:
+            if ratio >= 0.97 and ratio > best_ratio and self._has_token_overlap(
+                    normalized_query_lower, candidate_lower, require_majority=True):
                 best_match = candidate
                 best_ratio = ratio
                 match_type = "exact"
@@ -957,37 +1206,36 @@ class FuzzyMatcher:
         if best_match:
             return best_match, int(best_ratio * 100), match_type
 
-        # Stage 2: Substring matching
+        # Stage 2: Substring matching. Guards live INSIDE the loop so that a
+        # higher-scoring but guard-rejected candidate (e.g. "Cartoon Network UK"
+        # for query "Cartoon Network West") doesn't suppress a lower-scoring
+        # but valid one ("Cartoon Network").
         for candidate in candidate_names:
             candidate_lower, _ = self._get_cached_norm(candidate, user_ignored_tags)
             if not candidate_lower:
                 continue
 
-            # Check if one is a substring of the other
+            if query_trailing_num is not None:
+                cand_trailing_num = self._trailing_number(candidate_lower)
+                if cand_trailing_num is not None and cand_trailing_num != query_trailing_num:
+                    continue
+
             if normalized_query_lower in candidate_lower or candidate_lower in normalized_query_lower:
-                # Require strings to be within 75% of same length for substring match
                 length_ratio = min(len(normalized_query_lower), len(candidate_lower)) / max(len(normalized_query_lower), len(candidate_lower))
                 if length_ratio >= 0.75:
                     ratio = self.calculate_similarity(normalized_query_lower, candidate_lower,
                                                         min_ratio=self.match_threshold / 100.0)
-                    if ratio > best_ratio:
+                    sub_score = int(ratio * 100)
+                    shorter_len = min(len(normalized_query_lower), len(candidate_lower))
+                    effective_threshold = self._length_scaled_threshold(self.match_threshold, shorter_len)
+                    if (ratio > best_ratio and sub_score >= effective_threshold
+                            and self._has_token_overlap(normalized_query_lower, candidate_lower, require_majority=True)):
                         best_match = candidate
                         best_ratio = ratio
                         match_type = "substring"
 
         if best_match and int(best_ratio * 100) >= self.match_threshold:
-            sub_score = int(best_ratio * 100)
-            # Apply false-positive guards
-            best_candidate_lower, _ = self._get_cached_norm(best_match, user_ignored_tags)
-            if best_candidate_lower:
-                shorter_len = min(len(normalized_query_lower), len(best_candidate_lower))
-                effective_threshold = self._length_scaled_threshold(self.match_threshold, shorter_len)
-                need_majority = sub_score < 90
-                if sub_score >= effective_threshold and self._has_token_overlap(
-                        normalized_query_lower, best_candidate_lower, require_majority=need_majority):
-                    return best_match, sub_score, match_type
-            else:
-                return best_match, sub_score, match_type
+            return best_match, int(best_ratio * 100), match_type
 
         # Stage 3: Fuzzy matching with token sorting
         fuzzy_match, score = self.find_best_match(query_name, candidate_names, user_ignored_tags,
@@ -1019,6 +1267,14 @@ class FuzzyMatcher:
 
         all_matches = {}  # stream_name -> (score, match_type)
 
+        # Stage 0: alias hits go into the result set with score=100/"alias"
+        # so the CSV preview surfaces them above any fuzzy alternative.
+        aliases = self.alias_map.get(query_name) or []
+        if aliases:
+            alias_hit, alias_score, alias_type = self.alias_match(query_name, candidate_names, user_ignored_tags)
+            if alias_hit:
+                all_matches[alias_hit] = (alias_score, alias_type)
+
         normalized_query = self.normalize_name(query_name, user_ignored_tags,
                                                ignore_quality=ignore_quality,
                                                ignore_regional=ignore_regional,
@@ -1031,11 +1287,21 @@ class FuzzyMatcher:
         normalized_query_nospace = re.sub(r'[\s&\-]+', '', normalized_query_lower)
         processed_query = self.process_string_for_matching(normalized_query)
         threshold_ratio = self.match_threshold / 100.0
+        # A differing space-separated trailing number means a different channel
+        # ("HBO 1" vs "HBO 2", "ESPN 1" vs "ESPN 2") -- skip these in the
+        # per-candidate loop so they can't slip past as a fuzzy false positive.
+        query_trailing_num = self._trailing_number(normalized_query_lower)
 
         for candidate in candidate_names:
+            if candidate in all_matches:
+                continue
             candidate_lower, candidate_nospace = self._get_cached_norm(candidate, user_ignored_tags)
             if not candidate_lower:
                 continue
+            if query_trailing_num is not None:
+                cand_trailing_num = self._trailing_number(candidate_lower)
+                if cand_trailing_num is not None and cand_trailing_num != query_trailing_num:
+                    continue
 
             score = 0
             mtype = None
@@ -1046,7 +1312,8 @@ class FuzzyMatcher:
                 mtype = "exact"
             else:
                 ratio = self.calculate_similarity(normalized_query_lower, candidate_lower, min_ratio=0.97)
-                if ratio >= 0.97:
+                if ratio >= 0.97 and self._has_token_overlap(
+                        normalized_query_lower, candidate_lower, require_majority=True):
                     score = int(ratio * 100)
                     mtype = "exact"
 
@@ -1059,12 +1326,12 @@ class FuzzyMatcher:
                         sub_score = int(ratio * 100)
                         shorter_len = min(len(normalized_query_lower), len(candidate_lower))
                         sub_threshold = self._length_scaled_threshold(self.match_threshold, shorter_len)
-                        need_majority = sub_score < 90
-                        if sub_score >= sub_threshold and self._has_token_overlap(normalized_query_lower, candidate_lower, require_majority=need_majority):
+                        if sub_score >= sub_threshold and self._has_token_overlap(normalized_query_lower, candidate_lower, require_majority=True):
                             score = sub_score
                             mtype = "substring"
 
-            # Fuzzy token-sort
+            # Fuzzy token-sort — always require majority overlap (with subset/
+            # divergent guards) so sibling channels don't match each other.
             if not mtype:
                 processed_candidate = self._get_cached_processed(candidate, user_ignored_tags)
                 if processed_candidate:
@@ -1072,8 +1339,7 @@ class FuzzyMatcher:
                     fuzzy_score = int(ratio * 100)
                     shorter_len = min(len(processed_query), len(processed_candidate))
                     fuzzy_threshold = self._length_scaled_threshold(self.match_threshold, shorter_len)
-                    need_majority = fuzzy_score < 90
-                    if fuzzy_score >= fuzzy_threshold and self._has_token_overlap(processed_query, processed_candidate, require_majority=need_majority):
+                    if fuzzy_score >= fuzzy_threshold and self._has_token_overlap(processed_query, processed_candidate, require_majority=True):
                         score = fuzzy_score
                         mtype = f"fuzzy ({fuzzy_score})"
 

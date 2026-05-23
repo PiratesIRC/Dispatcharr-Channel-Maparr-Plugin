@@ -18,6 +18,9 @@ from datetime import datetime
 
 # Import the fuzzy matcher module
 from .fuzzy_matcher import FuzzyMatcher
+from .progress_status import (
+    build_status_message, load_progress, save_progress_atomic,
+)
 
 # Django model imports
 from apps.channels.models import Channel, ChannelGroup, Logo, Stream, ChannelStream
@@ -31,11 +34,17 @@ LOGGER = logging.getLogger("plugins.channel_mapparr")
 # Plugin name prefix for all log messages
 PLUGIN_LOG_PREFIX = "[Channel Mapparr]"
 
+# Persistent progress file — ProgressTracker writes here so the Show Status
+# action can report live state from any context, including after a worker
+# restart mid-operation. Lives in /data because the plugin directory itself
+# is owned by root and not writable by the dispatch uwsgi user.
+PROGRESS_FILE = "/data/channel_mapparr_progress.json"
+
 
 class PluginConfig:
     """Configuration constants for Channel Maparr."""
 
-    PLUGIN_VERSION = "1.26.1001200"
+    PLUGIN_VERSION = "1.26.1430910"
 
     # Channel Database Settings
     DEFAULT_CHANNEL_DATABASES = "US"
@@ -58,6 +67,16 @@ class PluginConfig:
     RESULTS_FILE = "/data/channel_mapparr_loaded_channels.json"
     VERSION_CHECK_FILE = "/data/channel_mapparr_version_check.json"
     EXPORT_DIR = "/data/exports"
+
+    # tv-logos GitHub repo for per-channel logo lookup
+    TV_LOGOS_REPO = "tv-logo/tv-logos"
+    TV_LOGOS_BRANCH = "main"
+    COUNTRY_DIR_MAP = {
+        "US": "united-states", "CA": "canada", "UK": "united-kingdom",
+        "GB": "united-kingdom", "AU": "australia", "DE": "germany",
+        "FR": "france", "IT": "italy", "ES": "spain", "MX": "mexico",
+        "BR": "brazil", "IN": "india", "IE": "ireland", "NL": "netherlands",
+    }
 
     # Rate Limiting
     RATE_LIMIT_NONE = 0.0
@@ -104,8 +123,16 @@ class ProgressTracker:
                 "type": "plugin", "plugin": "Channel Mapparr",
                 "message": f"{self.action_id}: {pct:.0f}% ({self.processed_items}/{self.total_items}) - ETA: {eta_str}"
             })
+            self._persist({
+                "status": "running",
+                "action": self.action_id,
+                "current": self.processed_items,
+                "total": self.total_items,
+                "start_time": self.start_time,
+                "updated_at": now,
+            })
 
-    def finish(self):
+    def finish(self, summary=None):
         elapsed = time.time() - self.start_time
         eta_str = self._format_eta(elapsed)
         self.logger.info(
@@ -116,6 +143,28 @@ class ProgressTracker:
             "type": "plugin", "plugin": "Channel Mapparr",
             "message": f"{self.action_id}: Complete ({self.processed_items}/{self.total_items}) in {eta_str}"
         })
+        self._persist({
+            "status": "done",
+            "action": self.action_id,
+            "current": self.processed_items,
+            "total": self.total_items,
+            "start_time": self.start_time,
+            "finished_at": time.time(),
+            "summary": summary or f"Processed {self.processed_items}/{self.total_items} in {eta_str}",
+        })
+
+    def _persist(self, data):
+        try:
+            save_progress_atomic(PROGRESS_FILE, data)
+        except Exception as exc:
+            # WARNING on first failure (silent failures hide a broken Show
+            # Status action). Suppress repeats — update() ticks per-item on
+            # 17K+ stream runs and would otherwise flood the log.
+            if not getattr(self, "_persist_warned", False):
+                self.logger.warning(f"{PLUGIN_LOG_PREFIX} progress file write failed at {PROGRESS_FILE}: {exc}")
+                self._persist_warned = True
+            else:
+                self.logger.debug(f"{PLUGIN_LOG_PREFIX} progress file write retry failed: {exc}")
 
     @staticmethod
     def _format_eta(seconds):
@@ -338,50 +387,66 @@ class Plugin:
             },
         ]
 
-    # Actions for Dispatcharr UI
+    # Actions for Dispatcharr UI. `label` is the action title; `button_label`
+    # is the text on the actual button (otherwise Dispatcharr renders "Run").
     actions = [
         {
             "id": "validate_settings",
-            "label": "\u2705 Validate Settings",
-            "description": "Check database connectivity, channel databases, and settings",
+            "label": "Validate Settings",
+            "description": "Check database connectivity, channel databases, and settings before running any action.",
+            "button_label": "\u2705 Validate",
             "button_variant": "outline",
             "button_color": "blue",
         },
         {
             "id": "load_and_process_channels",
-            "label": "\u25b6 Load & Process Channels",
-            "description": "Scan channel groups and determine standardized names",
+            "label": "Load & Process Channels",
+            "description": "Scan channel groups and determine standardized names.",
+            "button_label": "\u25b6 Load & Process",
             "button_variant": "filled",
             "button_color": "green",
         },
         {
             "id": "rename_channels",
-            "label": "\u270f\ufe0f Rename Channels",
-            "description": "Apply standardized names. Dry Run exports a CSV preview instead.",
+            "label": "Rename Channels",
+            "description": "Apply standardized names to processed channels. Dry Run exports a CSV preview instead.",
+            "button_label": "\u270f\ufe0f Rename",
             "button_variant": "filled",
             "button_color": "green",
             "confirm": {"message": "This will rename channels to the standardized format. This action is irreversible. Continue?"},
         },
         {
             "id": "rename_unknown_channels",
-            "label": "\u2696 Tag Unknown Channels",
-            "description": "Append suffix to unmatched OTA and premium channels",
+            "label": "Tag Unknown Channels",
+            "description": "Append the configured suffix to unmatched OTA and premium channels.",
+            "button_label": "\u2696 Tag Unknowns",
             "button_variant": "filled",
             "button_color": "green",
             "confirm": {"message": "This will append the configured suffix to unmatched channels. Continue?"},
         },
         {
             "id": "apply_logos",
-            "label": "\u2b50 Apply Logos",
-            "description": "Assign the default logo to channels that don't have one",
+            "label": "Apply Default Logo",
+            "description": "Assign the configured default logo to channels that don't have one.",
+            "button_label": "\u2b50 Apply Default Logo",
             "button_variant": "filled",
             "button_color": "green",
             "confirm": {"message": "This will apply the default logo to channels without a logo. Continue?"},
         },
         {
+            "id": "apply_tv_logos",
+            "label": "Apply Per-Channel Logos (tv-logos)",
+            "description": "Fuzzy-match each channel name to the tv-logo/tv-logos GitHub repo and assign per-channel logos. Uses the country codes from Channel Databases. Channels with an existing logo are left alone.",
+            "button_label": "\u2756 Apply Per-Channel Logos",
+            "button_variant": "filled",
+            "button_color": "green",
+            "confirm": {"message": "This will fetch tv-logos and assign per-channel logos to channels without one. Continue?"},
+        },
+        {
             "id": "organize_by_category",
-            "label": "\u2630 Organize by Category",
+            "label": "Organize by Category",
             "description": "Move channels into category-based groups. Runs in background. Dry Run exports a CSV preview.",
+            "button_label": "\u2630 Organize",
             "button_variant": "filled",
             "button_color": "green",
             "confirm": {"message": "This will create new groups (if needed) and move channels to category-based groups. Continue?"},
@@ -389,16 +454,24 @@ class Plugin:
         },
         {
             "id": "import_m3u_streams",
-            "label": "\u21e9 Import M3U Streams",
+            "label": "Import M3U Streams",
             "description": "Create channels from M3U streams organized by category. Runs in background. Dry Run exports a CSV preview.",
+            "button_label": "\u21e9 Import Streams",
             "button_variant": "filled",
             "button_color": "violet",
             "confirm": {"message": "This will create new channels from M3U streams and organize them into groups. Duplicates get suffixes. Continue?"},
         },
         {
+            "id": "plugin_status",
+            "label": "Show Status",
+            "description": "Show live progress and ETA for the most recent or running operation. Reads a persistent progress file so you can check without watching container logs.",
+            "button_label": "\u24d8 Status",
+        },
+        {
             "id": "clear_csv_exports",
-            "label": "\u2717 Clear CSV Exports",
-            "description": "Delete all CSV export files created by this plugin",
+            "label": "Clear CSV Exports",
+            "description": "Delete all CSV export files created by this plugin.",
+            "button_label": "\u2717 Clear CSVs",
             "button_variant": "outline",
             "button_color": "red",
             "confirm": {"message": "Delete all Channel Mapparr CSV exports?"},
@@ -764,8 +837,10 @@ class Plugin:
                 "rename_channels": self.rename_channels_action,
                 "rename_unknown_channels": self.rename_unknown_channels_action,
                 "apply_logos": self.apply_logos_action,
+                "apply_tv_logos": self.apply_tv_logos_action,
                 "organize_by_category": self.organize_by_category_action,
                 "import_m3u_streams": self.import_m3u_streams_action,
+                "plugin_status": self.plugin_status_action,
                 "clear_csv_exports": self.clear_csv_exports_action,
             }
 
@@ -1292,6 +1367,114 @@ class Plugin:
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error applying logos: {e}")
             return {"status": "error", "message": f"Error applying logos: {e}"}
+
+    def apply_tv_logos_action(self, settings, logger):
+        """Assign per-channel logos by fuzzy-matching channel names to the
+        tv-logo/tv-logos GitHub repo. Runs per country code from
+        `channel_databases`; channels that already have a logo are left alone.
+        Creates Logo entries in Dispatcharr pointing at raw.githubusercontent
+        URLs and assigns them to channels in bulk."""
+        try:
+            from .logo_matcher import fetch_tv_logos_filelist, match_channel_to_logo, build_logo_url
+
+            country_codes_str = settings.get("channel_databases", PluginConfig.DEFAULT_CHANNEL_DATABASES).strip()
+            country_codes = [c.strip().upper() for c in country_codes_str.split(',') if c.strip()]
+            if not country_codes:
+                return {"status": "error", "message": "No country databases selected. Set 'Channel Databases' first."}
+
+            selected_groups_str = settings.get("selected_groups", "").strip()
+            target_group_ids = None
+            if selected_groups_str:
+                all_groups = self._get_all_groups(logger)
+                group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
+                input_names = {name.strip() for name in selected_groups_str.split(',') if name.strip()}
+                target_group_ids = {group_name_to_id[name] for name in input_names if name in group_name_to_id}
+
+            all_channels = self._get_all_channels(logger, group_ids=target_group_ids)
+            channels_without_logos = [
+                ch for ch in all_channels
+                if ch.get('logo_id') in (None, 0, '0')
+            ]
+            if not channels_without_logos:
+                return {"status": "success", "message": "All targeted channels already have logos."}
+
+            existing_logos_by_url = {logo.url: logo for logo in Logo.objects.all()}
+
+            # Fetch logo file lists for each selected country, then try each
+            # country until a match is found per channel. Cache per (repo,
+            # branch, dir) for the session so re-running the action doesn't
+            # hit the GitHub anonymous quota (60 req/hr/IP).
+            if not hasattr(self, "_tv_logos_cache"):
+                self._tv_logos_cache = {}
+            country_filelists = []
+            for cc in country_codes:
+                country_dir = PluginConfig.COUNTRY_DIR_MAP.get(cc)
+                if not country_dir:
+                    logger.warning(f"{PLUGIN_LOG_PREFIX} No tv-logos directory mapping for '{cc}', skipping.")
+                    continue
+                cache_key = (PluginConfig.TV_LOGOS_REPO, PluginConfig.TV_LOGOS_BRANCH, country_dir)
+                files = self._tv_logos_cache.get(cache_key)
+                if files is None:
+                    logger.info(f"{PLUGIN_LOG_PREFIX} Fetching tv-logos file list for {country_dir}...")
+                    files = fetch_tv_logos_filelist(*cache_key)
+                    if files:
+                        self._tv_logos_cache[cache_key] = files
+                logger.info(f"{PLUGIN_LOG_PREFIX} {len(files)} logos available in {country_dir}")
+                if files:
+                    country_filelists.append((cc.lower(), country_dir, files))
+
+            if not country_filelists:
+                return {"status": "error", "message": "No tv-logos file lists could be fetched. Check network access or repo path."}
+
+            progress = ProgressTracker(len(channels_without_logos), "apply_tv_logos", logger)
+            assigned = 0
+            no_match = 0
+            channel_updates = []
+
+            for ch in channels_without_logos:
+                name = ch.get('name', '')
+                if not name:
+                    progress.update()
+                    continue
+                matched_url = None
+                for suffix, country_dir, files in country_filelists:
+                    matched_file = match_channel_to_logo(name, files, suffix)
+                    if matched_file:
+                        matched_url = build_logo_url(
+                            PluginConfig.TV_LOGOS_REPO, PluginConfig.TV_LOGOS_BRANCH,
+                            country_dir, matched_file,
+                        )
+                        break
+                if not matched_url:
+                    no_match += 1
+                    progress.update()
+                    continue
+
+                logo = existing_logos_by_url.get(matched_url)
+                if not logo:
+                    try:
+                        logo = Logo.objects.create(name=name, url=matched_url)
+                        existing_logos_by_url[matched_url] = logo
+                    except Exception as exc:
+                        logger.warning(f"{PLUGIN_LOG_PREFIX} Failed to create Logo for '{name}' (url={matched_url}): {exc}")
+                        progress.update()
+                        continue
+
+                channel_updates.append({'id': ch['id'], 'logo_id': logo.id})
+                assigned += 1
+                progress.update()
+
+            if channel_updates:
+                self._bulk_update_channels(channel_updates, ['logo_id'], logger)
+                self._trigger_frontend_refresh(settings, logger)
+
+            summary = f"Assigned {assigned} logos, {no_match} channels had no match."
+            progress.finish(summary=summary)
+            return {"status": "success", "message": f"✓ {summary}"}
+
+        except Exception as e:
+            logger.error(f"{PLUGIN_LOG_PREFIX} Error applying tv-logos: {e}")
+            return {"status": "error", "message": f"Error applying tv-logos: {e}"}
 
     def category_groups_dry_run_action(self, settings, logger):
         """Export a CSV showing which channels would be moved to which category-based groups."""
@@ -2317,7 +2500,7 @@ class Plugin:
                         'Stream Name': stream.get('name', ''),
                         'M3U Source': m3u_source,
                         'Priority': stream.get('priority', 0),
-                        'Match Type': 'None',
+                        'Match Type': '',
                         'Match Method': 'No match',
                         'Category': '',
                         'Target Group': '',
@@ -2614,6 +2797,12 @@ class Plugin:
                 "status": "error",
                 "message": f"Validation error: {e}\n\nSee logs for details."
             }
+
+    def plugin_status_action(self, settings, logger):
+        """Read the persistent progress file and return a user-facing summary."""
+        progress = load_progress(PROGRESS_FILE)
+        message = build_status_message(progress)
+        return {"status": "success", "message": message}
 
     def clear_csv_exports_action(self, settings, logger):
         """Delete all CSV export files created by this plugin"""

@@ -1,6 +1,6 @@
 {
   "name": "Channel Mapparr",
-  "version": "1.26.1001200",
+  "version": "1.26.1430910",
   "description": "Standardizes broadcast (OTA) and premium/cable channel names using network data and channel lists. Supports M3U stream import, category organization, and fuzzy matching across 42K+ channels in 11 countries.",
   "author": "PiratesIRC",
   "license": "MIT",
@@ -18,7 +18,8 @@
       "id": "channel_databases",
       "label": "Channel Databases",
       "type": "string",
-      "default": "US"
+      "default": "US",
+      "help_text": "Comma-separated country codes to load. Supported: US, UK, CA, AU, BR, DE, ES, FR, MX, NL, IN. Example: 'US, UK, CA'. Drives which channel JSON files are used for matching AND which tv-logos directories the per-channel logo action queries."
     },
     {
       "id": "match_sensitivity",
@@ -26,77 +27,89 @@
       "type": "select",
       "default": "normal",
       "options": [
-        {"value": "relaxed", "label": "Relaxed \u2014 more matches, more false positives"},
-        {"value": "normal", "label": "Normal \u2014 balanced"},
-        {"value": "strict", "label": "Strict \u2014 fewer matches, high confidence"},
-        {"value": "exact", "label": "Exact \u2014 near-exact matches only"}
-      ]
+        {"value": "relaxed", "label": "Relaxed — more matches, more false positives"},
+        {"value": "normal", "label": "Normal — balanced"},
+        {"value": "strict", "label": "Strict — fewer matches, high confidence"},
+        {"value": "exact", "label": "Exact — near-exact matches only"}
+      ],
+      "help_text": "Minimum similarity score required for a stream/channel to be considered a match. 'Normal' (80) suits most providers. Bump to 'Strict' if you see wrong-channel matches; drop to 'Relaxed' only on clean, well-named lineups."
     },
     {
       "id": "selected_groups",
       "label": "Channel Groups to Process",
       "type": "string",
-      "default": ""
+      "default": "",
+      "help_text": "Comma-separated Dispatcharr channel group names. Leave blank to process ALL groups. Example: 'Sports, News, Movies'."
     },
     {
       "id": "category_groups",
       "label": "Category Organization Groups",
       "type": "string",
-      "default": ""
+      "default": "",
+      "help_text": "Comma-separated group names the Organize-by-Category action is allowed to create or move channels into. Leave blank to use the categories defined in the channel database JSON."
     },
     {
       "id": "m3u_sources",
       "label": "M3U Source",
       "type": "select",
-      "default": "_all"
+      "default": "_all",
+      "help_text": "Which M3U account(s) the M3U import reads streams from. '_all' uses every active source; otherwise pick one. Dropdown is populated from Dispatcharr's M3U Accounts at load time."
     },
     {
       "id": "m3u_group_filter",
       "label": "M3U Group Filter",
       "type": "string",
-      "default": ""
+      "default": "",
+      "help_text": "Comma-separated M3U group-title values to include during import. Leave blank to import all groups."
     },
     {
       "id": "m3u_category_filter",
       "label": "Category Filter",
       "type": "string",
-      "default": ""
+      "default": "",
+      "help_text": "Comma-separated category names (from the channel database) to import. Leave blank to import all categories matched by streams."
     },
     {
       "id": "m3u_custom_group_name",
       "label": "Custom Import Group Name",
       "type": "string",
-      "default": ""
+      "default": "",
+      "help_text": "Optional group name to assign to channels created by M3U import. Leave blank to use category-based naming."
     },
     {
       "id": "ota_format",
       "label": "OTA Name Format",
       "type": "string",
-      "default": "{NETWORK} - {STATE} {CITY} ({CALLSIGN})"
+      "default": "{NETWORK} - {STATE} {CITY} ({CALLSIGN})",
+      "help_text": "Template for broadcast (over-the-air) channel names. Available tokens: {NETWORK}, {STATE}, {CITY}, {CALLSIGN}. Example: 'ABC - NY New York (WABC-TV)'."
     },
     {
       "id": "unknown_suffix",
       "label": "Unknown Channel Suffix",
       "type": "string",
-      "default": " [Unk]"
+      "default": " [Unk]",
+      "help_text": "Suffix appended to channels the matcher couldn't identify. Used by the Tag Unknown Channels action. Include a leading space if you want one."
     },
     {
       "id": "ignored_tags",
       "label": "Ignored Tags",
       "type": "string",
-      "default": "[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]"
+      "default": "[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]",
+      "help_text": "Comma-separated tags stripped from stream/channel names before matching. Use brackets/parens for literal matches (e.g. '[HD]', '(PRIME)'); bare words are matched on word boundaries."
     },
     {
       "id": "default_logo",
       "label": "Default Logo",
       "type": "string",
-      "default": ""
+      "default": "",
+      "help_text": "Name (case-insensitive) of a logo in Dispatcharr's Logo Manager. Used by the Apply Default Logo action. For per-channel logos use the tv-logos action instead."
     },
     {
       "id": "dry_run_mode",
       "label": "Dry Run Mode",
       "type": "boolean",
-      "default": false
+      "default": false,
+      "help_text": "When ON, mutating actions (Rename, Organize, Import) export a CSV preview to /data/exports/ instead of writing to the database. Recommended for first-time use of new settings."
     },
     {
       "id": "rate_limiting",
@@ -104,72 +117,96 @@
       "type": "select",
       "default": "none",
       "options": [
-        {"value": "none", "label": "None \u2014 fastest"},
-        {"value": "low", "label": "Low \u2014 slight delay"},
-        {"value": "medium", "label": "Medium \u2014 moderate delay"},
-        {"value": "high", "label": "High \u2014 gentlest on database"}
-      ]
+        {"value": "none", "label": "None — fastest"},
+        {"value": "low", "label": "Low — slight delay"},
+        {"value": "medium", "label": "Medium — moderate delay"},
+        {"value": "high", "label": "High — gentlest on database"}
+      ],
+      "help_text": "Throttles database writes during bulk operations. 'None' is safe for SSD/local DBs; raise if you see DB lock errors or are running on shared/slow storage."
     }
   ],
   "actions": [
     {
       "id": "validate_settings",
-      "label": "\u2705 Validate Settings",
-      "description": "Check database connectivity, channel databases, and settings",
+      "label": "Validate Settings",
+      "description": "Check database connectivity, channel databases, and settings before running any action.",
+      "button_label": "✅ Validate",
       "button_variant": "outline",
       "button_color": "blue"
     },
     {
       "id": "load_and_process_channels",
-      "label": "\u25b6 Load & Process Channels",
-      "description": "Scan channel groups and determine standardized names",
+      "label": "Load & Process Channels",
+      "description": "Scan channel groups and determine standardized names.",
+      "button_label": "▶ Load & Process",
       "button_variant": "filled",
       "button_color": "green"
     },
     {
       "id": "rename_channels",
-      "label": "\u270f\ufe0f Rename Channels",
-      "description": "Apply standardized names. Dry Run exports a CSV preview instead.",
+      "label": "Rename Channels",
+      "description": "Apply standardized names to processed channels. Dry Run exports a CSV preview instead.",
+      "button_label": "✏️ Rename",
       "button_variant": "filled",
       "button_color": "green",
       "confirm": {"message": "This will rename channels to the standardized format. This action is irreversible. Continue?"}
     },
     {
       "id": "rename_unknown_channels",
-      "label": "\u2696 Tag Unknown Channels",
-      "description": "Append suffix to unmatched OTA and premium channels",
+      "label": "Tag Unknown Channels",
+      "description": "Append the configured suffix to unmatched OTA and premium channels.",
+      "button_label": "⚖ Tag Unknowns",
       "button_variant": "filled",
       "button_color": "green",
       "confirm": {"message": "This will append the configured suffix to unmatched channels. Continue?"}
     },
     {
       "id": "apply_logos",
-      "label": "\u2b50 Apply Logos",
-      "description": "Assign the default logo to channels that don't have one",
+      "label": "Apply Default Logo",
+      "description": "Assign the configured default logo to channels that don't have one.",
+      "button_label": "⭐ Apply Default Logo",
       "button_variant": "filled",
       "button_color": "green",
       "confirm": {"message": "This will apply the default logo to channels without a logo. Continue?"}
     },
     {
+      "id": "apply_tv_logos",
+      "label": "Apply Per-Channel Logos (tv-logos)",
+      "description": "Fuzzy-match each channel name to the tv-logo/tv-logos GitHub repo and assign per-channel logos. Uses the country codes from Channel Databases. Channels with an existing logo are left alone.",
+      "button_label": "🎨 Apply Per-Channel Logos",
+      "button_variant": "filled",
+      "button_color": "green",
+      "confirm": {"message": "This will fetch tv-logos and assign per-channel logos to channels without one. Continue?"}
+    },
+    {
       "id": "organize_by_category",
-      "label": "\u2630 Organize by Category",
+      "label": "Organize by Category",
       "description": "Move channels into category-based groups. Dry Run exports a CSV preview.",
+      "button_label": "☰ Organize",
       "button_variant": "filled",
       "button_color": "green",
       "confirm": {"message": "This will create new groups (if needed) and move channels to category-based groups. Continue?"}
     },
     {
       "id": "import_m3u_streams",
-      "label": "\u21e9 Import M3U Streams",
+      "label": "Import M3U Streams",
       "description": "Create channels from M3U streams organized by category. Runs in background. Dry Run exports a CSV preview.",
+      "button_label": "⇩ Import Streams",
       "button_variant": "filled",
       "button_color": "violet",
       "confirm": {"message": "This will create new channels from M3U streams and organize them into groups. Duplicates get suffixes. Continue?"}
     },
     {
+      "id": "plugin_status",
+      "label": "Show Status",
+      "description": "Show live progress and ETA for the most recent or running operation. Reads a persistent progress file so you can check without watching container logs.",
+      "button_label": "📊 Status"
+    },
+    {
       "id": "clear_csv_exports",
-      "label": "\u2717 Clear CSV Exports",
-      "description": "Delete all CSV export files created by this plugin",
+      "label": "Clear CSV Exports",
+      "description": "Delete all CSV export files created by this plugin.",
+      "button_label": "✗ Clear CSVs",
       "button_variant": "outline",
       "button_color": "red",
       "confirm": {"message": "Delete all Channel Mapparr CSV exports?"}

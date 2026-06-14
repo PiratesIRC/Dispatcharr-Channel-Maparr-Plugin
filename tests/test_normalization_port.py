@@ -223,3 +223,44 @@ def test_normalize_name_resolution_respects_ignore_quality_flag(matcher):
 @pytest.mark.parametrize("inp,expected", ASCII_IDENTITY)
 def test_normalize_name_ascii_no_regression(matcher, inp, expected):
     assert matcher.normalize_name(inp) == expected
+
+
+# --------------------------------------------------------------------------- #
+# CI-enforced corpus no-regression gate (baseline-free).
+#
+# The manual ship gate asserts the port changes 0 ASCII channel names. We lock
+# that into CI without an old-vs-new baseline by asserting the invariant that
+# makes it true: the two unconditional input-cleaning helpers are identity on
+# every ASCII name (they short-circuit on `name.isascii()`), and no ASCII DB
+# name contains a glued NNN[pi] resolution marker the gated strip would remove.
+# If a future DB edit or matcher change violates any of these, CI fails loudly.
+# --------------------------------------------------------------------------- #
+def _all_ascii_db_names(plugin_dir):
+    import glob
+    import json
+    import os
+    names = []
+    for path in glob.glob(os.path.join(str(plugin_dir), "*_channels.json")):
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        rows = data["channels"] if isinstance(data, dict) else data
+        names += [(r.get("channel_name") or "").strip() for r in rows]
+    return [n for n in names if n and n.isascii()]
+
+
+def test_corpus_ascii_names_unaffected_by_fixes(fuzzy_module, plugin_dir):
+    ascii_names = _all_ascii_db_names(plugin_dir)
+    # guard against a vacuous pass if the corpus failed to load
+    assert len(ascii_names) > 1000, f"expected the full DB corpus, got {len(ascii_names)} ASCII names"
+
+    altered_emoji = [n for n in ascii_names if fuzzy_module._normalize_emoji(n) != n]
+    altered_styl = [n for n in ascii_names if fuzzy_module._strip_stylized_tokens(n) != n]
+    res_re = re.compile(fuzzy_module.RESOLUTION_PATTERNS[0])
+    res_hits = [n for n in ascii_names if res_re.search(n)]
+
+    assert not altered_emoji, f"_normalize_emoji altered ASCII DB names: {altered_emoji[:5]}"
+    assert not altered_styl, f"_strip_stylized_tokens altered ASCII DB names: {altered_styl[:5]}"
+    assert not res_hits, (
+        "ASCII DB names contain a glued resolution marker the strip would remove "
+        f"(review before shipping): {res_hits[:5]}"
+    )

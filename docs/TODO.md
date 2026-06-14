@@ -25,12 +25,14 @@
 - [x] **`button_label` on every action** — Dispatcharr no longer renders generic "Run".
 - [x] **CSV cosmetic fix** — unmatched rows write empty `Match Type` (was literal "None").
 
-## Completed (v1.26.1650854)
+## Completed (v1.26.1651015)
 
 - [x] **Dev tooling + CI** — pytest suite (`tests/`), GitHub Actions workflow, cross-platform `package_plugin.py`, `bump_version.py`, and a py-compile hook. Replaces the old `.wolf/test_matching.py` harness.
 - [x] **Deduplicated channel databases** — removed 651 fully-identical rows across 7 country files (UK/MX/DE/CA/BR/FR/ES); all `*_channels.json` normalized to LF.
 - [x] **Norwegian channel database** — `NO_channels.json` (94 channels) + `NO → norway` in `COUNTRY_DIR_MAP`. Coverage now 12 countries.
 - [x] **`normalize_name` hardening (bug-048/051/055)** — stylized-Unicode decoration strip, emoji-as-letter (`beIN SP⚽RTS` → `SPORTS`), and numeric resolution markers (`720p`/`3840P`), ported byte-accurate from Stream-Mapparr. Adds `tests/test_normalization_port.py` regression locks + a CI-enforced corpus no-regression gate (0 ASCII-name changes across 42K names). Ported to all four `fuzzy_matcher.py` copies per the drift rule — see `docs/MATCHER-NORMALIZATION-PORT.md`.
+- [x] **plugin.json manifest fix + parity guard** — corrected two button labels corrupted to `?` (→ ❖/ⓘ, matching plugin.py); `test_plugin_contract.py` now enforces exact button_label parity and rejects `?` placeholders.
+- [x] **Dispatcharr/Plugins submission** — v1.26.1651015 submitted to the public registry (Dispatcharr/Plugins PR #128).
 
 ## Future Work
 

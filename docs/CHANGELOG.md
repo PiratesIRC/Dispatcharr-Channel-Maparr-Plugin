@@ -3,28 +3,15 @@
 ## v1.26.1651015 (2026-06-14)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.1651015
+Dispatcharr/Plugins PR: https://github.com/Dispatcharr/Plugins/pull/128
 
-Manifest hotfix. Two `plugin.json` button labels had been lossily re-encoded to a literal `?` — the earlier BMP-icon fix patched `plugin.py` (the runtime source of truth) but `plugin.json` drifted. The running plugin was unaffected (it uses the class labels); only the manifest shown in the plugin browser/registry was wrong.
-
-### Fixed
-
-- **plugin.json button labels** — `Apply Per-Channel Logos` and `Show Status` showed a literal `?` instead of the ❖ / ⓘ icons. Now match `plugin.py` exactly (U+2756 / U+24D8, as JSON unicode escapes).
-
-### Tooling
-
-- **Contract-test parity guard** — `test_plugin_contract.py` now asserts exact `button_label` parity between `plugin.json` and `Plugin.actions`, and rejects a literal `?` placeholder. The pre-existing BMP-only check missed this because `?` is itself BMP.
-
-## v1.26.1650854 (2026-06-14)
-
-GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.1650854
-
-Matcher hardening: ports three `normalize_name` input-cleaning fixes from Stream-Mapparr (the matcher template) so noisy provider stream names normalize to the same form as clean channel-database names. Purely additive to `fuzzy_matcher.py` (122 insertions, 0 deletions) — no existing matching logic changed. See `docs/MATCHER-NORMALIZATION-PORT.md`.
+Matcher hardening, channel-data cleanup, and a manifest fix. Ports three `normalize_name` input-cleaning fixes from Stream-Mapparr (the matcher template) so noisy provider stream names normalize to the same form as clean channel-database names — purely additive to `fuzzy_matcher.py` (122 insertions, 0 deletions; no existing matching logic changed). Also deduplicates the channel databases, adds Norwegian support, and corrects two corrupted `plugin.json` button labels. See `docs/MATCHER-NORMALIZATION-PORT.md`.
 
 ### Matching
 
 - **Stylized-Unicode decoration stripping (bug-048)** — Drops whole tokens that are pure stylized decoration (superscript / small-capital tier markers, bullets) before the ASCII tag pipeline, detected by Unicode character *name* rather than code-point range. A superscript "RAW" suffix no longer blocks a match to `WeatherNation`. Real ASCII tier words (Gold/VIP) and non-Latin scripts (Arabic/Cyrillic/CJK) are preserved.
 - **Emoji-as-letter normalization (bug-051)** — Maps an emoji used as a letter inside a word (`SP⚽RTS` → `SPoRTS`, the beIN family) to its letter when flanked by ASCII letters, and strips emoji used purely as decoration plus zero-width selectors. `beIN SP⚽RTS` now matches `beIN Sports`.
-- **Numeric resolution markers (bug-055)** — Strips `720p` / `1080p` / `2160p` / `3840P`-style markers (a 3–4 digit run glued to p/i) that the keyword quality list misses, while keeping bare numbers (`Channel 4`, `Studio 1080`), 5-digit runs, and spaced standalone roman numerals (`Volume 100 I`) intact. Gated by the same tag-handling flag as the other quality tags.
+- **Numeric resolution markers (bug-055)** — Strips `720p` / `1080p` / `2160p` / `3840P`-style markers (a 3–4 digit run glued to p/i) that the keyword quality list misses, while keeping bare numbers (`Channel 4`, `Studio 1080`), 5-digit runs, and spaced standalone roman numerals (`Volume 100 I`) intact.
 
 Beneficial side effect: the NFKD canonicalization in the stylized-strip step unifies accented and ASCII spellings of the same channel, so `UniMás`/`UniMas` and `TeleFórmula`/`TeleFormula` now match where they previously did not. Verified: 0 changes to any ASCII channel name across all 42,246 database names; no different-channel false-merges.
 
@@ -33,9 +20,13 @@ Beneficial side effect: the NFKD canonicalization in the stylized-strip step uni
 - **Deduplicated channel databases** — removed 651 fully-identical rows across 7 country files (UK 168, MX 206, DE 136, CA 62, BR 43, FR 19, ES 17); all `*_channels.json` normalized to LF.
 - **Norwegian channel database (`NO_channels.json`)** — 94 channels; registered `NO → norway` in `COUNTRY_DIR_MAP` so the per-channel logo action resolves them. Coverage is now **12 countries**.
 
+### Fixed
+
+- **plugin.json button labels** — `Apply Per-Channel Logos` and `Show Status` showed a literal `?` instead of the ❖ / ⓘ icons (the earlier BMP-icon fix patched `plugin.py` but `plugin.json` drifted; the running plugin was unaffected since it uses the class labels). Now match `plugin.py` exactly (U+2756 / U+24D8).
+
 ### Tests
 
-- `tests/test_normalization_port.py` (48 cases) locks all three fixes at the helper, regex, and full-pipeline levels, with editor-proof escaped Unicode constants. New `fuzzy_module` conftest fixture exposes the module-level helpers. A corpus no-regression test asserts the fixes never alter any of the ~41.5K ASCII channel names (CI-enforced, baseline-free). Full suite: 149 passing.
+- `tests/test_normalization_port.py` (48 cases) locks the three matcher fixes at the helper, regex, and full-pipeline levels, with editor-proof escaped Unicode constants, plus a CI-enforced corpus no-regression gate (0 ASCII-name changes across ~41.5K names). `test_plugin_contract.py` gains exact `button_label` parity (plugin.json ↔ Plugin.actions) and a no-`?`-placeholder guard. Full suite: **151 passing**.
 
 ## v1.26.1430910 (2026-05-23)
 

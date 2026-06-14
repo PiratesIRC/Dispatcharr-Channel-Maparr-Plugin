@@ -19,11 +19,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "13éme Rue HD",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
       "channel_name": "2M Maroc",
       "category": "France",
       "type": "Regional"
@@ -249,22 +244,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Armenia 1",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ARTE",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ARTE",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ARTE HD",
       "category": "France",
       "type": "Regional"
     },
@@ -285,11 +265,6 @@
     },
     {
       "channel_name": "Athlé TV",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Atreseries",
       "category": "France",
       "type": "Regional"
     },
@@ -535,11 +510,6 @@
     },
     {
       "channel_name": "Boomerang +1",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Boomerang HD",
       "category": "France",
       "type": "Regional"
     },
@@ -1084,16 +1054,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Disney Channel",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Disney Channel",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Disney Channel +1",
       "category": "France",
       "type": "Regional"
@@ -1230,16 +1190,6 @@
     },
     {
       "channel_name": "Eurochannel HD",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "euronews",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "euronews",
       "category": "France",
       "type": "Regional"
     },
@@ -1400,11 +1350,6 @@
     },
     {
       "channel_name": "France 24 Español HD",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "France 24 HD",
       "category": "France",
       "type": "Regional"
     },
@@ -2075,11 +2020,6 @@
     },
     {
       "channel_name": "K-TV",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "kabel eins",
       "category": "France",
       "type": "Regional"
     },
@@ -2829,11 +2769,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "OCS HD",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
       "channel_name": "OE24 TV HD",
       "category": "France",
       "type": "Regional"
@@ -3030,11 +2965,6 @@
     },
     {
       "channel_name": "Pro TV int",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ProSieben",
       "category": "France",
       "type": "Regional"
     },
@@ -3299,11 +3229,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "RTL",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
       "channel_name": "RTL Bayern (RTLGER)",
       "category": "France",
       "type": "Regional"
@@ -3349,11 +3274,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "RTLZWEI",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
       "channel_name": "RTNC",
       "category": "France",
       "type": "Regional"
@@ -3385,11 +3305,6 @@
     },
     {
       "channel_name": "Saisons HD",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sat.1",
       "category": "France",
       "type": "Regional"
     },
@@ -3615,11 +3530,6 @@
     },
     {
       "channel_name": "SWR Fernsehen RP HD (SW3BWG)",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "SyFy Universal HD",
       "category": "France",
       "type": "Regional"
     },
@@ -4195,11 +4105,6 @@
     },
     {
       "channel_name": "Volksmusik",
-      "category": "France",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "VOX",
       "category": "France",
       "type": "Regional"
     },

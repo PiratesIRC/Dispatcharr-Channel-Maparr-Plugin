@@ -24,11 +24,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Adult Swim",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "AgroBrasil TV",
       "category": "Brazil",
       "type": "Regional"
@@ -55,16 +50,6 @@
     },
     {
       "channel_name": "AMC",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "AMC",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Animal Planet",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -474,11 +459,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Cartoonito",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "CazéTV",
       "category": "Brazil",
       "type": "Regional"
@@ -524,11 +504,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "CGTN",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ChefTV+",
       "category": "Brazil",
       "type": "Regional"
@@ -540,21 +515,6 @@
     },
     {
       "channel_name": "Cinemax",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cinemax",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Claro Sports",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Claro Sports",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -575,16 +535,6 @@
     },
     {
       "channel_name": "CNN Brasil",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "CNN Brasil",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "CNN en Español",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -639,11 +589,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Comedy Central",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Cultura",
       "category": "Brazil",
       "type": "Regional"
@@ -669,22 +614,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Discovery Channel",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Discovery Home & Health",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Home & Health",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Kids",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -719,17 +649,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Discovery Turbo",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Discovery World HD",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Disney Channel",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -789,16 +709,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "ESPN",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ESPN 2",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ESPN 2",
       "category": "Brazil",
       "type": "Regional"
@@ -809,22 +719,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "ESPN 3",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ESPN 4",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ESPN 4",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ESPN 5",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -860,11 +755,6 @@
     },
     {
       "channel_name": "FashionTV Brazil HD",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Film & Arts",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -1049,16 +939,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "HBO",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Family",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "HBO Family",
       "category": "Brazil",
       "type": "Regional"
@@ -1124,11 +1004,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "HBO Plus",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "HBO Plus Brasil",
       "category": "Brazil",
       "type": "Regional"
@@ -1154,22 +1029,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "HBO Signature",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "HBO Xtreme",
       "category": "Brazil",
       "type": "Regional"
     },
     {
       "channel_name": "HBO Xtreme SD",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO2",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -1244,11 +1109,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Investigação Discovery",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Joga nas 11",
       "category": "Brazil",
       "type": "Regional"
@@ -1314,17 +1174,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Modo Viagem",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Mosaico Big Brother Brasil",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "MTV",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -1340,11 +1190,6 @@
     },
     {
       "channel_name": "MTV Live",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "MTV Live HD",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -1410,16 +1255,6 @@
     },
     {
       "channel_name": "Nick Jr.",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Nick Jr.",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Nickelodeon",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -1530,11 +1365,6 @@
     },
     {
       "channel_name": "Premiere 3",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Premiere 3 HD",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -1705,11 +1535,6 @@
     },
     {
       "channel_name": "RECORD Goiás (RREC)",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "RECORD Guaíba (RREC)",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -2384,11 +2209,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Space",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "sportv",
       "category": "Brazil",
       "type": "Regional"
@@ -2400,11 +2220,6 @@
     },
     {
       "channel_name": "SporTV 5",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "sportv HD",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -2570,16 +2385,6 @@
     },
     {
       "channel_name": "TNT",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TNT",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TNT Novelas",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -2900,11 +2705,6 @@
     },
     {
       "channel_name": "TV Cidadania",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TV Cidade (RREC)",
       "category": "Brazil",
       "type": "Regional"
     },
@@ -3384,11 +3184,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "TV Tribuna (BAND)",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "TV Tribuna (REDEGL)",
       "category": "Brazil",
       "type": "Regional"
@@ -3499,11 +3294,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "TVE",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
       "channel_name": "TVE Bahia",
       "category": "Brazil",
       "type": "Regional"
@@ -3520,11 +3310,6 @@
     },
     {
       "channel_name": "Univesp TV",
-      "category": "Brazil",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "USA",
       "category": "Brazil",
       "type": "Regional"
     },

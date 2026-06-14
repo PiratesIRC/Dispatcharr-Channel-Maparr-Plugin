@@ -1,0 +1,32 @@
+name: tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Compile-check shipped plugin sources
+        run: python -m py_compile Channel-Maparr/plugin.py Channel-Maparr/fuzzy_matcher.py Channel-Maparr/logo_matcher.py Channel-Maparr/progress_status.py Channel-Maparr/aliases.py
+
+      - name: Run test suite
+        run: python -m pytest

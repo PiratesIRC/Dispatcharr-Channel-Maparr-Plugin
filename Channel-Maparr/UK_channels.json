@@ -49,22 +49,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "4Seven",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "4Seven HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "4Seven HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "5",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -75,11 +60,6 @@
     },
     {
       "channel_name": "5 +1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "5 Action",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -124,11 +104,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "5 Star +1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "5 USA+1 Eng/Wales/NI",
       "category": "United Kingdom",
       "type": "Regional"
@@ -140,11 +115,6 @@
     },
     {
       "channel_name": "5SELECT",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "5USA",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -264,16 +234,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Al Jazeera",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Al Jazeera",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Al Jazeera (Arabic)",
       "category": "United Kingdom",
       "type": "Regional"
@@ -285,21 +245,6 @@
     },
     {
       "channel_name": "Al Jazeera English",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Al Jazeera English",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Al Jazeera HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Al Jazeera HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -369,11 +314,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Animal Planet +1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Animal Planet HD",
       "category": "United Kingdom",
       "type": "Regional"
@@ -400,11 +340,6 @@
     },
     {
       "channel_name": "ARD-alpha HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Are We There Yet?",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -509,11 +444,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Babestation",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Babestation 2",
       "category": "United Kingdom",
       "type": "Regional"
@@ -549,27 +479,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Baywatch",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "BB-MV Lokal-TV",
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "BBC 2 England HD (VM Custom)",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "BBC Alba",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "BBC Alba",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -634,11 +549,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "BBC News HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "BBC One",
       "category": "United Kingdom",
       "type": "Regional"
@@ -679,11 +589,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "BBC One East Midlands HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "BBC One East West HD",
       "category": "United Kingdom",
       "type": "Regional"
@@ -709,17 +614,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "BBC One London HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "BBC One North East & Cumbria (BBC1)",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "BBC One North East & Cumbria HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -739,22 +634,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "BBC One North West HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "BBC One Northern Ireland (BBC1)",
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "BBC One Northern Ireland HD (BBC1)",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "BBC One Northern Ireland HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -794,22 +679,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "BBC One Scotland HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "BBC One South (BBC1)",
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "BBC One South East (BBC1)",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "BBC One South East HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -834,17 +709,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "BBC One South HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "BBC One South West (BBC1)",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "BBC One South West HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -869,11 +734,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "BBC One Wales HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "BBC One West (BBC1)",
       "category": "United Kingdom",
       "type": "Regional"
@@ -884,17 +744,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "BBC One West HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "BBC One West Midlands (BBC1)",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "BBC One West Midlands HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -920,11 +770,6 @@
     },
     {
       "channel_name": "BBC One Yorkshire & Lincolnshire HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "BBC One Yorkshire HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -1110,11 +955,6 @@
     },
     {
       "channel_name": "BBC Red Button 3",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "BBC Red Button HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -1319,11 +1159,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Bloomberg Originals",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Bloomberg Television",
       "category": "United Kingdom",
       "type": "Regional"
@@ -1345,11 +1180,6 @@
     },
     {
       "channel_name": "Boomerang +1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Boomerang HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -1385,11 +1215,6 @@
     },
     {
       "channel_name": "British Muslim TV",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "British Screen Classics",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -1529,11 +1354,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Channel 4",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Channel 4 (Midlands((P1)(VM)",
       "category": "United Kingdom",
       "type": "Regional"
@@ -1584,11 +1404,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Channel 4 +1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Channel 4 HD",
       "category": "United Kingdom",
       "type": "Regional"
@@ -1615,11 +1430,6 @@
     },
     {
       "channel_name": "Channel 4 Scotland Advertising HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Channel 4 South & East",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -1794,11 +1604,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "CNBC",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "CNBC HD",
       "category": "United Kingdom",
       "type": "Regional"
@@ -1814,17 +1619,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "CNN HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "CNN Headlines",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "CNN International",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -1979,11 +1774,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Crime and Investigation Network",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Crime Investigation Australia",
       "category": "United Kingdom",
       "type": "Regional"
@@ -2124,17 +1914,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Discovery History +1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Discovery Science",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Science +1",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -2165,16 +1945,6 @@
     },
     {
       "channel_name": "DMAX",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "DMAX",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "DMAX +1",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -2225,11 +1995,6 @@
     },
     {
       "channel_name": "Drool",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Duck Dynasty",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -2309,37 +2074,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "euronews",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "euronews",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "euronews",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Euronews HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "Eurosport 1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Eurosport 1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Eurosport 1 HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -2649,11 +2389,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "FailArmy",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Faith UK",
       "category": "United Kingdom",
       "type": "Regional"
@@ -2725,11 +2460,6 @@
     },
     {
       "channel_name": "Folx TV HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Food Network",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -2894,11 +2624,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Ghost Hunters",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "GIGS",
       "category": "United Kingdom",
       "type": "Regional"
@@ -2935,11 +2660,6 @@
     },
     {
       "channel_name": "Good News TV",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "GoUSA TV",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -3124,11 +2844,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Hell's Kitchen",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Hell's Kitchen (TiVo)",
       "category": "United Kingdom",
       "type": "Regional"
@@ -3234,11 +2949,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Hobby Maker HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Hobbycraft TV",
       "category": "United Kingdom",
       "type": "Regional"
@@ -3279,17 +2989,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Horse & Country",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Hot Country",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Hot Ones",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -3339,11 +3039,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "HUM Europe",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "HUM Masala (Europe)",
       "category": "United Kingdom",
       "type": "Regional"
@@ -3374,11 +3069,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Ice Pilots",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Ice Road Truckers",
       "category": "United Kingdom",
       "type": "Regional"
@@ -3400,11 +3090,6 @@
     },
     {
       "channel_name": "Ideal Extra",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Ideal World",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -3524,16 +3209,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Islam Channel",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Islam Channel",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Islam Channel Urdu",
       "category": "United Kingdom",
       "type": "Regional"
@@ -3614,17 +3289,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "ITV Quiz",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ITV Quiz (Global Sports Standards)",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ITV Quiz HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -3650,11 +3315,6 @@
     },
     {
       "channel_name": "ITV West Country HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ITV West HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -3735,21 +3395,6 @@
     },
     {
       "channel_name": "ITV1 (London)",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ITV1 (London)",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ITV1 (London)",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ITV1 (Meridian South East)",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -3889,11 +3534,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "ITV2 HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ITV3",
       "category": "United Kingdom",
       "type": "Regional"
@@ -3919,11 +3559,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "ITV3 HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ITV4",
       "category": "United Kingdom",
       "type": "Regional"
@@ -3940,11 +3575,6 @@
     },
     {
       "channel_name": "ITV4 +1 (Freeview)",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ITV4 HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -4010,11 +3640,6 @@
     },
     {
       "channel_name": "Juwelo TV",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "kabel eins",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -4244,11 +3869,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Love Pets",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Love The Planet",
       "category": "United Kingdom",
       "type": "Regional"
@@ -4349,11 +3969,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "McLeod's Daughters",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "MDR Sachsen (MDRGERH)",
       "category": "United Kingdom",
       "type": "Regional"
@@ -4439,11 +4054,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "More4 +1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Most Haunted",
       "category": "United Kingdom",
       "type": "Regional"
@@ -4465,11 +4075,6 @@
     },
     {
       "channel_name": "Movies 24+",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Moviesphere",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -4525,16 +4130,6 @@
     },
     {
       "channel_name": "MTV Live HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "MTV Live HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "MTV Music",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -4599,16 +4194,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Mythbusters",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Mythbusters",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Mythical 24/7",
       "category": "United Kingdom",
       "type": "Regional"
@@ -4659,17 +4244,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "National Geographic HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "National Geographic Wild",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "National Geographic Wild HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -5494,17 +5069,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Nickelodeon",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Nickelodeon +1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Nickelodeon HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -5574,11 +5139,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Nosey",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Nosey Escandalos",
       "category": "United Kingdom",
       "type": "Regional"
@@ -5599,22 +5159,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Now 70s",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Now 80s",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Now 80s",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NOW 90s & 00s",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -5740,11 +5285,6 @@
     },
     {
       "channel_name": "PBC",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "PBS America",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -5999,11 +5539,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Pop",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "POP +1",
       "category": "United Kingdom",
       "type": "Regional"
@@ -6044,17 +5579,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Premier Sports 1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Premier Sports 1 HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Premier Sports 2",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -6084,11 +5609,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Premier Sports Rugby",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Prime Video",
       "category": "United Kingdom",
       "type": "Regional"
@@ -6100,21 +5620,6 @@
     },
     {
       "channel_name": "Project Runway",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Project Runway",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Project Runway",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ProSieben",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -6189,11 +5694,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Quest +1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Quest +1 Eng/NI",
       "category": "United Kingdom",
       "type": "Regional"
@@ -6209,27 +5709,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Quest HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Quest HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Quest HD Eng/NI",
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "Quest HD Wales/Scotland",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Quest Red",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -6259,11 +5744,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "QVC",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "QVC (VM)",
       "category": "United Kingdom",
       "type": "Regional"
@@ -6274,16 +5754,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "QVC Beauty",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "QVC Extra",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "QVC Extra",
       "category": "United Kingdom",
       "type": "Regional"
@@ -6294,22 +5764,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "QVC HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "QVC Style",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "QVC Style",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "QVC Style HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -6549,16 +6004,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "RTL",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "RTL",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "RTL Bremen/Niedersachsen (RTLGER)",
       "category": "United Kingdom",
       "type": "Regional"
@@ -6575,16 +6020,6 @@
     },
     {
       "channel_name": "RTLup",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "RTLZWEI",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "RTLZWEI",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -6644,22 +6079,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "S4C HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "S4C HD (England Scotland NI)",
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "S4C HD (Wales)",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "SAB TV",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -6690,11 +6115,6 @@
     },
     {
       "channel_name": "Sanskar TV",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sat.1",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -6939,11 +6359,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Sky Cinema Premiere HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Sky Cinema Sci Fi & Horror",
       "category": "United Kingdom",
       "type": "Regional"
@@ -6994,11 +6409,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Sky Crime",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Sky Crime +1",
       "category": "United Kingdom",
       "type": "Regional"
@@ -7014,22 +6424,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Sky Documentaries",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Sky Documentaries HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sky Documentaries HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sky History",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -7059,27 +6454,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Sky History HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Sky Intro",
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "Sky Kids",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sky Kids",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sky Max HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -7114,16 +6494,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Sky Nature",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sky Nature HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Sky Nature HD",
       "category": "United Kingdom",
       "type": "Regional"
@@ -7135,11 +6505,6 @@
     },
     {
       "channel_name": "Sky News Arabia",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sky News HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -7174,11 +6539,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Sky Showcase",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Sky Showcase +1",
       "category": "United Kingdom",
       "type": "Regional"
@@ -7200,11 +6560,6 @@
     },
     {
       "channel_name": "Sky Sports Action",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sky Sports Action HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -7254,22 +6609,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Sky Sports Football",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Sky Sports Football HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "Sky Sports Golf",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sky Sports Golf HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -7314,17 +6659,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Sky Sports News HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Sky Sports Premier League",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sky Sports Premier League HD",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -7354,22 +6689,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Sky Sports Tennis HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Sky Sports Tennis SD",
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "Sky Sports Vault",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sky Sports+",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -7390,11 +6715,6 @@
     },
     {
       "channel_name": "Sky UHD Sports 1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sky UHD Sports 2",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -7534,11 +6854,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Speedvision",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Sport en France",
       "category": "United Kingdom",
       "type": "Regional"
@@ -7604,11 +6919,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Stingray Greatest Hits",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Stingray Holidayscapes",
       "category": "United Kingdom",
       "type": "Regional"
@@ -7625,11 +6935,6 @@
     },
     {
       "channel_name": "Studio 66 3",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "STV",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -7829,11 +7134,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Tennis Channel",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Terra Mater Wild",
       "category": "United Kingdom",
       "type": "Regional"
@@ -7879,17 +7179,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "That's Oldies",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "That's Rock",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "That's TV",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -7925,16 +7215,6 @@
     },
     {
       "channel_name": "That's TV 2",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "That's TV 2",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "That's TV 3",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -8005,11 +7285,6 @@
     },
     {
       "channel_name": "The Carol Burnett Show",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "The Chat Show Channel",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -8104,11 +7379,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "This Old House",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Time2Rlx",
       "category": "United Kingdom",
       "type": "Regional"
@@ -8134,22 +7404,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Tiny Pop +1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Tiny Pop SD",
       "category": "United Kingdom",
       "type": "Regional"
     },
     {
       "channel_name": "Tipping Point",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TLC",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -8194,11 +7454,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "TNT Sports 1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "TNT Sports 1 HD",
       "category": "United Kingdom",
       "type": "Regional"
@@ -8219,11 +7474,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "TNT Sports 2",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "TNT Sports 2 HD",
       "category": "United Kingdom",
       "type": "Regional"
@@ -8234,17 +7484,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "TNT Sports 3",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "TNT Sports 3 HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TNT Sports 4",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -8329,11 +7569,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "TNT Sports UHD 4K",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "TNT Sports Ultimate UHD",
       "category": "United Kingdom",
       "type": "Regional"
@@ -8355,11 +7590,6 @@
     },
     {
       "channel_name": "Toggo Plus",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Toon Goggles",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -8404,11 +7634,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Trace Urban",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Trailblazer HD",
       "category": "United Kingdom",
       "type": "Regional"
@@ -8430,11 +7655,6 @@
     },
     {
       "channel_name": "Travelxp Europe HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TRT World",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -8505,11 +7725,6 @@
     },
     {
       "channel_name": "TV Trwam",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TV Warehouse",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -8629,11 +7844,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "U&Eden HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "U&Eden+1",
       "category": "United Kingdom",
       "type": "Regional"
@@ -8719,16 +7929,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "U&Yesterday HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "U&Yesterday+1",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "U&Yesterday+1",
       "category": "United Kingdom",
       "type": "Regional"
@@ -8789,16 +7989,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Unsolved Mysteries",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Untold Stories of the ER",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Untold Stories of the ER",
       "category": "United Kingdom",
       "type": "Regional"
@@ -8850,11 +8040,6 @@
     },
     {
       "channel_name": "UTV HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Viaplay Xtra",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -8930,16 +8115,6 @@
     },
     {
       "channel_name": "VM4K Duplicate",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "VOX",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "VOX",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -9109,17 +8284,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Wonder",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Word Network TV",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "World Poker Tour",
       "category": "United Kingdom",
       "type": "Regional"
     },
@@ -9240,11 +8405,6 @@
     },
     {
       "channel_name": "Zee Cinema HD",
-      "category": "United Kingdom",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Zee Punjabi",
       "category": "United Kingdom",
       "type": "Regional"
     },

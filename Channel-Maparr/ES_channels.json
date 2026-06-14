@@ -184,11 +184,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Atreseries",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Atreseries HD",
       "category": "Spain",
       "type": "Regional"
@@ -534,11 +529,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Comedy Central",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Comedy Central HD",
       "category": "Spain",
       "type": "Regional"
@@ -600,16 +590,6 @@
     },
     {
       "channel_name": "DAZN 1",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "DAZN 1",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "DAZN 2",
       "category": "Spain",
       "type": "Regional"
     },
@@ -709,11 +689,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "DMAX",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
       "channel_name": "DMAX Austria",
       "category": "Spain",
       "type": "Regional"
@@ -785,16 +760,6 @@
     },
     {
       "channel_name": "euronews",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "euronews",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Eurosport 1",
       "category": "Spain",
       "type": "Regional"
     },
@@ -915,11 +880,6 @@
     },
     {
       "channel_name": "France 24 Español",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "France 24 HD",
       "category": "Spain",
       "type": "Regional"
     },
@@ -1120,11 +1080,6 @@
     },
     {
       "channel_name": "K-TV",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "kabel eins",
       "category": "Spain",
       "type": "Regional"
     },
@@ -1744,11 +1699,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Nickelodeon",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Nickelodeon HD",
       "category": "Spain",
       "type": "Regional"
@@ -1860,11 +1810,6 @@
     },
     {
       "channel_name": "Pro TV int",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ProSieben",
       "category": "Spain",
       "type": "Regional"
     },
@@ -2044,11 +1989,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "RTL",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
       "channel_name": "RTL Bayern (RTLGER)",
       "category": "Spain",
       "type": "Regional"
@@ -2074,27 +2014,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "RTLZWEI",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "RTLZWEI",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
       "channel_name": "RTP Internacional Europe",
       "category": "Spain",
       "type": "Regional"
     },
     {
       "channel_name": "RTP Internacional Spanish",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sat.1",
       "category": "Spain",
       "type": "Regional"
     },
@@ -2479,11 +2404,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "TV3",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
       "channel_name": "TV3 HD",
       "category": "Spain",
       "type": "Regional"
@@ -2580,11 +2500,6 @@
     },
     {
       "channel_name": "Vizner TV",
-      "category": "Spain",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "VOX",
       "category": "Spain",
       "type": "Regional"
     },

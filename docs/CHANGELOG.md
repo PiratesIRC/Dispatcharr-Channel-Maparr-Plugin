@@ -2,6 +2,8 @@
 
 ## v1.26.1650854 (2026-06-14)
 
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.1650854
+
 Matcher hardening: ports three `normalize_name` input-cleaning fixes from Stream-Mapparr (the matcher template) so noisy provider stream names normalize to the same form as clean channel-database names. Purely additive to `fuzzy_matcher.py` (122 insertions, 0 deletions) — no existing matching logic changed. See `docs/MATCHER-NORMALIZATION-PORT.md`.
 
 ### Matching
@@ -11,6 +13,11 @@ Matcher hardening: ports three `normalize_name` input-cleaning fixes from Stream
 - **Numeric resolution markers (bug-055)** — Strips `720p` / `1080p` / `2160p` / `3840P`-style markers (a 3–4 digit run glued to p/i) that the keyword quality list misses, while keeping bare numbers (`Channel 4`, `Studio 1080`), 5-digit runs, and spaced standalone roman numerals (`Volume 100 I`) intact. Gated by the same tag-handling flag as the other quality tags.
 
 Beneficial side effect: the NFKD canonicalization in the stylized-strip step unifies accented and ASCII spellings of the same channel, so `UniMás`/`UniMas` and `TeleFórmula`/`TeleFormula` now match where they previously did not. Verified: 0 changes to any ASCII channel name across all 42,246 database names; no different-channel false-merges.
+
+### Data
+
+- **Deduplicated channel databases** — removed 651 fully-identical rows across 7 country files (UK 168, MX 206, DE 136, CA 62, BR 43, FR 19, ES 17); all `*_channels.json` normalized to LF.
+- **Norwegian channel database (`NO_channels.json`)** — 94 channels; registered `NO → norway` in `COUNTRY_DIR_MAP` so the per-channel logo action resolves them. Coverage is now **12 countries**.
 
 ### Tests
 

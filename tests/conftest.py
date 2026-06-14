@@ -76,6 +76,19 @@ def plugin_module():
 
 
 @pytest.fixture(scope="session")
+def fuzzy_module():
+    """The imported ``channel_maparr.fuzzy_matcher`` module.
+
+    Exposes the module-level normalization helpers (`_is_decorative_char`,
+    `_strip_stylized_tokens`, `_normalize_emoji`, `RESOLUTION_PATTERNS`) for
+    direct unit testing, independent of any loaded channel database.
+    """
+    _load_plugin_package()
+    import channel_maparr.fuzzy_matcher as fuzzy_matcher_module  # noqa: E402
+    return fuzzy_matcher_module
+
+
+@pytest.fixture(scope="session")
 def matcher():
     """A FuzzyMatcher loaded with the US/UK/CA databases, normalizations primed.
 

@@ -69,6 +69,17 @@ QUALITY_PATTERNS = [
     r'\s+\b(4K|8K|UHD|FHD|HD|SD|FD|Unknown|Unk|Slow|Dead)\b\s+',
 ]
 
+# Numeric resolution markers the keyword QUALITY_PATTERNS miss: 720p, 1080p/i, 2160p,
+# 3840P, 480p, etc. — a 3-4 digit run glued directly to p/i. The 3-digit lower bound
+# excludes 2-digit noise; the 4-digit upper bound excludes 5-digit numbers (10800p won't
+# match). The p/i must be GLUED to the digits (no space): real markers are always written
+# "720P"/"3840P", and requiring the glue avoids stripping a spaced standalone P/I such as a
+# roman numeral ("Volume 100 I"). The p/i \b anchor keeps bare numbers (1080, "Channel 4")
+# intact. Applied with re.IGNORECASE in the ignore_quality block, like QUALITY_PATTERNS.
+RESOLUTION_PATTERNS = [
+    r'\b\d{3,4}[pi]\b',
+]
+
 # Regional indicator patterns: Pacific, Central, Mountain, Atlantic
 # NOTE: East/West are intentionally NOT stripped — they distinguish separate channel feeds
 # (e.g., "HBO East" and "HBO West" are different channels)
@@ -141,6 +152,100 @@ NUM_WORDS_RE = re.compile(
     r'\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b',
     re.IGNORECASE,
 )
+
+
+# --------------------------------------------------------------------------- #
+# Stylized-Unicode decoration stripping
+# --------------------------------------------------------------------------- #
+# Streams tag names with stylized-Unicode tier/format markers (superscript
+# "WEATHERNATION RAW", small-cap "FHD", bullet-prefixed "CNN") that the ASCII tag
+# regexes below cannot see. We drop whole tokens that are pure decoration BEFORE
+# the ASCII pipeline runs. Detection is by Unicode character *name* (not code-point
+# ranges), so it covers superscripts, "modifier letter" superscript capitals, and
+# Latin small-caps wherever they live (e.g. small-cap H is U+029C in IPA Extensions
+# and modifier V is U+2C7D in Latin-Ext-C, both outside the obvious blocks).
+
+# Ornament glyphs whose Unicode name carries no decoration keyword.
+_DECORATIVE_SYMBOLS = frozenset("◉")  # FISHEYE; add individual chars (not strings) here
+
+
+def _is_decorative_char(ch):
+    """True for a stylized letterform/ornament that carries no semantic content in a
+    channel name (superscripts, subscripts, modifier-letter superscript capitals,
+    Latin small-capitals, curated bullets). ASCII and ordinary letters return False."""
+    if ch.isascii():
+        return False
+    if ch in _DECORATIVE_SYMBOLS:
+        return True
+    try:
+        nm = unicodedata.name(ch)
+    except ValueError:
+        # unnamed code point (control char / lone surrogate) -> not decoration
+        return False
+    return ('SUPERSCRIPT' in nm or 'SUBSCRIPT' in nm
+            or 'SMALL CAPITAL' in nm or 'MODIFIER LETTER' in nm)
+
+
+def _strip_stylized_tokens(name):
+    """Drop whitespace tokens that are pure stylized decoration, then NFKD-canonicalize
+    the remainder. A token is decoration when it has >=1 decorative char, no ASCII
+    alphanumeric, and every char is decorative or ASCII punctuation (so a bullet glued
+    to a colon, or "HD/RAW" written in superscripts, are dropped too). Real ASCII words
+    (Gold/VIP) and non-Latin letters (Arabic/Cyrillic/CJK) are always kept. ASCII-only
+    input is returned unchanged via the fast path (no per-char work; NFKD is a no-op
+    on ASCII, so skipping it changes nothing)."""
+    if name.isascii():
+        return name
+    kept = []
+    for tok in name.split():
+        has_decorative = any(_is_decorative_char(c) for c in tok)
+        has_ascii_alnum = any(c.isascii() and c.isalnum() for c in tok)
+        only_decorative_or_punct = all(
+            _is_decorative_char(c) or (c.isascii() and not c.isalnum()) for c in tok
+        )
+        if has_decorative and only_decorative_or_punct and not has_ascii_alnum:
+            continue  # pure decoration -> drop the whole token
+        kept.append(tok)
+    return unicodedata.normalize('NFKD', ' '.join(kept))
+
+
+# --------------------------------------------------------------------------- #
+# Emoji-as-letter + emoji decoration normalization
+# --------------------------------------------------------------------------- #
+# Some streams use an emoji AS A LETTER inside a word: "SP⚽RTS" / "Sp⚽rts" where the
+# soccer ball stands in for 'o' (= SPORTS, the beIN family). _strip_stylized_tokens keeps
+# the token (it has ASCII alnum) and process_string_for_matching would turn the ball into a
+# space ("sp rts"), so it never matches "sports". We substitute the glyph for the letter it
+# replaces (only when flanked by ASCII letters) and strip emoji used purely as decoration.
+
+# Emoji that visually replace an ASCII letter when embedded in a word. Extensible.
+_EMOJI_LETTER_MAP = {'⚽': 'o'}            # SOCCER BALL = 'o'  (SP⚽RTS -> SPORTS)
+# Pictographic ornaments to delete. NOTE: ⚽ is intentionally in BOTH maps — the letter
+# map handles it mid-word (-> 'o'); here it catches any ⚽ NOT flanked by ASCII letters
+# (standalone/edge), which the substitution above leaves untouched.
+_EMOJI_ORNAMENTS = frozenset('♬☾⚽')       # beamed notes, last-quarter moon, soccer ball
+# Zero-width / invisible code points that only add noise to a name.
+_ZERO_WIDTH = ('️', '‍')         # VARIATION SELECTOR-16, ZERO WIDTH JOINER
+
+
+def _normalize_emoji(name):
+    """Map emoji-as-letters to their letter and strip emoji decoration.
+
+    The letter substitution fires ONLY when the glyph is flanked by ASCII letters
+    (so "SP⚽RTS" -> "SPoRTS" but a standalone/edge "⚽" is treated as decoration and
+    dropped). Zero-width selectors and ornament pictographs are deleted outright.
+    ASCII-only input is returned unchanged (no emoji possible)."""
+    if name.isascii():
+        return name
+    for zw in _ZERO_WIDTH:
+        if zw in name:
+            name = name.replace(zw, '')
+    for glyph, letter in _EMOJI_LETTER_MAP.items():
+        if glyph in name:
+            name = re.sub(r'(?<=[A-Za-z])' + re.escape(glyph) + r'(?=[A-Za-z])', letter, name)
+    if any(c in _EMOJI_ORNAMENTS for c in name):
+        name = ''.join(c for c in name if c not in _EMOJI_ORNAMENTS)
+    return name
 
 
 class FuzzyMatcher:
@@ -639,12 +744,29 @@ class FuzzyMatcher:
         # Store original for logging
         original_name = name
 
+        # Map emoji-as-letters (⚽ = 'o' in "SP⚽RTS") and strip emoji decoration, before
+        # the stylized-Unicode strip and ASCII regexes below — so "beIN SP⚽RTS" -> "beIN sports".
+        name = _normalize_emoji(name)
+
+        # Strip stylized-Unicode decoration (superscript/small-cap tier markers,
+        # bullets) up front so the ASCII tag regexes below see plain text. Runs
+        # unconditionally: a token written in superscript/small-caps is decoration
+        # regardless of tag_handling, and it would otherwise block matches
+        # (e.g. a superscript-RAW suffix never matches channel "WeatherNation").
+        name = _strip_stylized_tokens(name)
+
         # CRITICAL FIX (v25.019.0100): Apply quality patterns FIRST, before space normalization
         # This prevents space normalization from breaking quality tags like "4K" -> "4 K"
         # which would then fail to match quality patterns looking for "4K"
         # Bug: Streams with "4K" suffix were not matching because "4K" was split to "4 K"
         # by the space normalization step, then quality patterns couldn't find "4K" at end
         if ignore_quality:
+            # Strip numeric resolution markers (3840P/2160P/1080P/720P/...) before the
+            # digit/letter spacer below would split "3840P" into "3840 P".
+            # Must run before QUALITY_PATTERNS so that removing " 4K " does not glue
+            # "SPoRTS" to "3840P" and break the word-boundary anchor.
+            for pattern in RESOLUTION_PATTERNS:
+                name = re.sub(pattern, '', name, flags=re.IGNORECASE)
             for pattern in QUALITY_PATTERNS:
                 name = re.sub(pattern, '', name, flags=re.IGNORECASE)
 

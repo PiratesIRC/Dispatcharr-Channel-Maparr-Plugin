@@ -14,7 +14,7 @@ Beneficial side effect: the NFKD canonicalization in the stylized-strip step uni
 
 ### Tests
 
-- `tests/test_normalization_port.py` (48 cases) locks all three fixes at the helper, regex, and full-pipeline levels, with editor-proof escaped Unicode constants. New `fuzzy_module` conftest fixture exposes the module-level helpers. Full suite: 148 passing.
+- `tests/test_normalization_port.py` (48 cases) locks all three fixes at the helper, regex, and full-pipeline levels, with editor-proof escaped Unicode constants. New `fuzzy_module` conftest fixture exposes the module-level helpers. A corpus no-regression test asserts the fixes never alter any of the ~41.5K ASCII channel names (CI-enforced, baseline-free). Full suite: 149 passing.
 
 ## v1.26.1430910 (2026-05-23)
 

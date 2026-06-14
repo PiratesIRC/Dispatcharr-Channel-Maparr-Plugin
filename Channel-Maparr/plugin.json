@@ -1,6 +1,6 @@
 {
   "name": "Channel Mapparr",
-  "version": "1.26.1650854",
+  "version": "1.26.1651015",
   "description": "Standardizes broadcast (OTA) and premium/cable channel names using network data and channel lists. Supports M3U stream import, category organization, and fuzzy matching across 42K+ channels in 11 countries.",
   "author": "PiratesIRC",
   "license": "MIT",
@@ -173,7 +173,7 @@
       "id": "apply_tv_logos",
       "label": "Apply Per-Channel Logos (tv-logos)",
       "description": "Fuzzy-match each channel name to the tv-logo/tv-logos GitHub repo and assign per-channel logos. Uses the country codes from Channel Databases. Channels with an existing logo are left alone.",
-      "button_label": "? Apply Per-Channel Logos",
+      "button_label": "\u2756 Apply Per-Channel Logos",
       "button_variant": "filled",
       "button_color": "green",
       "confirm": {"message": "This will fetch tv-logos and assign per-channel logos to channels without one. Continue?"}
@@ -200,7 +200,7 @@
       "id": "plugin_status",
       "label": "Show Status",
       "description": "Show live progress and ETA for the most recent or running operation. Reads a persistent progress file so you can check without watching container logs.",
-      "button_label": "? Status"
+      "button_label": "\u24d8 Status"
     },
     {
       "id": "clear_csv_exports",

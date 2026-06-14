@@ -1,5 +1,19 @@
 # Channel Maparr — Changelog
 
+## v1.26.1651015 (2026-06-14)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.1651015
+
+Manifest hotfix. Two `plugin.json` button labels had been lossily re-encoded to a literal `?` — the earlier BMP-icon fix patched `plugin.py` (the runtime source of truth) but `plugin.json` drifted. The running plugin was unaffected (it uses the class labels); only the manifest shown in the plugin browser/registry was wrong.
+
+### Fixed
+
+- **plugin.json button labels** — `Apply Per-Channel Logos` and `Show Status` showed a literal `?` instead of the ❖ / ⓘ icons. Now match `plugin.py` exactly (U+2756 / U+24D8, as JSON unicode escapes).
+
+### Tooling
+
+- **Contract-test parity guard** — `test_plugin_contract.py` now asserts exact `button_label` parity between `plugin.json` and `Plugin.actions`, and rejects a literal `?` placeholder. The pre-existing BMP-only check missed this because `?` is itself BMP.
+
 ## v1.26.1650854 (2026-06-14)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.1650854

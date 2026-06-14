@@ -53,7 +53,7 @@ What the suites cover:
 | File | What it guards |
 |------|----------------|
 | `tests/test_matching.py` | Stream→channel accuracy: true positives, true negatives, exact-expected, expected-None, callsign extraction. The query is the STREAM; candidates are channel DB names. |
-| `tests/test_plugin_contract.py` | `plugin.json` ↔ `Plugin` class parity: action-id match, every action has a `button_label`, version agreement, and **BMP-only** (no astral-plane characters the loader silently drops). |
+| `tests/test_plugin_contract.py` | `plugin.json` ↔ `Plugin` class parity: action-id match, every action has a `button_label`, **exact button_label parity** (catches a symbol corrupted to a literal `?`, which the BMP-only check misses), version agreement, and **BMP-only** (no astral-plane characters the loader silently drops). |
 | `tests/test_data_integrity.py` | Per-country JSON structure, **no byte-identical duplicate rows**, BMP-only data, alias-table shape. |
 | `tests/test_pure_modules.py` | `progress_status.py` and `logo_matcher.py` (both deliberately Django-free). |
 

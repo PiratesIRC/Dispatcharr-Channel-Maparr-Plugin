@@ -76,6 +76,7 @@ class PluginConfig:
         "GB": "united-kingdom", "AU": "australia", "DE": "germany",
         "FR": "france", "IT": "italy", "ES": "spain", "MX": "mexico",
         "BR": "brazil", "IN": "india", "IE": "ireland", "NL": "netherlands",
+        "NO": "norway",
     }
 
     # Rate Limiting

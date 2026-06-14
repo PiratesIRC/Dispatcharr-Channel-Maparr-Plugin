@@ -95,3 +95,28 @@ def test_plugin_action_labels_are_bmp_only(plugin_module):
         if bad:
             offenders[a["id"]] = [hex(ord(c)) for c in bad]
     assert not offenders, f"actions with non-BMP characters (will be dropped): {offenders}"
+
+
+def test_button_labels_match_between_manifest_and_class(manifest, plugin_module):
+    """plugin.json button_label must equal Plugin.actions button_label exactly.
+
+    Guards against silent drift between the manifest and the runtime class — in
+    particular the lossy re-encoding signature where a BMP/astral icon symbol
+    (e.g. ❖ / ⓘ) gets written to plugin.json as a literal '?'. The BMP-only test
+    does not catch this because '?' is itself BMP; only exact parity does.
+    """
+    class_labels = {a["id"]: a.get("button_label", "") for a in plugin_module.Plugin.actions}
+    mismatches = {
+        a["id"]: {"plugin.json": a.get("button_label"), "Plugin.actions": class_labels.get(a["id"])}
+        for a in manifest["actions"]
+        if a.get("button_label") != class_labels.get(a["id"])
+    }
+    assert not mismatches, f"button_label drift between plugin.json and Plugin.actions: {mismatches}"
+
+
+def test_no_placeholder_question_mark_in_button_labels(manifest, plugin_module):
+    """A literal '?' in a button label is the fingerprint of a corrupted icon symbol."""
+    bad_json = [a["id"] for a in manifest["actions"] if "?" in (a.get("button_label") or "")]
+    bad_class = [a["id"] for a in plugin_module.Plugin.actions if "?" in (a.get("button_label") or "")]
+    assert not bad_json, f"plugin.json button_labels contain a placeholder '?': {bad_json}"
+    assert not bad_class, f"Plugin.actions button_labels contain a placeholder '?': {bad_class}"

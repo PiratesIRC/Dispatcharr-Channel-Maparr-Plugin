@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Build / distribution artifacts
+*.zip
+/tmp/
+
+# CSV preview/exports produced by dry-run mode
+channel_mapparr_preview*.csv
+*_preview.csv
+*_preview_strict.csv
+
+# Tooling caches
+Channel-Maparr/.serena/
+.serena/
+
+# Windows reserved-name junk file
+Channel-Maparr/nul
+
+# Local editor / OS
+.DS_Store
+Thumbs.db

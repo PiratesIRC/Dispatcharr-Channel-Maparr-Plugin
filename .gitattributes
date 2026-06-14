@@ -1,0 +1,6 @@
+# Normalize line endings: store LF in the repo, check out native on each OS.
+* text=auto
+
+# Treat the channel databases and JSON as text with LF to keep diffs clean.
+*.json text eol=lf
+*.py text eol=lf

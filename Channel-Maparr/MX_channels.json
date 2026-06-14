@@ -29,11 +29,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "A&E",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "A&E SOUTH",
       "category": "Mexico",
       "type": "Regional"
@@ -84,21 +79,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Adrenalina Sports Network",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Adult Swim",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Adult Swim",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Adult Swim",
       "category": "Mexico",
       "type": "Regional"
@@ -129,32 +109,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Al Jazeera",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Al Jazeera HD",
       "category": "Mexico",
       "type": "Regional"
     },
     {
       "channel_name": "AMC",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "AMC",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "AMC",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "AMC Series",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -199,32 +159,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Animal Planet",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Animal Planet",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Animal Planet",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Animal Planet HD",
       "category": "Mexico",
       "type": "Regional"
     },
     {
       "channel_name": "Antena 3",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Antena 3 Internacional",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -289,27 +229,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Arirang",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ARTS",
       "category": "Mexico",
       "type": "Regional"
     },
     {
       "channel_name": "Atrescine",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Atrescine",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Atreseries",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -539,16 +464,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "AXN",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "AXN",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "AyM Sports",
       "category": "Mexico",
       "type": "Regional"
@@ -589,16 +504,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Azteca Deportes",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Azteca Internacional",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Azteca Internacional",
       "category": "Mexico",
       "type": "Regional"
@@ -634,11 +539,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Baby Tv",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Baby1",
       "category": "Mexico",
       "type": "Regional"
@@ -650,11 +550,6 @@
     },
     {
       "channel_name": "BabyFirst TV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Bandamax",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -690,11 +585,6 @@
     },
     {
       "channel_name": "beIN SPORTS XTRA en Español",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Bitme",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -899,27 +789,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Canal Nueve (NU9NET)",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Canal Once (C11NET)",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Canal Sony",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Canal Sony",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Canal Sony",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -974,32 +844,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Cartoon Network",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cartoon Network",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cartoon Network",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cartoon Network",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Cartoon Network HD",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cartoonito",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -1074,36 +919,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Cinecanal",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cinecanal",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cinecanal",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cinecanal",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cinecanal",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cinema",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Cinema",
       "category": "Mexico",
       "type": "Regional"
@@ -1120,21 +935,6 @@
     },
     {
       "channel_name": "Cinema Platino Multiplex",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cinemax",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cinemax",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cinemax",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -1169,57 +969,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Claro Sports",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Claro Sports",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Claro Sports",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Claro Sports",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Claro Sports",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Claro Sports",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Classic Arts Showcase",
       "category": "Mexico",
       "type": "Regional"
     },
     {
       "channel_name": "Clic",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Clic",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Club MTV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Club MTV",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -1289,32 +1044,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Comedy Central",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Comedy Central",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Comedy Central",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Como Dice el Dicho",
       "category": "Mexico",
       "type": "Regional"
     },
     {
       "channel_name": "COPS en Español",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Corazón",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -1379,11 +1114,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "De Película",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "DeporTV HD",
       "category": "Mexico",
       "type": "Regional"
@@ -1404,21 +1134,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Discovery Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Discovery Channel HD",
       "category": "Mexico",
       "type": "Regional"
@@ -1429,42 +1144,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Discovery Home & Health",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Home & Health",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Home & Health",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Home & Health",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Home & Health",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Discovery Kids",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Kids",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Science",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -1484,47 +1164,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Discovery Turbo",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Discovery World",
       "category": "Mexico",
       "type": "Regional"
     },
     {
       "channel_name": "Disney Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Disney Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Disney Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Disney Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Disney Junior",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Disney Junior",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Disney Junior",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -1684,11 +1329,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Dreamworks",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Dreamworks HD",
       "category": "Mexico",
       "type": "Regional"
@@ -1739,11 +1379,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "E! Entertainment TV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Efekto Tv",
       "category": "Mexico",
       "type": "Regional"
@@ -1760,21 +1395,6 @@
     },
     {
       "channel_name": "El Financiero - Bloomberg TV HD",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "El Gourmet",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "El Gourmet",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "El Gourmet",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -1819,41 +1439,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "ESPN",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ESPN",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ESPN 2",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ESPN 2",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ESPN 2",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ESPN 2",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ESPN 2",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ESPN 2",
       "category": "Mexico",
       "type": "Regional"
@@ -1869,17 +1454,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "ESPN 4 México",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ESPN 5 Centroamérica",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ESPN 6",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -1929,17 +1504,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "euronews",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Euronews - Spanish Edition",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Europa Europa",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2014,16 +1579,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Film & Arts",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Film & Arts",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "FilmBox Arthouse",
       "category": "Mexico",
       "type": "Regional"
@@ -2050,16 +1605,6 @@
     },
     {
       "channel_name": "Fix&Foxi Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Food Network",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Food Network",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2099,22 +1644,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Fox News Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Fox News Channel HD",
       "category": "Mexico",
       "type": "Regional"
     },
     {
       "channel_name": "FOX SPORTS",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Fox Sports",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2134,22 +1669,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Fox Sports 2",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Fox Sports 2 Cono Sur",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Fox Sports 3",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Fox Sports 3",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2165,11 +1685,6 @@
     },
     {
       "channel_name": "Fox Sports Premium",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "France 24",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2234,21 +1749,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "FX",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "FX",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "FX",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "FX LATIN AMERICA (Central Feed)",
       "category": "Mexico",
       "type": "Regional"
@@ -2270,11 +1770,6 @@
     },
     {
       "channel_name": "Galicia TV America",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Gametoon",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2324,11 +1819,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Ginx TV International",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Glitz",
       "category": "Mexico",
       "type": "Regional"
@@ -2350,16 +1840,6 @@
     },
     {
       "channel_name": "GOLDEN PLUS",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Golden Premier",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Golden Premier",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2409,42 +1889,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "HBO",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "HBO 2",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO 2",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Family",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Family",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Family",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2504,32 +1949,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "HBO Mundi",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Mundi",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "HBO Plus",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Plus",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Plus",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Pop",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2544,42 +1964,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "HBO Pop",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Pop",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "HBO Signature",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Signature",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Signature",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Xtreme",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Xtreme",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HBO Xtreme",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2604,16 +1989,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "HGTV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HGTV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Hi Sports",
       "category": "Mexico",
       "type": "Regional"
@@ -2625,26 +2000,6 @@
     },
     {
       "channel_name": "History",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "History",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "History",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "History 2",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "History 2",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2664,21 +2019,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "HOLA! TV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HOLA! TV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "HTV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "HTV",
       "category": "Mexico",
       "type": "Regional"
@@ -2690,11 +2030,6 @@
     },
     {
       "channel_name": "ID",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ID HD",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2765,11 +2100,6 @@
     },
     {
       "channel_name": "K17DL-D2 (CW)",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Kanal D Drama",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2859,16 +2189,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Las Estrellas (ESTRNET)",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Las Estrellas Internacional",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Las Estrellas Internacional",
       "category": "Mexico",
       "type": "Regional"
@@ -2885,16 +2205,6 @@
     },
     {
       "channel_name": "Latino Urbano",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Lifetime",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Lifetime",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -2935,11 +2245,6 @@
     },
     {
       "channel_name": "María Visión Italia",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "MC",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -3034,16 +2339,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "MTV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "MTV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "MTV - Music Television HD",
       "category": "Mexico",
       "type": "Regional"
@@ -3114,16 +2409,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Multipremier",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "MVS TV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "MVS TV",
       "category": "Mexico",
       "type": "Regional"
@@ -3169,11 +2454,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "N+ Media",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "N+ Monterrey",
       "category": "Mexico",
       "type": "Regional"
@@ -3184,27 +2464,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Nat Geo Kids",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Nat Geo Kids HD",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "National Geographic",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "National Geographic",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "National Geographic",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -3260,21 +2520,6 @@
     },
     {
       "channel_name": "Nick",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Nick",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Nick",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Nick Jr.",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -3344,16 +2589,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Nu9ve",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Once",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Once",
       "category": "Mexico",
       "type": "Regional"
@@ -3365,16 +2600,6 @@
     },
     {
       "channel_name": "Outdoor Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Outdoor Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Outdoor Channel HD",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -3395,16 +2620,6 @@
     },
     {
       "channel_name": "Paramount",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Paramount Network",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Paramount Network",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -3520,11 +2735,6 @@
     },
     {
       "channel_name": "RAI International Spanish",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Rai Italia",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -3704,47 +2914,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Sony Movies",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Sortilegio",
       "category": "Mexico",
       "type": "Regional"
     },
     {
       "channel_name": "Space",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Space",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Space",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Space",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Star Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Star Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Star Channel",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -3865,11 +3040,6 @@
     },
     {
       "channel_name": "Stingray Euro Hits",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Stingray Felices Fiestas",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -4054,11 +3224,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Stingray Retro Latino",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Stingray Rock",
       "category": "Mexico",
       "type": "Regional"
@@ -4075,11 +3240,6 @@
     },
     {
       "channel_name": "Stingray Rock En Español",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Stingray Romance Latino",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -4194,21 +3354,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Stingray Éxitos Tropicales",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Studio Universal",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Studio Universal",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Studio Universal",
       "category": "Mexico",
       "type": "Regional"
@@ -4230,11 +3375,6 @@
     },
     {
       "channel_name": "TCM",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TeenNick",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -4269,32 +3409,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Telehit",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Telehit Música",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Telehit Música",
       "category": "Mexico",
       "type": "Regional"
     },
     {
       "channel_name": "Telehit Música Plus",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Telemundo Internacional",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Telemundo Internacional",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -4344,16 +3464,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "TLC",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TLNovelas",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "TLNovelas",
       "category": "Mexico",
       "type": "Regional"
@@ -4364,52 +3474,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "TNT",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TNT",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TNT",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TNT",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "TNT Novelas",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TNT Novelas",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TNT Series",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TNT Series",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TNT Series",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TNT Series",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -4470,21 +3535,6 @@
     },
     {
       "channel_name": "Tu Clío",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TUDN",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TUDN",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TUDN",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -4564,11 +3614,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "TVE",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "TVE America Television Española HD",
       "category": "Mexico",
       "type": "Regional"
@@ -4580,11 +3625,6 @@
     },
     {
       "channel_name": "TyC Sports HD",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TyC Sports International",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -4614,17 +3654,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Unicable",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "UniMas (UNIMAS)",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Universal Cinema",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -4644,17 +3674,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Universal Comedy",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Universal Comedy HD",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Universal Crime",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -4674,17 +3694,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Universal Premiere",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Universal Premiere HD",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Universal Reality",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -4704,32 +3714,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Universal TV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Universal TV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Universal TV",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Univision Network (UNI)",
       "category": "Mexico",
       "type": "Regional"
     },
     {
       "channel_name": "Univision TDN",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "USA",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -4765,11 +3755,6 @@
     },
     {
       "channel_name": "VEVO REGEATON/TRAP",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "VH1",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -4890,16 +3875,6 @@
     },
     {
       "channel_name": "Wapa+",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Warner Channel",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Warner Channel",
       "category": "Mexico",
       "type": "Regional"
     },
@@ -7110,11 +6085,6 @@
     },
     {
       "channel_name": "XTSY Spanish",
-      "category": "Mexico",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Zee Mundo",
       "category": "Mexico",
       "type": "Regional"
     },

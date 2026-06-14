@@ -649,11 +649,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "ATN DD Bharati",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ATN DD India",
       "category": "Canada",
       "type": "Regional"
@@ -669,17 +664,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "ATN DD News",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ATN Food Food",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ATN Gujarati",
       "category": "Canada",
       "type": "Regional"
     },
@@ -1374,16 +1359,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Cartoon Network HD Canada (Pacific)",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cartoon Network On Demand",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Cartoon Network On Demand",
       "category": "Canada",
       "type": "Regional"
@@ -1480,11 +1455,6 @@
     },
     {
       "channel_name": "CBC News Network",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "CBC News Network HD",
       "category": "Canada",
       "type": "Regional"
     },
@@ -2170,11 +2140,6 @@
     },
     {
       "channel_name": "Channel 299",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Channel I",
       "category": "Canada",
       "type": "Regional"
     },
@@ -3589,11 +3554,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "CNN",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "CNN HD",
       "category": "Canada",
       "type": "Regional"
@@ -4029,17 +3989,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "CTV Two - Ottawa (CTV2)",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "CTV Two - Toronto (CTV2)",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "CTV Two - Vancouver/Victoria (CTV2)",
       "category": "Canada",
       "type": "Regional"
     },
@@ -4345,11 +4295,6 @@
     },
     {
       "channel_name": "DirecTV - NHL Center Ice - NHLCI9",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Channel",
       "category": "Canada",
       "type": "Regional"
     },
@@ -4984,11 +4929,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Food Network",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Food Network On Demand",
       "category": "Canada",
       "type": "Regional"
@@ -5025,11 +4965,6 @@
     },
     {
       "channel_name": "France 24",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "France 24 HD",
       "category": "Canada",
       "type": "Regional"
     },
@@ -5614,11 +5549,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "HLN",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "HLN HD",
       "category": "Canada",
       "type": "Regional"
@@ -5645,11 +5575,6 @@
     },
     {
       "channel_name": "Hollywood Suite On Demand",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Home & Garden Television",
       "category": "Canada",
       "type": "Regional"
     },
@@ -5829,11 +5754,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Ici Radio-Canada Première",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ICI Radio-Canada Première Toronto (CJBC-AM)",
       "category": "Canada",
       "type": "Regional"
@@ -5900,11 +5820,6 @@
     },
     {
       "channel_name": "Investigation",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Investigation Discovery",
       "category": "Canada",
       "type": "Regional"
     },
@@ -6565,11 +6480,6 @@
     },
     {
       "channel_name": "La7",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Las Estrellas Internacional",
       "category": "Canada",
       "type": "Regional"
     },
@@ -7299,11 +7209,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "MuseumTV",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Music On Demand",
       "category": "Canada",
       "type": "Regional"
@@ -7455,31 +7360,6 @@
     },
     {
       "channel_name": "NBA TV Canada HD",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NCAA College Sports Package",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NCAA College Sports Package",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NCAA College Sports Package",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NCAA College Sports Package",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NCAA College Sports Package",
       "category": "Canada",
       "type": "Regional"
     },
@@ -7854,22 +7734,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "NHL Centre Ice HD 1",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "NHL Centre Ice HD 10",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NHL Centre Ice HD 10",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NHL Centre Ice HD 11",
       "category": "Canada",
       "type": "Regional"
     },
@@ -7884,22 +7749,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "NHL Centre Ice HD 12",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "NHL Centre Ice HD 2",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NHL Centre Ice HD 2",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NHL Centre Ice HD 3",
       "category": "Canada",
       "type": "Regional"
     },
@@ -7914,22 +7764,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "NHL Centre Ice HD 4",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "NHL Centre Ice HD 5",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NHL Centre Ice HD 5",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NHL Centre Ice HD 6",
       "category": "Canada",
       "type": "Regional"
     },
@@ -7944,22 +7779,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "NHL Centre Ice HD 7",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "NHL Centre Ice HD 8",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NHL Centre Ice HD 8",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "NHL Centre Ice HD 9",
       "category": "Canada",
       "type": "Regional"
     },
@@ -8580,11 +8400,6 @@
     },
     {
       "channel_name": "Q Country 91.5FM",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Qello Concerts by Stingray",
       "category": "Canada",
       "type": "Regional"
     },
@@ -10029,11 +9844,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Réseau des Sports Info HD",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "SAB Canada",
       "category": "Canada",
       "type": "Regional"
@@ -11314,11 +11124,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Sportsnet 4K",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Sportsnet East",
       "category": "Canada",
       "type": "Regional"
@@ -11335,11 +11140,6 @@
     },
     {
       "channel_name": "Sportsnet One",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sportsnet One 4K",
       "category": "Canada",
       "type": "Regional"
     },
@@ -11674,17 +11474,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Stingray Classic R'n'B & Soul",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Stingray Classic Rock",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Stingray Classica",
       "category": "Canada",
       "type": "Regional"
     },
@@ -11720,11 +11510,6 @@
     },
     {
       "channel_name": "Stingray Cool Jazz",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Stingray Country",
       "category": "Canada",
       "type": "Regional"
     },
@@ -11919,11 +11704,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Stingray Kids' Stuff",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Stingray Kuschelsongs",
       "category": "Canada",
       "type": "Regional"
@@ -11985,11 +11765,6 @@
     },
     {
       "channel_name": "Stingray Nature",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Stingray Naturescape",
       "category": "Canada",
       "type": "Regional"
     },
@@ -12149,11 +11924,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Stingray Smooth Jazz",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Stingray Soho '70s",
       "category": "Canada",
       "type": "Regional"
@@ -12180,11 +11950,6 @@
     },
     {
       "channel_name": "Stingray Souvenirs",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Stingray Special",
       "category": "Canada",
       "type": "Regional"
     },
@@ -12539,11 +12304,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Telehit Música",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Telelatino HD",
       "category": "Canada",
       "type": "Regional"
@@ -12570,11 +12330,6 @@
     },
     {
       "channel_name": "TeleNinos HD",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Teleritmo",
       "category": "Canada",
       "type": "Regional"
     },
@@ -12650,46 +12405,6 @@
     },
     {
       "channel_name": "Telus MLB Extra Innings HD 9",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Telus NBA League Pass HD",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Telus NBA League Pass HD",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Telus NBA League Pass HD",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Telus NBA League Pass HD",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Telus NBA League Pass HD",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Telus NBA League Pass HD",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Telus NBA League Pass HD",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Telus NBA League Pass HD",
       "category": "Canada",
       "type": "Regional"
     },
@@ -13159,22 +12874,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "TLNovelas",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TLNovelas",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Too Much for TV - TMFTV",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Toon-A-Vision",
       "category": "Canada",
       "type": "Regional"
     },
@@ -16144,11 +15844,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Zee Marathi",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Zee Punjab Haryana Himachal",
       "category": "Canada",
       "type": "Regional"
@@ -16165,11 +15860,6 @@
     },
     {
       "channel_name": "Zee Talkies",
-      "category": "Canada",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Zee Tamil",
       "category": "Canada",
       "type": "Regional"
     },

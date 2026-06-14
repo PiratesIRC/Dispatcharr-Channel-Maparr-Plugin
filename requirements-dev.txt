@@ -1,0 +1,6 @@
+# Development / CI dependencies only. The shipped plugin has NO runtime
+# dependencies it installs itself — it runs inside Dispatcharr's Python env.
+# rapidfuzz mirrors production's preferred fuzzy backend; the matcher also
+# works without it (thefuzz -> built-in Levenshtein fallback).
+pytest>=8.0
+rapidfuzz>=3.0

@@ -314,11 +314,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Al Jazeera",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Al Jazeera (Arabic)",
       "category": "Germany",
       "type": "Regional"
@@ -330,11 +325,6 @@
     },
     {
       "channel_name": "Al Jazeera English",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Al Jazeera HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -389,11 +379,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "allgäu.tv",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "AllgäuHIT",
       "category": "Germany",
       "type": "Regional"
@@ -420,11 +405,6 @@
     },
     {
       "channel_name": "Anewz",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Animal Planet",
       "category": "Germany",
       "type": "Regional"
     },
@@ -684,16 +664,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "ARTE",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ARTE HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ARTE HD",
       "category": "Germany",
       "type": "Regional"
@@ -720,11 +690,6 @@
     },
     {
       "channel_name": "ATN Bangla UK",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ATV",
       "category": "Germany",
       "type": "Regional"
     },
@@ -800,11 +765,6 @@
     },
     {
       "channel_name": "AXN",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "AXN Black",
       "category": "Germany",
       "type": "Regional"
     },
@@ -974,11 +934,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "BBC Earth",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "BBC Food",
       "category": "Germany",
       "type": "Regional"
@@ -990,11 +945,6 @@
     },
     {
       "channel_name": "BBC History",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "BBC News",
       "category": "Germany",
       "type": "Regional"
     },
@@ -1524,21 +1474,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Cartoon Network",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cartoon Network",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cartoon Network",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Cartoon Network (KD)",
       "category": "Germany",
       "type": "Regional"
@@ -1550,16 +1485,6 @@
     },
     {
       "channel_name": "Cartoonito",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cartoonito",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Cartoonito HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -1610,11 +1535,6 @@
     },
     {
       "channel_name": "CGTN Français HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "CGTN HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -1769,17 +1689,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Club MTV",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "CMC TV",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "CNBC",
       "category": "Germany",
       "type": "Regional"
     },
@@ -1804,27 +1714,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "CNN HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "CNN Headlines",
       "category": "Germany",
       "type": "Regional"
     },
     {
       "channel_name": "CNN International",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "CNN International",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "CNN International HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -1850,11 +1745,6 @@
     },
     {
       "channel_name": "Comedy & Shows",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Comedy Central",
       "category": "Germany",
       "type": "Regional"
     },
@@ -2029,11 +1919,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "DAZN 2",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "DAZN 2 HD",
       "category": "Germany",
       "type": "Regional"
@@ -2080,11 +1965,6 @@
     },
     {
       "channel_name": "DAZN Rise",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "De Pelicula",
       "category": "Germany",
       "type": "Regional"
     },
@@ -2209,42 +2089,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Discovery Channel",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Channel",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Channel",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Channel",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Channel",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Channel",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Discovery Channel +1",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Discovery Channel HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -2274,11 +2119,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Disney Channel",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Disney Channel +1",
       "category": "Germany",
       "type": "Regional"
@@ -2290,16 +2130,6 @@
     },
     {
       "channel_name": "Disney Channel HD (Austria)",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Disney Junior",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Disney Junior",
       "category": "Germany",
       "type": "Regional"
     },
@@ -2584,11 +2414,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Energy München",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Energy Nürnberg",
       "category": "Germany",
       "type": "Regional"
@@ -2619,22 +2444,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "ERT World HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "eSportsONE",
       "category": "Germany",
       "type": "Regional"
     },
     {
       "channel_name": "eSportsONE HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Espreso.tv",
       "category": "Germany",
       "type": "Regional"
     },
@@ -2669,27 +2484,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "euronews",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "euronews",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "euronews",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Euronews (EURONEW)",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "euronews",
       "category": "Germany",
       "type": "Regional"
     },
@@ -2724,21 +2519,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Eurosport 1",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Eurosport 1",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Eurosport 1",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Eurosport 1 HD",
       "category": "Germany",
       "type": "Regional"
@@ -2749,42 +2529,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Eurosport 1 HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Eurosport 1 HD (Amazon Duplicate)",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Eurosport 1 HD (Amazon Duplicate)",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Eurosport 2",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Eurosport 2",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Eurosport 2",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Eurosport 2",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Eurosport 2",
       "category": "Germany",
       "type": "Regional"
     },
@@ -2800,11 +2545,6 @@
     },
     {
       "channel_name": "Eurosport 2 Xtra",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Eurosport 2 Xtra HD (Amazon Duplicate)",
       "category": "Germany",
       "type": "Regional"
     },
@@ -2999,11 +2739,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "FilmRise Binge Watch",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "FilmRise Serien",
       "category": "Germany",
       "type": "Regional"
@@ -3059,11 +2794,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "France 2",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "France 2 HD",
       "category": "Germany",
       "type": "Regional"
@@ -3089,22 +2819,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "France 24 English HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "France 24 HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "France 24 HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "France 3",
       "category": "Germany",
       "type": "Regional"
     },
@@ -3229,11 +2944,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "FTV HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "FunBox UHD",
       "category": "Germany",
       "type": "Regional"
@@ -3300,16 +3010,6 @@
     },
     {
       "channel_name": "Geo Wild",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "GINX eSports TV",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "GINX eSports TV",
       "category": "Germany",
       "type": "Regional"
     },
@@ -3489,16 +3189,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Hayat Plus",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Hayat Plus",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Headbangers",
       "category": "Germany",
       "type": "Regional"
@@ -3540,11 +3230,6 @@
     },
     {
       "channel_name": "HGTV",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Highway to Heaven",
       "category": "Germany",
       "type": "Regional"
     },
@@ -3849,22 +3534,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "INPLUS",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Inspector Gadget",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Inspector Gadget",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "INULTRA",
       "category": "Germany",
       "type": "Regional"
     },
@@ -3979,11 +3649,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "ITVN Extra",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ITVN Extra HD",
       "category": "Germany",
       "type": "Regional"
@@ -4080,11 +3745,6 @@
     },
     {
       "channel_name": "K-TV HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "kabel eins",
       "category": "Germany",
       "type": "Regional"
     },
@@ -4304,11 +3964,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "KultKrimi",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "KulturMD TV HD",
       "category": "Germany",
       "type": "Regional"
@@ -4499,11 +4154,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Luxe TV",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "M6",
       "category": "Germany",
       "type": "Regional"
@@ -4525,11 +4175,6 @@
     },
     {
       "channel_name": "Made in Chelsea",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "MagellanTV Now",
       "category": "Germany",
       "type": "Regional"
     },
@@ -4610,11 +4255,6 @@
     },
     {
       "channel_name": "MDR KLASSIK",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "MDR Kultur",
       "category": "Germany",
       "type": "Regional"
     },
@@ -4794,22 +4434,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Mezzo",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Mezzo HD",
       "category": "Germany",
       "type": "Regional"
     },
     {
       "channel_name": "Mezzo Live",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Mezzo Live HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -4959,11 +4589,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "MTV",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "MTV 00s Europe",
       "category": "Germany",
       "type": "Regional"
@@ -5040,11 +4665,6 @@
     },
     {
       "channel_name": "MTV Live",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "MTV Live HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -5154,11 +4774,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "N24 Doku",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "N24 Doku HD",
       "category": "Germany",
       "type": "Regional"
@@ -5204,42 +4819,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "National Geographic",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "National Geographic",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "National Geographic",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "National Geographic",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "National Geographic +1",
       "category": "Germany",
       "type": "Regional"
     },
     {
       "channel_name": "National Geographic Channel",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "National Geographic HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "National Geographic HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -5264,32 +4849,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "National Geographic Wild",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "National Geographic Wild HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "National Geographic Wild HD",
       "category": "Germany",
       "type": "Regional"
     },
     {
       "channel_name": "National Public Radio (NPR)",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Nautical Channel",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Nautical Channel",
       "category": "Germany",
       "type": "Regional"
     },
@@ -5529,11 +5094,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Nick Jr.",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Nick Jr. HD",
       "category": "Germany",
       "type": "Regional"
@@ -5569,32 +5129,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Nickelodeon",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Nickelodeon",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Nickelodeon",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Nickelodeon",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Nickelodeon HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Nicktoons",
       "category": "Germany",
       "type": "Regional"
     },
@@ -5949,11 +5484,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "oldenburg eins",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Oldie 95",
       "category": "Germany",
       "type": "Regional"
@@ -6249,11 +5779,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Playboy TV",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Playboy TV Europe",
       "category": "Germany",
       "type": "Regional"
@@ -6415,11 +5940,6 @@
     },
     {
       "channel_name": "Profiling Paris",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "ProSieben",
       "category": "Germany",
       "type": "Regional"
     },
@@ -7399,11 +6919,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Rai Storia",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Rai Storia HD",
       "category": "Germany",
       "type": "Regional"
@@ -7500,16 +7015,6 @@
     },
     {
       "channel_name": "Record TV HD (RREC)",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Red Bull TV",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Red Bull TV",
       "category": "Germany",
       "type": "Regional"
     },
@@ -7734,11 +7239,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Rock Antenne",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "ROCK ANTENNE Lokalradio",
       "category": "Germany",
       "type": "Regional"
@@ -7755,11 +7255,6 @@
     },
     {
       "channel_name": "Rock'n'Roll Oldies",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Rocket Beans TV",
       "category": "Germany",
       "type": "Regional"
     },
@@ -7859,16 +7354,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "RTL",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "RTL",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "RTL Bayern (RTLGER)",
       "category": "Germany",
       "type": "Regional"
@@ -7915,11 +7400,6 @@
     },
     {
       "channel_name": "RTL HB NDS",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "RTL HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -8054,27 +7534,7 @@
       "type": "Regional"
     },
     {
-      "channel_name": "RTLZWEI",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "RTLZWEI",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "RTLZWEI HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "RTLZWEI HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "RTP Internacional",
       "category": "Germany",
       "type": "Regional"
     },
@@ -8200,16 +7660,6 @@
     },
     {
       "channel_name": "Sam & Cat",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sat.1",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sat.1",
       "category": "Germany",
       "type": "Regional"
     },
@@ -8544,11 +7994,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Sky Cinema Classics HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Sky Cinema Drama",
       "category": "Germany",
       "type": "Regional"
@@ -8675,11 +8120,6 @@
     },
     {
       "channel_name": "Sky Showcase",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sky Showcase HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -8870,11 +8310,6 @@
     },
     {
       "channel_name": "Sky Sport Bundesliga UHD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Sky Sport F1 HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -9389,11 +8824,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "STV",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Summer Feelings",
       "category": "Germany",
       "type": "Regional"
@@ -9405,11 +8835,6 @@
     },
     {
       "channel_name": "SUPER 3 HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Super RTL",
       "category": "Germany",
       "type": "Regional"
     },
@@ -9559,11 +8984,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "SyFy Universal",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Syfy Universal (KD)",
       "category": "Germany",
       "type": "Regional"
@@ -9619,22 +9039,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "TCM",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "Tele 1",
       "category": "Germany",
       "type": "Regional"
     },
     {
       "channel_name": "Tele 5",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Tele 5 HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -9709,22 +9119,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "Telehit Música",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "TeleLombardia",
       "category": "Germany",
       "type": "Regional"
     },
     {
       "channel_name": "Telemadrid",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Telenovela ZDF",
       "category": "Germany",
       "type": "Regional"
     },
@@ -9755,11 +9155,6 @@
     },
     {
       "channel_name": "TemporaTV",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Tennis Channel",
       "category": "Germany",
       "type": "Regional"
     },
@@ -9815,11 +9210,6 @@
     },
     {
       "channel_name": "The History Channel HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "The Pet Collective",
       "category": "Germany",
       "type": "Regional"
     },
@@ -9885,11 +9275,6 @@
     },
     {
       "channel_name": "TLC (Austria)",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TLC HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -10015,11 +9400,6 @@
     },
     {
       "channel_name": "TRACE Urban",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Trace Urban",
       "category": "Germany",
       "type": "Regional"
     },
@@ -10224,16 +9604,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "TV3",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TV3",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "TV38 FERNSEHEN ZWISCHEN HARZ",
       "category": "Germany",
       "type": "Regional"
@@ -10250,11 +9620,6 @@
     },
     {
       "channel_name": "TV5 Monde (FBSM)",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TV5 Monde Europe",
       "category": "Germany",
       "type": "Regional"
     },
@@ -10315,11 +9680,6 @@
     },
     {
       "channel_name": "TVE HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "TVE Internacional",
       "category": "Germany",
       "type": "Regional"
     },
@@ -10619,21 +9979,6 @@
       "type": "Regional"
     },
     {
-      "channel_name": "VOX",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "VOX",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "VOX HD",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "VOX HD",
       "category": "Germany",
       "type": "Regional"
@@ -10694,32 +10039,12 @@
       "type": "Regional"
     },
     {
-      "channel_name": "WBTV Film",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
       "channel_name": "WBTV Film HD",
       "category": "Germany",
       "type": "Regional"
     },
     {
       "channel_name": "WBTV Serie",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "WBTV Serie",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "WBTV Serie",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "WBTV Serie HD",
       "category": "Germany",
       "type": "Regional"
     },
@@ -11055,11 +10380,6 @@
     },
     {
       "channel_name": "YOU FM",
-      "category": "Germany",
-      "type": "Regional"
-    },
-    {
-      "channel_name": "Yu-Gi-Oh!",
       "category": "Germany",
       "type": "Regional"
     },

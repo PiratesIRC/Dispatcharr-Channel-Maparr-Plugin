@@ -1,5 +1,11 @@
 # Matcher Normalization Port — Channel-Maparr
 
+> **Status — 2026-06-14: PORTED.** All three fixes are live in `fuzzy_matcher.py` for
+> Channel-Maparr (v1.26.1650854) and have been ported byte-accurate to EPG-Janitor,
+> Lineuparr, and Metadata-Trackarr. Channel-Maparr ships regression tests
+> (`tests/test_normalization_port.py`) plus a CI-enforced corpus no-regression gate.
+> This document is retained as the reference for the port.
+
 **Purpose.** This is a cross-port guide for three `normalize_name` fixes that were
 developed and shipped in **Stream-Mapparr** (`fuzzy_matcher.py`). The workspace-root
 `CLAUDE.md` drift rule requires it: *"fuzzy_matcher.py is copy-pasted across plugins

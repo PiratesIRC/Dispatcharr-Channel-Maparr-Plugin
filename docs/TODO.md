@@ -25,6 +25,13 @@
 - [x] **`button_label` on every action** — Dispatcharr no longer renders generic "Run".
 - [x] **CSV cosmetic fix** — unmatched rows write empty `Match Type` (was literal "None").
 
+## Completed (v1.26.1650854)
+
+- [x] **Dev tooling + CI** — pytest suite (`tests/`), GitHub Actions workflow, cross-platform `package_plugin.py`, `bump_version.py`, and a py-compile hook. Replaces the old `.wolf/test_matching.py` harness.
+- [x] **Deduplicated channel databases** — removed 651 fully-identical rows across 7 country files (UK/MX/DE/CA/BR/FR/ES); all `*_channels.json` normalized to LF.
+- [x] **Norwegian channel database** — `NO_channels.json` (94 channels) + `NO → norway` in `COUNTRY_DIR_MAP`. Coverage now 12 countries.
+- [x] **`normalize_name` hardening (bug-048/051/055)** — stylized-Unicode decoration strip, emoji-as-letter (`beIN SP⚽RTS` → `SPORTS`), and numeric resolution markers (`720p`/`3840P`), ported byte-accurate from Stream-Mapparr. Adds `tests/test_normalization_port.py` regression locks + a CI-enforced corpus no-regression gate (0 ASCII-name changes across 42K names). Ported to all four `fuzzy_matcher.py` copies per the drift rule — see `docs/MATCHER-NORMALIZATION-PORT.md`.
+
 ## Future Work
 
 - [ ] **Improve "United States" category granularity** — A large share of matched M3U streams still lands in the "United States" catch-all category. Refine `US_channels.json` to assign specific genres (Entertainment, Sports, etc.) instead of "United States" for channels that have a clear genre.
@@ -35,8 +42,6 @@
 
 - [ ] **EPG matching** — Lineuparr has `apply_epg_match` that fuzzy-assigns EPG channel names to lineup channels via `EPGSource`. Channel-Maparr currently has no EPG action — channels imported via M3U get no program-guide attachment. ~8-12hr port; needs country filtering, `tvg-id` parsing, fuzzy fallback for unmatched IDs.
 
-- [ ] **Test suite** — Lineuparr has `tests/` (~30 cases across 10 files); Channel-Maparr has only the `.wolf/test_matching.py` harness (46 cases + 14 user-report). Adapt Lineuparr's pytest setup (`conftest.py` mocks django/apps) and copy applicable cases. Set up a GitHub Actions workflow.
-
 - [ ] **Dynamic field discovery for `selected_groups` / `category_groups`** — Currently free-form text. Both could be auto-populated as multi-select dropdowns from `ChannelGroup.objects` in the `Plugin.fields` property (`m3u_sources` already does this). UX win — fewer typo errors.
 
 - [ ] **`Réseau des Sports`-style aliasing for other parens-in-name channels** — The CA `(RDS)` pattern likely repeats: any DB entry where the official name has a parenthesized abbreviation (e.g. `Music Television (MTV)`, `Public Broadcasting Service (PBS)`) is unreachable from streams using just the abbreviation. Audit the country JSONs and add aliases.
@@ -44,4 +49,3 @@
 - [ ] **PR #2 (`RedShieldArr`)** — Closed-out by v1.26.1430910 (alias support superseded). Remaining unique bits:
   - `_expand_ignored_tags()` DRY helper for the 4 duplicated bracket/paren expansion blocks.
   - **Debug Match Export** action + `debug_top_n` setting. Must route through `get_candidates()` + normalization cache (the PR's version bypassed the token pre-filter).
-  - Dedupe `UK_channels.json` (`U&Eden HD`, `U&Yesterday HD`, `U&Yesterday+1` each appear twice).

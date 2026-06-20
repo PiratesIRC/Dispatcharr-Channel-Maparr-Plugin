@@ -39,7 +39,7 @@ mirror production's preferred fuzzy backend, but the matcher also works without 
 ## Testing
 
 ```
-python -m pytest          # full suite (~100 cases, a few seconds)
+python -m pytest          # full suite (~184 cases, a few seconds)
 python -m pytest -k alias  # filter by name
 ```
 
@@ -53,6 +53,9 @@ What the suites cover:
 | File | What it guards |
 |------|----------------|
 | `tests/test_matching.py` | Stream→channel accuracy: true positives, true negatives, exact-expected, expected-None, callsign extraction. The query is the STREAM; candidates are channel DB names. |
+| `tests/test_broadcast_ota.py` | OTA matching: `networks.json` populates `broadcast_channels` when US is loaded, and representative affiliate streams resolve callsign → station (`ABC 5 (WEWS) CLEVELAND HD` → Cleveland/OH/ABC). |
+| `tests/test_ota_network.py` | OTA network resolution: `_parse_network_affiliation` on messy FCC strings, `_extract_stream_network` (stream-stated network), and the parenthesized-callsign override (`(KING)` accepted, `King of the Hill` not). |
+| `tests/test_normalization_port.py` | The three `normalize_name` input-cleaning fixes ported from Stream-Mapparr (helper, regex, full-pipeline) + a corpus no-regression gate (0 ASCII-name changes). |
 | `tests/test_plugin_contract.py` | `plugin.json` ↔ `Plugin` class parity: action-id match, every action has a `button_label`, **exact button_label parity** (catches a symbol corrupted to a literal `?`, which the BMP-only check misses), version agreement, and **BMP-only** (no astral-plane characters the loader silently drops). |
 | `tests/test_data_integrity.py` | Per-country JSON structure, **no byte-identical duplicate rows**, BMP-only data, alias-table shape. |
 | `tests/test_pure_modules.py` | `progress_status.py` and `logo_matcher.py` (both deliberately Django-free). |
@@ -90,6 +93,12 @@ object where every channel is `{channel_name, category, type}`.
   Add an alias whenever a canonical DB name has a parenthesized abbreviation that
   normalization strips (e.g. `Réseau des Sports (RDS) HD` ← `RDS`). Entries whose
   key matches no DB name are simply unused — harmless.
+- `Channel-Maparr/networks.json` is a **separate** US-only FCC station table
+  (`callsign → network_affiliation / community_served_city / community_served_state`,
+  1,915 rows) — the *only* source of OTA/broadcast matches (the `*_channels.json`
+  files have no callsign/broadcast entries). Loaded by
+  `FuzzyMatcher._load_broadcast_stations()` when US is selected. Editing it is how
+  OTA callsign coverage is tuned; absent it, `ota_attempted` stays 0.
 
 ## Releasing
 

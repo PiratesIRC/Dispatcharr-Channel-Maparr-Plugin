@@ -10,7 +10,7 @@ This project uses OpenWolf for context management. Read and follow .wolf/OPENWOL
 
 # Project
 
-Channel Maparr is a **Dispatcharr plugin** (Dispatcharr is a self-hosted TV channel/IPTV manager). It standardizes broadcast (OTA) and premium/cable channel names, organizes channels by category, and imports M3U streams, using fuzzy matching against curated per-country channel databases (~42K channels across 12 countries).
+Channel Maparr is a **Dispatcharr plugin** (Dispatcharr is a self-hosted TV channel/IPTV manager). It standardizes broadcast (OTA) and premium/cable channel names, organizes channels by category, and imports M3U streams, using fuzzy matching against curated per-country channel databases (~42K channels across 12 countries) plus a 1,915-station US FCC table (`networks.json`) for OTA/callsign matching.
 
 The shippable plugin is the `Channel-Maparr/` subdirectory only. The repo root holds docs, the OpenWolf workspace (`.wolf/`), and packaging helpers.
 

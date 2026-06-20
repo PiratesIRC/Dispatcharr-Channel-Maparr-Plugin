@@ -15,7 +15,7 @@ A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel
 ![License](https://img.shields.io/github/license/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin)
 
 ## Features
-* **Multi-Country Support**: Load channel databases for AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, UK, and US (42,900+ channels total).
+* **Multi-Country Support**: Load channel databases for AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, UK, and US (42,900+ channels total), plus a bundled 1,915-station US FCC table (`networks.json`) for OTA callsign matching.
 * **Alias Stage 0 Matching** (v1.26.1430910+): A 200+ entry curated alias map matches common variant names (e.g. `FNC` → `Fox News Channel`, `CSPAN 2` → `C-SPAN2`, `CA: RDS` → `Réseau des Sports (RDS) HD`) in O(1) before fuzzy stages run. Faster, more reviewable, and safer than fuzzy scoring on noisy provider strings. Users can extend with custom aliases.
 * **Per-Channel Logos from tv-logos** (v1.26.1430910+): The **Apply Per-Channel Logos** action fuzzy-matches each channel name against the [tv-logo/tv-logos](https://github.com/tv-logo/tv-logos) GitHub repo and assigns per-channel artwork in bulk. Uses your selected country codes; channels with an existing logo are skipped.
 * **Show Status Action** (v1.26.1430910+): A persistent progress file lets the **Show Status** button report live progress and ETA for any running or recently finished operation, without watching container logs.

@@ -1,5 +1,26 @@
 # Channel Maparr — Changelog
 
+## v1.26.1701952 (2026-06-20)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.1701952
+
+Restores OTA (over-the-air) broadcast matching, which had been silently inert, and makes the rendered network label correct. The per-country `*_channels.json` databases carry only premium `National`/`Regional` entries — no `broadcast` type, no `callsign` field — so `broadcast_channels` was always empty, `ota_attempted` stayed 0, and every local-affiliate stream fell through to premium fuzzy matching. Reported by two users (both `ota_attempted: 0`): a 267-channel "US: ABC" group renamed only 25, with 217 affiliates (`ABC 5 (WEWS) CLEVELAND HD`, `ABC 7 (KGO) SAN FRANCISCO HD`, …) reporting "No match found". Validated live across the four major US network groups — **ABC 167, CBS 213, FOX 200, NBC 513 renames** — with the rendered network verified correct on every one.
+
+### Fixed
+
+- **OTA callsign matching restored** — ships `networks.json` (1,915-station US FCC table: `callsign → network_affiliation / community_served_city / community_served_state`) and loads it into `broadcast_channels` + `channel_lookup` whenever the US database is selected. The existing OTA pipeline (`match_broadcast_channel` → `Plugin._format_ota_name`) now renders the configured `OTA Name Format` (default `{NETWORK} - {STATE} {CITY} ({CALLSIGN})`): `ABC 5 (WEWS) CLEVELAND HD → ABC - OH Cleveland (WEWS)`, `FOX (KTVU) → FOX - CA Oakland (KTVU)`. Previously-generic premium matches (`US: ABC (WXYZ) → ABC`) now resolve to the specific station (`ABC - MI Detroit (WXYZ)`).
+- **Honor the stream's stated network** — `Plugin._extract_stream_network` reads the network a stream names (`US: CBS 7 (WBBJ-DT3) …`) and `_format_ota_name` prefers it over the FCC station's primary affiliation, which disagrees for subchannels and network-owned independents. `CBS 7 (WBBJ-DT3) JACKSON HD → CBS - TN Jackson (WBBJ)` (instead of ABC, WBBJ's main affiliation). On US: CBS this cut wrong/malformed network labels from **23 → 0**.
+- **Hardened `_parse_network_affiliation`** — the fallback when a stream states no network now handles the messy real FCC strings: case-insensitive subchannel markers (`CBS Ch 3.1`), multi-network joins (`CBS & FOX`, `CBS. FOX, CW`, `ABC,CBS,CW`), callsign-prefixed (`KALB/NBC → NBC`), and parenthetical annotations (`ABC (main) CBS (multicast) → ABC`).
+- **Parenthesized-callsign override** — a callsign in parentheses is an explicit signal, so `_compute_callsign_with_confidence` Priority 1 now accepts a denylisted English word there *if it is a real loaded station*: `KING` (Seattle NBC), `WOOD` (Grand Rapids NBC), `WAVE` (Louisville NBC). The callsign denylist exists to stop Priority 4 mis-reading prose (`King of the Hill → KING`); the gate is `callsign in self.channel_lookup`, so non-station words stay rejected (`HBO (WEST)`, `Disney (KIDS)`) and **unparenthesized** matches keep the strict denylist. Recovered +10 OTA renames on US: NBC.
+
+### Data
+
+- **`networks.json`** — US FCC station table (callsign → network/city/state, 1,915 stations), ported from Stream-Mapparr. US-only; absent for non-US deployments (loader degrades gracefully, OTA simply disabled).
+
+### Tests
+
+- `tests/test_broadcast_ota.py` (station-table loading + callsign→station resolution) and `tests/test_ota_network.py` (affiliation parsing, stream-network extraction, parenthesized-override + regression guards). Full suite: **184 passing**.
+
 ## v1.26.1651015 (2026-06-14)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.1651015

@@ -34,7 +34,19 @@
 - [x] **plugin.json manifest fix + parity guard** — corrected two button labels corrupted to `?` (→ ❖/ⓘ, matching plugin.py); `test_plugin_contract.py` now enforces exact button_label parity and rejects `?` placeholders.
 - [x] **Dispatcharr/Plugins submission** — v1.26.1651015 submitted to the public registry (Dispatcharr/Plugins PR #128).
 
+## Completed (v1.26.1701952)
+
+- [x] **OTA broadcast matching restored** — bundled `networks.json` (1,915-station US FCC table) loaded into `broadcast_channels` + `channel_lookup` via `FuzzyMatcher._load_broadcast_stations()` when US is selected. The `*_channels.json` DBs have no broadcast/callsign entries, so the previously-inert OTA pipeline (`ota_attempted` was always 0) now resolves local affiliates by callsign. Validated live: ABC 167, CBS 213, FOX 200, NBC 513 renames.
+- [x] **Correct OTA network label** — `_extract_stream_network` honors the network a stream states (subchannels: `CBS 7 (WBBJ-DT3) → CBS …` not ABC); `_parse_network_affiliation` hardened for messy FCC strings (`CBS & FOX`, `CBS Ch 3.1`, `KALB/NBC`). CBS wrong-network outputs 23 → 0.
+- [x] **Parenthesized-callsign override** — Priority 1 accepts a denylisted English word in parens when it's a real station (`(KING)`/`(WOOD)`/`(WAVE)`); unparenthesized prose still guarded. `tests/test_broadcast_ota.py` + `tests/test_ota_network.py`.
+
 ## Future Work
+
+- [ ] **Premium HD-tag idempotency (NBC Sports RSNs)** — a few channels (`NBC Sports California (D)` ⇄ `NBC Sports California HD (D)`, `… Bay Area HD` ⇄ `… (with Warriors)`) flip a cosmetic tag on re-run because the premium exact-match canonical differs from the post-rename name. Pre-existing; ~7 channels on US: NBC.
+
+- [ ] **OTA station-table coverage** — low-power/translator callsigns (`-LD`/`-CD2`) and a few full-power stations (WGCL, KXJB, WSHM) are absent from `networks.json`, so those affiliates skip with "Callsign … not in channel databases". Refresh/expand the FCC table to raise coverage.
+
+- [ ] **Non-parenthesized callsign affiliates** — formats like `SEATTLE, WA KING NBC 5` (callsign not in parens, denylisted word) still skip, since loosening the unparenthesized denylist would mis-read prose. Would need a market/city-aware heuristic.
 
 - [ ] **Improve "United States" category granularity** — A large share of matched M3U streams still lands in the "United States" catch-all category. Refine `US_channels.json` to assign specific genres (Entertainment, Sports, etc.) instead of "United States" for channels that have a clear genre.
 

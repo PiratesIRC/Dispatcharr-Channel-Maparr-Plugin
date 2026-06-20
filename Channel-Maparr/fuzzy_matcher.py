@@ -22,6 +22,11 @@ except (ImportError, ValueError):
 # Version: YY.DDD.HHMM (Julian date format: Year.DayOfYear.Time)
 __version__ = "26.100.1200"
 
+# FCC station table (callsign -> network_affiliation / community_served_city /
+# community_served_state). Loaded into the OTA broadcast lookup when the US
+# database is selected. US-only; absent for non-US deployments.
+BROADCAST_STATIONS_FILE = "networks.json"
+
 # Setup logging
 LOGGER = logging.getLogger("plugins.fuzzy_matcher")
 
@@ -478,9 +483,57 @@ class FuzzyMatcher:
                 
             except Exception as e:
                 self.logger.error(f"Error loading {channel_file}: {e}")
-        
+
+        # The *_channels.json files carry no broadcast entries; OTA/callsign
+        # matching comes entirely from the US FCC station table.
+        total_broadcast += self._load_broadcast_stations()
+
         self.logger.info(f"Total channels loaded: {total_broadcast} broadcast, {total_premium} premium")
         return True
+
+    def _load_broadcast_stations(self):
+        """Load the FCC station table (``networks.json``) into the OTA lookup.
+
+        The per-country ``*_channels.json`` databases carry only premium
+        (National/Regional) entries — no ``broadcast`` type, no ``callsign``
+        field — so OTA/callsign matching relies entirely on this US station
+        table: callsign -> {network_affiliation, community_served_city,
+        community_served_state, ...}. Each station is appended to
+        ``broadcast_channels`` and indexed in ``channel_lookup`` by both its full
+        callsign (``WEWS-TV``) and its base callsign (``WEWS``) so a stream that
+        cites either form resolves. A missing file is non-fatal (non-US
+        deployments simply have no OTA table).
+
+        Returns the number of stations loaded.
+        """
+        stations_path = os.path.join(self.plugin_dir, BROADCAST_STATIONS_FILE)
+        if not os.path.exists(stations_path):
+            self.logger.info(f"No {BROADCAST_STATIONS_FILE} present — OTA matching disabled")
+            return 0
+
+        try:
+            with open(stations_path, 'r', encoding='utf-8') as f:
+                stations = json.load(f)
+        except Exception as e:
+            self.logger.error(f"Error loading {BROADCAST_STATIONS_FILE}: {e}")
+            return 0
+
+        loaded = 0
+        for station in stations:
+            callsign = (station.get('callsign') or '').strip().upper()
+            if not callsign:
+                continue
+            self.broadcast_channels.append(station)
+            # setdefault: keep the first (primary) station for a given key so a
+            # later subchannel entry can't clobber the main affiliate.
+            self.channel_lookup.setdefault(callsign, station)
+            base_callsign = re.sub(r'-(?:TV|CD|LP|DT|LD)$', '', callsign)
+            if base_callsign != callsign:
+                self.channel_lookup.setdefault(base_callsign, station)
+            loaded += 1
+
+        self.logger.info(f"Loaded {loaded} OTA broadcast stations from {BROADCAST_STATIONS_FILE}")
+        return loaded
 
     def reload_databases(self, country_codes=None):
         """
@@ -569,6 +622,12 @@ class FuzzyMatcher:
             except Exception as e:
                 self.logger.error(f"Error loading {channel_file}: {e}")
 
+        # OTA/callsign matching is driven by the US FCC station table, not the
+        # *_channels.json premium databases. Load it whenever US is in scope
+        # (country_codes is None means "load everything").
+        if country_codes is None or any(str(c).strip().upper() == 'US' for c in country_codes):
+            total_broadcast += self._load_broadcast_stations()
+
         self.logger.info(f"Total channels loaded: {total_broadcast} broadcast, {total_premium} premium")
         return True
 
@@ -604,7 +663,12 @@ class FuzzyMatcher:
         paren_match = re.search(r'\(([KW][A-Z]{3})(?:-[A-Z\s]+)?\)', channel_name, re.IGNORECASE)
         if paren_match:
             callsign = paren_match.group(1).upper()
-            if callsign not in self._CALLSIGN_DENYLIST:
+            # Parentheses are an explicit "this is a callsign" signal, so accept a
+            # denylisted English word here IF it's a real loaded station — KING /
+            # WOOD / WAVE are NBC callsigns. Unparenthesized matches (Priority 3/4)
+            # keep the strict denylist so prose like "King of the Hill" isn't
+            # mis-read, and a non-station word like "(WEST)" stays rejected.
+            if callsign not in self._CALLSIGN_DENYLIST or callsign in self.channel_lookup:
                 return callsign, True
 
         # Priority 2: Callsigns with broadcast suffix in parentheses

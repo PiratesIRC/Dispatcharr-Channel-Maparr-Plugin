@@ -44,7 +44,7 @@ PROGRESS_FILE = "/data/channel_mapparr_progress.json"
 class PluginConfig:
     """Configuration constants for Channel Maparr."""
 
-    PLUGIN_VERSION = "1.26.1651015"
+    PLUGIN_VERSION = "1.26.1701952"
 
     # Channel Database Settings
     DEFAULT_CHANNEL_DATABASES = "US"
@@ -763,45 +763,90 @@ class Plugin:
         return success
 
     def _parse_network_affiliation(self, network_affiliation):
-        """Extract first network from affiliation string, removing everything after comma or parenthesis."""
+        """Extract the primary network from a messy FCC affiliation string.
+
+        The raw field varies a lot: subchannel maps ("CBS Ch 3.1, CW/MTN Ch
+        3.2"), multi-net joins ("CBS & FOX", "CBS. FOX, CW", "ABC,CBS,CW"),
+        callsign-prefixed ("KALB/NBC"), legacy D-prefixes ("D1-CBS"), and
+        annotated ("ABC (main) CBS (multicast)"). We want the first real network
+        token. (When the stream itself states a network, the caller overrides
+        this via ``_format_ota_name(network_override=...)``.)
+        """
         if not network_affiliation:
             return None
 
-        # Remove D<number>- prefix if present
-        network_affiliation = re.sub(r'^D\d+-', '', network_affiliation)
+        s = network_affiliation.strip()
 
-        # Remove any callsign prefixes with D1, D2 pattern
-        network_affiliation = re.sub(r'^[KW][A-Z]{3,4}(?:-(?:TV|CD|LP|DT|LD))?\s+D\d+\s*-\s*', '', network_affiliation)
+        # Legacy subchannel prefixes: "D1-CBS" / "WXYZ-TV D1 - CBS"
+        s = re.sub(r'^D\d+-', '', s)
+        s = re.sub(r'^[KW][A-Z]{3,4}(?:-(?:TV|CD|LP|DT|LD))?\s+D\d+\s*-\s*', '', s)
 
-        # Remove channel numbers and subchannel info
-        network_affiliation = re.sub(r'^(.*?)\s+(?:CH\s+)?\d+(?:\.\d+)?(?:/.*)?$', r'\1', network_affiliation)
+        # Drop subchannel position markers anywhere: "Ch 3.1", "CH 2.2", "Channel 5"
+        s = re.sub(r'\b(?:CH|CHANNEL)\s*\d+(?:\.\d+)?', ' ', s, flags=re.IGNORECASE)
 
-        # Remove any leading numbers and dots/spaces
-        network_affiliation = re.sub(r'^\d+\.?\d*\s+', '', network_affiliation)
+        # Drop parenthetical annotations: "(main)", "(multicast)"
+        s = re.sub(r'\([^)]*\)', ' ', s)
 
-        # Take only first word/network before semicolon, slash, comma, or parenthesis
-        network_affiliation = re.split(r'[;/,\(]', network_affiliation)[0].strip()
+        # Tokenize on network separators. NOT hyphen — that would split a "-TV"
+        # callsign suffix; NOT bare digits handled above.
+        tokens = [t for t in re.split(r'[;,/&.]|\s+', s) if t.strip()]
 
-        # Remove "Television Network" or "TV Network" suffix
-        network_affiliation = re.sub(r'\s+(?:Television\s+)?Network\s*$', '', network_affiliation, flags=re.IGNORECASE).strip()
+        # Drop leading callsign-shaped tokens ("KALB", "WXYZ-TV") — station, not network.
+        while tokens and re.fullmatch(r'[KW][A-Z]{2,3}(?:-(?:TV|CD|LP|DT|LD)\d*)?', tokens[0].upper()):
+            tokens.pop(0)
 
-        # Convert to uppercase
-        network_affiliation = network_affiliation.upper()
+        if not tokens:
+            return None
 
-        return network_affiliation if network_affiliation else None
+        network = re.sub(r'\s+(?:Television\s+)?Network\s*$', '', tokens[0], flags=re.IGNORECASE).strip()
+        network = network.upper()
+
+        return network if network else None
 
 
-    def _format_ota_name(self, station_data, format_string, callsign):
+    # Broadcast networks a stream may explicitly state as its leading token. Used
+    # to override the FCC station's primary affiliation when a provider labels a
+    # subchannel — "US: CBS 7 (WBBJ-DT3)" carries CBS even though WBBJ's main
+    # affiliation is ABC — and to dodge malformed multi-network affiliation strings.
+    _STREAM_NETWORKS = frozenset({
+        "ABC", "CBS", "NBC", "FOX", "CW", "PBS", "ION",
+        "MYTV", "MYNETWORKTV", "TELEMUNDO", "UNIVISION", "UNIMAS",
+    })
+
+    def _extract_stream_network(self, channel_name):
+        """Return the network a stream name explicitly claims, or None.
+
+        Reads the leading token after an optional geo/provider prefix
+        ("US: CBS 7 ..." -> "CBS"). Only recognized broadcast networks count, so a
+        callsign-led name ("WABC-TV") returns None. A network used *as* the prefix
+        ("CBS: ...") is not mistaken for a geo code and stripped.
+        """
+        if not channel_name:
+            return None
+        s = channel_name.strip()
+        m_geo = re.match(r'^\s*[\[(]?([A-Za-z]{2,3})[\])]?\s*[:|]\s*(.*)$', s)
+        if m_geo and m_geo.group(1).upper() not in self._STREAM_NETWORKS:
+            s = m_geo.group(2)
+        m = re.match(r'([A-Za-z]{2,12})', s)
+        if not m:
+            return None
+        token = m.group(1).upper()
+        return token if token in self._STREAM_NETWORKS else None
+
+    def _format_ota_name(self, station_data, format_string, callsign, network_override=None):
         """
         Format OTA channel name using the provided format string.
         Returns None if any required field is missing.
+
+        ``network_override`` (the network the stream itself states) wins over the
+        FCC station's primary affiliation, which can disagree for subchannels.
         """
         # Parse format string to find required fields
         required_fields = re.findall(r'\{(\w+)\}', format_string)
 
         # Get data from station
         network_raw = station_data.get('network_affiliation', '').strip()
-        network = self._parse_network_affiliation(network_raw)
+        network = network_override or self._parse_network_affiliation(network_raw)
         city = station_data.get('community_served_city', '').title()
         state = station_data.get('community_served_state', '').upper()
         display_callsign = self.matcher.normalize_callsign(callsign)
@@ -992,7 +1037,11 @@ class Plugin:
                         ota_callsign_found = True
 
                         if station:
-                            new_name = self._format_ota_name(station, ota_format, callsign)
+                            # The network the stream states (e.g. a "US: CBS …"
+                            # subchannel) overrides the station's FCC affiliation.
+                            stream_network = self._extract_stream_network(current_name)
+                            new_name = self._format_ota_name(station, ota_format, callsign,
+                                                             network_override=stream_network)
                             if new_name:
                                 matcher_used = "Broadcast (OTA)"
                                 match_method = "OTA - Callsign Match"

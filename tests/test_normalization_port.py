@@ -226,6 +226,31 @@ def test_normalize_name_ascii_no_regression(matcher, inp, expected):
 
 
 # --------------------------------------------------------------------------- #
+# bug-066 — bare " Pacific"/" Central"/" Mountain"/" Atlantic" are brand tokens
+# far more often than timezone feeds. Removing them from REGIONAL_PATTERNS stops
+# distinct channels collapsing onto one grouping key (ported from Stream-Mapparr).
+# Channel-Maparr already keeps bare East/West, so only the rarer zones change.
+# --------------------------------------------------------------------------- #
+def test_brand_central_not_stripped_as_timezone(matcher):
+    assert "central" in matcher.normalize_name("Comedy Central", ignore_regional=True).lower()
+
+
+def test_comedy_central_distinct_from_comedy_tv(matcher):
+    assert (matcher.normalize_name("Comedy Central", ignore_regional=True)
+            != matcher.normalize_name("Comedy TV", ignore_regional=True))
+
+
+def test_brand_atlantic_not_stripped_as_timezone(matcher):
+    assert "atlantic" in matcher.normalize_name("The Atlantic", ignore_regional=True).lower()
+
+
+def test_parenthesized_central_still_stripped(matcher):
+    """Guard: an explicit "(Central)" timezone tag is a genuine feed marker and
+    must still strip — only the BARE word is preserved."""
+    assert matcher.normalize_name("ESPN (Central)", ignore_regional=True).strip().upper() == "ESPN"
+
+
+# --------------------------------------------------------------------------- #
 # CI-enforced corpus no-regression gate (baseline-free).
 #
 # The manual ship gate asserts the port changes 0 ASCII channel names. We lock

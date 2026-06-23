@@ -89,14 +89,10 @@ RESOLUTION_PATTERNS = [
 # NOTE: East/West are intentionally NOT stripped — they distinguish separate channel feeds
 # (e.g., "HBO East" and "HBO West" are different channels)
 REGIONAL_PATTERNS = [
-    # Regional: " Pacific" or " pacific" (word with space prefix)
-    r'\s[Pp][Aa][Cc][Ii][Ff][Ii][Cc]',
-    # Regional: " Central" or " central" (word with space prefix)
-    r'\s[Cc][Ee][Nn][Tt][Rr][Aa][Ll]',
-    # Regional: " Mountain" or " mountain" (word with space prefix)
-    r'\s[Mm][Oo][Uu][Nn][Tt][Aa][Ii][Nn]',
-    # Regional: " Atlantic" or " atlantic" (word with space prefix)
-    r'\s[Aa][Tt][Ll][Aa][Nn][Tt][Ii][Cc]',
+    # bug-066: bare " Pacific"/" Central"/" Mountain"/" Atlantic" removed — as bare
+    # words they are brand tokens far more often than feed markers ("Comedy Central",
+    # "The Atlantic") and collapsed distinct channels onto one grouping key. The
+    # parenthesized timezone tags below are kept (an explicit "(Central)" is a feed).
     # Regional: (Pacific) or (PACIFIC) (parenthesized format)
     r'\s*\([Pp][Aa][Cc][Ii][Ff][Ii][Cc]\)\s*',
     # Regional: (Central) or (CENTRAL) (parenthesized format)

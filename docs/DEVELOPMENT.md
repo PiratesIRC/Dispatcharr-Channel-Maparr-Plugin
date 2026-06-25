@@ -113,7 +113,13 @@ or run the steps manually:
 3. Add a `docs/CHANGELOG.md` entry (newest first, matching the existing format).
 4. `python scripts/package_plugin.py` — builds `Channel-Maparr.zip` (cross-platform
    replacement for `zip.cmd`). Pre-flight compiles every `.py` and asserts
-   `plugin.json` is BMP-only; a failure refuses to package.
+   `plugin.json` is BMP-only; a failure refuses to package. Then run
+   **`python scripts/validate_zip.py Channel-Maparr.zip`** — it must print OK. This
+   guards bug-087: a zip with backslash path separators (as PowerShell
+   `Compress-Archive` / .NET Framework `ZipFile.CreateFromDirectory` produce) fails
+   install on Dispatcharr's Linux host with "missing plugin.py or package
+   __init__.py". `package_plugin.py` is safe; this is the regression gate (it parses
+   raw central-directory bytes, since `zipfile.namelist()` hides the backslashes).
 5. Commit, `git tag <version>`, push.
 6. `gh release create <version> Channel-Maparr.zip --repo PiratesIRC/Dispatcharr-Channel-Maparr-Plugin`.
 7. Optional: submit/update `Dispatcharr/Plugins` (PR title exactly

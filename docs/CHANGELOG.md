@@ -1,5 +1,22 @@
 # Channel Maparr — Changelog
 
+## (2026-06-25)
+
+Second matcher-normalization batch ported from Lineuparr (PR #13), plus a `calculate_similarity` reconciliation and two unrelated matcher fixes that also landed on main. Purely additive/behavioral-fix work in `fuzzy_matcher.py`: noisy provider stream names with non-Latin scripts and box-bar bouquet tags now normalize to the same form as clean channel-database names, and the similarity backend agrees with the other three matcher copies. See `docs/MATCHER-NORMALIZATION-PORT.md`.
+
+### Matching
+
+- **Non-ASCII preservation in `process_string_for_matching`** — NFKD-fold then keep any `char.isalnum()`, replacing the old ASCII-only `a-z0-9` filter. Previously a name written entirely in Cyrillic / CJK / Arabic was erased to `''`, which then matched everything at 100% (false positives). Non-Latin scripts now survive normalization and compare on their own characters.
+- **Leading box-bar bouquet-tag strip (`normalize_name`)** — `_LEADING_BAR_TAG_RE` removes a leading `┃…┃` provider/bouquet tag, so `┃CANAL+┃ NPO 1` → `NPO 1` instead of failing to match `NPO 1`.
+- **Box-bar delimiters** — `┃` (U+2503) and `│` (U+2502) added to `GEOGRAPHIC_PATTERNS` and `PROVIDER_PREFIX_PATTERNS`, covering both a single bar after a country/provider code and matched bar pairs.
+- **`calculate_similarity` reconciled (bug-026)** — now computes `1 - distance/max(len)` via rapidfuzz `Levenshtein.normalized_similarity` (fast path) with a matching pure-Python max-len fallback, replacing the previous `fuzz.ratio` (Indel) fast path + sum-len pure-Python fallback whose two code paths disagreed. This brings Channel-Maparr in line with the other three `fuzzy_matcher.py` copies.
+- **3-letter callsign anchoring in parentheses (bug-062)** — anchors 3-letter callsigns appearing in parentheses (ported from the shared matcher work).
+- **Bare-timezone over-strip fix (bug-066)** — ported from Stream-Mapparr; stops over-stripping a bare timezone token.
+
+### Tests
+
+- Full local suite: **195 passing** (up from 184).
+
 ## v1.26.1701952 (2026-06-20)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.1701952

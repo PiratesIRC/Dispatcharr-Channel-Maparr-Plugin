@@ -6,6 +6,25 @@
 > (`tests/test_normalization_port.py`) plus a CI-enforced corpus no-regression gate.
 > This document is retained as the reference for the port.
 
+> **Update — 2026-06-25: second normalization batch PORTED (from Lineuparr PR #13).**
+> Three more input-cleaning fixes landed in Channel-Maparr's `fuzzy_matcher.py` main,
+> plus a `calculate_similarity` reconciliation and two unrelated matcher fixes:
+> - **Non-ASCII preservation in `process_string_for_matching`** — NFKD fold +
+>   `char.isalnum()` instead of the old ASCII-only `a-z0-9` filter, so Cyrillic / CJK /
+>   Arabic survive instead of being erased to `''` (which produced false 100% matches).
+> - **Leading box-bar bouquet-tag strip in `normalize_name`** via `_LEADING_BAR_TAG_RE`
+>   (`┃CANAL+┃ NPO 1` → `NPO 1`).
+> - **Box-bar delimiters `┃` (U+2503) and `│` (U+2502)** added to `GEOGRAPHIC_PATTERNS`
+>   and `PROVIDER_PREFIX_PATTERNS` (single bar after a code, and matched pairs).
+> - **`calculate_similarity` reconciled (bug-026)** — now `1 - distance/max(len)` via
+>   rapidfuzz `Levenshtein.normalized_similarity` (fast path) plus a matching pure-Python
+>   max-len fallback, replacing the previous `fuzz.ratio` (Indel) fast path + sum-len
+>   pure-Python fallback whose two paths disagreed. Now matches the other three matcher copies.
+> - Also landed on main: **bug-062** (anchor 3-letter callsigns in parentheses) and
+>   **bug-066** (bare-timezone over-strip, ported from Stream-Mapparr).
+>
+> Full local suite green: **195 passed.**
+
 **Purpose.** This is a cross-port guide for three `normalize_name` fixes that were
 developed and shipped in **Stream-Mapparr** (`fuzzy_matcher.py`). The workspace-root
 `CLAUDE.md` drift rule requires it: *"fuzzy_matcher.py is copy-pasted across plugins

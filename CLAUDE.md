@@ -25,7 +25,8 @@ This is **not** a standalone app — there is no build, lint, or test suite. The
 
 ## Packaging / release
 
-- `zip.cmd` is a Windows 7-Zip script that zips the `Channel-Maparr/` folder (`.py .png .txt .json`) into `Channel-Maparr.zip` for distribution. Paths are hardcoded to the author's machine.
+- `zip.cmd` is a Windows 7-Zip script that zips the `Channel-Maparr/` folder (`.py .png .txt .json`) into `Channel-Maparr.zip` for distribution. Paths are hardcoded to the author's machine. Prefer `scripts/package_plugin.py` (cross-platform).
+- **Release zips must use forward-slash separators (bug-087).** 7-Zip / `package_plugin.py` / `git archive` are fine; NEVER PowerShell `Compress-Archive` or .NET Framework `ZipFile.CreateFromDirectory` — they write backslash separators that break install on Dispatcharr's Linux host ("missing plugin.py or package __init__.py"). Gate every zip with `python scripts/validate_zip.py Channel-Maparr.zip`.
 - Versioning convention: `Major.YY.DDDHHMM` (e.g. `1.26.1001200`). Bump `version` in `Channel-Maparr/plugin.json` and add a `docs/CHANGELOG.md` entry on release.
 - Distribution targets: GitHub repo `PiratesIRC/Dispatcharr-Channel-Maparr-Plugin` and the `Dispatcharr/Plugins` submission repo.
 

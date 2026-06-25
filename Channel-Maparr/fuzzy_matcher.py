@@ -30,23 +30,14 @@ BROADCAST_STATIONS_FILE = "networks.json"
 # Setup logging
 LOGGER = logging.getLogger("plugins.fuzzy_matcher")
 
-# Conditional import: rapidfuzz (10-100x faster) → thefuzz → built-in Levenshtein
+# Optional C-accelerated Levenshtein. When present, the matcher uses rapidfuzz's
+# normalized_similarity (1 - distance/max(len)); the pure-Python fallback below
+# computes the identical value (bug-026). rapidfuzz is an OPTIONAL runtime dep.
 try:
-    from rapidfuzz import fuzz as _rfuzz
+    from rapidfuzz.distance import Levenshtein as _rf_lev
     _USE_RAPIDFUZZ = True
-    _HAS_SCORE_CUTOFF = True
-    LOGGER.info("Using rapidfuzz for similarity calculations")
 except ImportError:
-    try:
-        from thefuzz import fuzz as _rfuzz
-        _USE_RAPIDFUZZ = True
-        _HAS_SCORE_CUTOFF = False  # thefuzz.fuzz.ratio() does not support score_cutoff
-        LOGGER.info("Using thefuzz for similarity calculations (install rapidfuzz for 10-100x speedup)")
-    except ImportError:
-        _rfuzz = None
-        _USE_RAPIDFUZZ = False
-        _HAS_SCORE_CUTOFF = False
-        LOGGER.info("Using built-in Levenshtein for similarity calculations (install rapidfuzz for 10-100x speedup)")
+    _USE_RAPIDFUZZ = False
 
 # Categorized regex patterns for granular control during fuzzy matching
 # Note: All patterns are applied with re.IGNORECASE flag in normalize_name()
@@ -104,6 +95,12 @@ REGIONAL_PATTERNS = [
 ]
 
 # Geographic prefix patterns: US:, USA:, etc.
+# Strip a leading box-bar bouquet/source tag with arbitrary inner text
+# ("┃CANAL+┃ NPO 1" -> "NPO 1"); box bars never occur in real names, so this
+# is always safe and also covers leading "┃XX┃" country/source tags.
+_LEADING_BAR_TAG_RE = re.compile(r'^\s*[┃│]\s*[^┃│]*[┃│]\s*')
+
+
 GEOGRAPHIC_PATTERNS = [
     # Country codes in various formats
     # Matches patterns like: US, USA, FR, UK, CA, DE, etc.
@@ -113,16 +110,16 @@ GEOGRAPHIC_PATTERNS = [
     # second 2-3 letter group catches provider sub-tags like "CA FR:",
     # "US ES:", "UK FHD:" so both pieces are stripped, not just the
     # piece adjacent to the colon (which would otherwise leave "CA"
-    # stranded as a token).
-    r'\b[A-Z]{2,3}(?:\s+[A-Z]{2,4})?:\s*',
+    # stranded as a token). Box bars (┃│) accepted as colon-equivalents.
+    r'\b[A-Z]{2,3}(?:\s+[A-Z]{2,4})?[:┃│]\s*',
     
     # Format: XX - or XXX - (e.g., US - , USA - , FR - )
     # Safe because the dash clearly indicates a separator
     r'\b[A-Z]{2,3}\s*-\s*',
     
-    # Format: |XX| or |XXX| (e.g., |US|, |FR|, |UK|)
-    # Safe because pipes clearly indicate a tag
-    r'\|[A-Z]{2,3}\|\s*',
+    # Format: |XX| or |XXX| and box-bar pairs ┃XX┃ / │XX│ (matched pair only,
+    # so a stray "|US┃" is left alone). Pipes/bars clearly indicate a tag.
+    r'(?:\|[A-Z]{2,3}\||┃[A-Z]{2,3}┃|│[A-Z]{2,3}│)\s*',
     
     # Format: [XX] or [XXX] (e.g., [US], [FR], [UK])
     # Safe because brackets clearly indicate a tag
@@ -131,9 +128,9 @@ GEOGRAPHIC_PATTERNS = [
 
 # Enhanced provider prefix patterns for IPTV-specific naming
 PROVIDER_PREFIX_PATTERNS = [
-    r'^(?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\s*[:\-\|]\s*',
+    r'^(?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\s*[:\-\|┃│]\s*',
     r'^\s*\((?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\)\s*',
-    r'\s*\|\s*(?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\s*$',
+    r'\s*[\|┃│]\s*(?:US|USA|UK|CA|AU|FR|DE|ES|IT|NL|BR|MX|IN)\s*$',
 ]
 
 # Miscellaneous patterns: (CX), (Backup), single-letter tags, etc.
@@ -813,6 +810,8 @@ class FuzzyMatcher:
         # Store original for logging
         original_name = name
 
+        name = _LEADING_BAR_TAG_RE.sub('', name)  # leading "┃CANAL+┃" bouquet tag
+
         # Map emoji-as-letters (⚽ = 'o' in "SP⚽RTS") and strip emoji decoration, before
         # the stylized-Unicode strip and ASCII regexes below — so "beIN SP⚽RTS" -> "beIN sports".
         name = _normalize_emoji(name)
@@ -1054,42 +1053,39 @@ class FuzzyMatcher:
         return regional, extra_tags, quality_tags
     
     def calculate_similarity(self, str1, str2, min_ratio=0.0):
-        """
-        Calculate Levenshtein distance-based similarity ratio between two strings.
-        Uses rapidfuzz/thefuzz when available (10-100x faster), falls back to
-        built-in Levenshtein with early termination via min_ratio.
+        """Levenshtein similarity ratio (0.0-1.0), defined as 1 - distance/max(len).
+        If min_ratio > 0, returns 0.0 early when the result can't reach it.
 
-        Returns:
-            Similarity ratio between 0.0 and 1.0
+        bug-026: the ratio MUST be distance/max(len), matching rapidfuzz
+        Levenshtein.normalized_similarity. The old (len1+len2-distance)/(len1+len2)
+        formula scored higher for the same edit distance and let numbered siblings
+        ("Fox Sports 1" vs "2") pass threshold 95. The rapidfuzz fast path and the
+        pure-Python fallback below compute the identical value.
         """
         if len(str1) == 0 or len(str2) == 0:
             return 0.0
 
-        # Use rapidfuzz/thefuzz when available (returns 0-100, we need 0.0-1.0)
+        # Fast path: C-accelerated rapidfuzz when available (same definition).
         if _USE_RAPIDFUZZ:
-            if _HAS_SCORE_CUTOFF and min_ratio > 0:
-                score = _rfuzz.ratio(str1, str2, score_cutoff=min_ratio * 100)
-            else:
-                score = _rfuzz.ratio(str1, str2)
-            return score / 100.0
+            # No score_cutoff: rapidfuzz's cutoff rounding zeroes a score landing
+            # exactly on min_ratio, but the pure-Python path returns it. Dropping
+            # the cutoff makes the two paths agree at the threshold boundary;
+            # callers apply their own >= comparison.
+            return _rf_lev.normalized_similarity(str1, str2)
 
-        # Built-in Levenshtein with early termination
         if len(str1) < len(str2):
             str1, str2 = str2, str1
         len1, len2 = len(str1), len(str2)
+        max_len = len1  # the longer string after the swap
 
-        total_len = len1 + len2
-        # Length-difference pre-check: even with 0 substitutions, the distance
-        # is at least (len1 - len2), so the max possible ratio is bounded.
+        # Length-difference pre-check: minimum possible distance is (len1 - len2),
+        # so the max possible ratio is (max_len - (len1 - len2)) / max_len.
         if min_ratio > 0:
-            max_possible = (total_len - (len1 - len2)) / total_len
+            max_possible = (max_len - (len1 - len2)) / max_len
             if max_possible < min_ratio:
                 return 0.0
-            # Max allowed distance to still meet min_ratio
-            max_distance = int(total_len * (1.0 - min_ratio))
 
         previous_row = list(range(len2 + 1))
-
         for i, c1 in enumerate(str1):
             current_row = [i + 1]
             for j, c2 in enumerate(str2):
@@ -1097,14 +1093,19 @@ class FuzzyMatcher:
                 deletions = current_row[j] + 1
                 substitutions = previous_row[j] + (c1 != c2)
                 current_row.append(min(insertions, deletions, substitutions))
-            # Early termination: if the minimum value in this row already
-            # exceeds max_distance, no subsequent row can produce a valid result
-            if min_ratio > 0 and min(current_row) > max_distance:
-                return 0.0
+            # Early termination: a lower bound on the final distance is the current
+            # row minimum minus the str1 chars still unprocessed.
+            if min_ratio > 0:
+                min_distance_so_far = min(current_row)
+                remaining = len1 - i - 1
+                best_possible_distance = max(0, min_distance_so_far - remaining)
+                best_possible_ratio = (max_len - best_possible_distance) / max_len
+                if best_possible_ratio < min_ratio:
+                    return 0.0
             previous_row = current_row
 
         distance = previous_row[-1]
-        return (total_len - distance) / total_len
+        return (max_len - distance) / max_len
     
     @staticmethod
     def _length_scaled_threshold(base_threshold, shorter_len):
@@ -1218,10 +1219,9 @@ class FuzzyMatcher:
         Properly handles Unicode characters (e.g., French accents).
         Normalizes spacing around numbers to handle "ITV1" vs "ITV 1" cases.
         """
-        # First, normalize Unicode to decomposed form (NFD)
-        # This separates base characters from accent marks
-        # e.g., "é" becomes "e" + combining acute accent
-        s = unicodedata.normalize('NFD', s)
+        # First, NFKD-fold: compatibility decomposition so "ＨＢＯ"->"HBO", "²"->"2",
+        # "ﬁ"->"fi", and accents split into base + combining mark (dropped below).
+        s = unicodedata.normalize('NFKD', s)
         
         # Remove combining characters (accent marks)
         # Keep only base characters
@@ -1232,13 +1232,14 @@ class FuzzyMatcher:
         
         # Normalize spacing around numbers: add space before numbers if not already present
         # This makes "itv1" and "itv 1" equivalent after tokenization
-        # Pattern: letter followed immediately by digit -> insert space between them
-        s = re.sub(r'([a-z])(\d)', r'\1 \2', s)
+        # Pattern: letter (any script) followed immediately by digit -> insert space
+        s = re.sub(r'([^\W\d_])(\d)', r'\1 \2', s)
         
-        # Replace non-alphanumeric with space
+        # Replace non-alphanumeric with space. isalnum() keeps alphanumerics of any
+        # script (Cyrillic/CJK/Arabic) instead of erasing them to '' (false matches).
         cleaned_s = ""
         for char in s:
-            if 'a' <= char <= 'z' or '0' <= char <= '9':
+            if char.isalnum():
                 cleaned_s += char
             else:
                 cleaned_s += ' '

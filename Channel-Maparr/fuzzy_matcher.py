@@ -292,10 +292,15 @@ class FuzzyMatcher:
         self._token_index = {}      # token -> set of original candidate names
         self._indexed_names = set() # all names in the token index
 
-        # Load all channel databases if plugin_dir is provided
-        if self.plugin_dir:
-            self._load_channel_databases()
-    
+        # NOTE: channel databases are intentionally NOT loaded here. Loading all
+        # ~42k records is expensive, and Dispatcharr re-instantiates every Plugin
+        # on each plugin discovery (cascading across all uWSGI/Celery workers via
+        # .reload_token). Eager-loading in the constructor pinned the gevent
+        # workers and wedged streaming (ops incident 2026-06-27). The run path
+        # calls reload_databases() with the user-selected countries before
+        # matching (plugin.py), which loads on demand — so the eager load was
+        # always discarded anyway. Construct cheap; load when actually matching.
+
     def precompute_normalizations(self, names, user_ignored_tags=None):
         """
         Pre-normalize a list of names and cache the results.

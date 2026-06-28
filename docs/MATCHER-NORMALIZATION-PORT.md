@@ -1,5 +1,15 @@
 # Matcher Normalization Port — Channel-Maparr
 
+> **SUPERSEDED — 2026-06-28: the matcher shared-core migration landed.** Channel-Maparr's
+> `fuzzy_matcher.py` now subclasses the shared vendored matcher core `FuzzyMatcherCore`
+> (`matching_core.py`, vendored byte-identically from the workspace `_shared/matching_core.py`,
+> hash-pinned in `scripts/core_manifest.json`). The input-cleaning primitives described below
+> (emoji-as-letter, stylized-Unicode strip, resolution markers, non-ASCII preservation,
+> `calculate_similarity`) now live in that one shared core, so the copy-paste / hand-port
+> process this guide describes is **retired**: matcher fixes go to `_shared/matching_core.py`
+> and are re-vendored via `sync_core.py`, not ported to four copies. This document is kept for
+> historical context only.
+
 > **Status — 2026-06-14: PORTED.** All three fixes are live in `fuzzy_matcher.py` for
 > Channel-Maparr (v1.26.1650854) and have been ported byte-accurate to EPG-Janitor,
 > Lineuparr, and Metadata-Trackarr. Channel-Maparr ships regression tests

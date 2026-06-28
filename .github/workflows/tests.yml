@@ -29,7 +29,18 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Compile-check shipped plugin sources
-        run: python -m py_compile Channel-Maparr/plugin.py Channel-Maparr/fuzzy_matcher.py Channel-Maparr/logo_matcher.py Channel-Maparr/progress_status.py Channel-Maparr/aliases.py
+        run: python -m py_compile Channel-Maparr/plugin.py Channel-Maparr/fuzzy_matcher.py Channel-Maparr/matching_core.py Channel-Maparr/logo_matcher.py Channel-Maparr/progress_status.py Channel-Maparr/aliases.py
+
+      # Explicit, named drift gate: freezes the pure matcher primitives against
+      # tests/matcher_golden_baseline.json (Stage 0 of the matcher standardization
+      # plan). -o addopts="" neutralizes any inherited ini options for a clean run.
+      - name: Matcher golden drift gate
+        run: python -m pytest tests/test_matcher_golden.py -q -o addopts=""
+
+      # The vendored shared matching core must stay byte-identical to its pinned hash
+      # (catches a stray hand-edit to the vendored copy or a CRLF checkout).
+      - name: Vendored-core parity gate
+        run: python -m pytest tests/test_core_parity.py -q -o addopts=""
 
       - name: Run test suite
         run: python -m pytest

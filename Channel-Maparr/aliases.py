@@ -183,8 +183,10 @@ CHANNEL_ALIASES = {
     # Rebrand bridges surfaced by the channel<->stream alias miner (ported from
     # Lineuparr's proven entries, 2026-06-28): new<->old brand names the normalizer
     # cannot derive (Fox Movie Channel->FXM, EPIX->MGM+, DIY->Magnolia, the HBO
-    # multiplex renames, MoreMax<->Cinemax Hits).
-    "FXM": ["FXM", "FX Movie Channel", "FXMovie", "Fox Movie Channel", "FXM Retro"],
+    # multiplex renames, MoreMax<->Cinemax Hits). NOTE: unlike Lineuparr (which iterates
+    # the map by lineup name), Channel-Maparr inverts it to a variant->one-canonical
+    # reverse index, so a redundant "FXM" canonical would win the "fxm" key and shadow
+    # the real channel-DB name. Keep only the real name "FX Movie Channel".
     "FX Movie Channel": ["FXM", "FX Movie Channel", "FXMovie", "Fox Movie Channel", "FXM Retro"],
     "MGM+": ["MGM+", "MGM Plus", "MGM+ East", "EPIX", "Epix", "EPIX 1"],
     "Magnolia Network": ["Magnolia Network", "Magnolia", "DIY Network", "DIY"],

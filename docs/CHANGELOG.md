@@ -1,5 +1,19 @@
 # Channel Maparr — Changelog
 
+## v1.26.1791324 (2026-06-28)
+
+Matcher shared-core migration. `fuzzy_matcher.py` now **subclasses a single shared, vendored matcher core** — `FuzzyMatcherCore`, defined in the workspace `_shared/matching_core.py` and vendored byte-identically into the plugin folder as `matching_core.py`. This ends the era of a copy-pasted, drifting `fuzzy_matcher.py`: matcher fixes now go to the shared core (edit `_shared/matching_core.py`, re-vendor with `sync_core.py`, regenerate the golden baseline if behavior changed), instead of being hand-ported to four separate copies. The earlier hand-port guide `docs/MATCHER-NORMALIZATION-PORT.md` is now superseded. PR merged; not yet released/tagged.
+
+### Matching
+
+- **`FuzzyMatcher` subclasses `FuzzyMatcherCore`** — Channel-Maparr is a **partial** subclass: it keeps its own `normalize_name`, its `channel_lookup`-rescue callsign ladder, its single-digit token-overlap guard, and its lazy-load `__init__` (no eager 42K-channel load in the constructor), inheriting only the body-compatible primitives from the core.
+- **`strip_bare_region` opt-in (core)** — the shared core gained an opt-in bare-region (time-zone word) strip via a `_STRIP_BARE_REGION` class attribute (default off; Channel-Maparr does not opt in).
+- **`calculate_similarity` `>= min_ratio` gate (core)** — the core's `calculate_similarity` now uses a Python `>= min_ratio` early-exit gate, replacing the rapidfuzz `score_cutoff` path.
+
+### Tooling / CI
+
+- **Hash-pinned vendored core** — `matching_core.py` is pinned by `scripts/core_manifest.json` (SHA-256) and guarded by a parity gate plus a golden gate in CI; `.gitattributes` keeps it LF.
+
 ## (2026-06-25)
 
 Second matcher-normalization batch ported from Lineuparr (PR #13), plus a `calculate_similarity` reconciliation and two unrelated matcher fixes that also landed on main. Purely additive/behavioral-fix work in `fuzzy_matcher.py`: noisy provider stream names with non-Latin scripts and box-bar bouquet tags now normalize to the same form as clean channel-database names, and the similarity backend agrees with the other three matcher copies. See `docs/MATCHER-NORMALIZATION-PORT.md`.

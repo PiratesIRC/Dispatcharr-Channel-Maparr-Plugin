@@ -1,5 +1,17 @@
 # Channel Maparr — Changelog
 
+## v1.26.1801833 (2026-06-29)
+
+Vendor-sync of the shared matcher core (`matching_core.py`) with the **bug-098** callsign-rescue hardening landed in the workspace source. **Behavior is unchanged for Channel-Maparr** — it overrides `_compute_callsign_with_confidence` (its `channel_lookup` rescue is already gated to parenthesized positions), so the core method is shadowed and never runs here. This keeps the vendored core byte-identical to the workspace source (parity gate) and is pure future-proofing should that override ever be dropped.
+
+### Matching (core)
+
+- **Denylisted common-word callsign rescue is now gated.** In the shared core, `FuzzyMatcherCore._compute_callsign_with_confidence` no longer rescues a denylisted word (KING/WHO/WOLF/WAVE/WOOD/WEEK...) at end-of-name, and rescues it at the loose path only in OTA branding context (immediately followed by a channel number — new `_OTA_NUMBER_CONTEXT`). Branded `KING 5` / `WAVE 3` / `WOOD TV8` / `WHO 13` are preserved; bare program words like `King of the Hill` / `Doctor Who` extract no callsign. Parenthesized positions keep the full rescue.
+
+### Tooling / CI
+
+- **Core re-pinned.** `scripts/core_manifest.json` updated to the new `matching_core.py` SHA-256; parity + golden gates green (golden baseline unchanged). PR #13 merged to `main`; not released/tagged.
+
 ## v1.26.1791324 (2026-06-28)
 
 Matcher shared-core migration. `fuzzy_matcher.py` now **subclasses a single shared, vendored matcher core** — `FuzzyMatcherCore`, defined in the workspace `_shared/matching_core.py` and vendored byte-identically into the plugin folder as `matching_core.py`. This ends the era of a copy-pasted, drifting `fuzzy_matcher.py`: matcher fixes now go to the shared core (edit `_shared/matching_core.py`, re-vendor with `sync_core.py`, regenerate the golden baseline if behavior changed), instead of being hand-ported to four separate copies. The earlier hand-port guide `docs/MATCHER-NORMALIZATION-PORT.md` is now superseded. PR merged; not yet released/tagged.

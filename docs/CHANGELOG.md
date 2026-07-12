@@ -1,5 +1,14 @@
 # Channel Maparr — Changelog
 
+## v1.26.1930617 (2026-07-12)
+
+Vendor-sync of the shared matcher core (`matching_core.py`) with the **bug-105** zero-width Unicode strip landed in the workspace source.
+
+### Matching (core)
+
+- **Invisible Unicode format characters are now stripped from names before matching.** Some IPTV providers pad names with category-`Cf` characters (ZERO WIDTH SPACE `U+200B`, the zero-width joiners, WORD JOINER `U+2060`, BOM `U+FEFF`, SOFT HYPHEN, bidi marks), typically wrapped around a decorative block glyph, so a name that renders as `UK | BBC 1` actually carries several invisible characters. `\s` does not match them and the decorative-symbol pass does not cover them, so they survived the entire `normalize_name` pipeline and silently destroyed the match rate for that provider's names. They are now removed (not replaced with a space, since they are zero-width, so a ZWSP inside a word does not split it) at the top of `normalize_name`.
+- **No behavior change for names without these characters.** The matcher golden baseline is unchanged, since the test corpus contains no `Cf` characters. The vendored core stays byte-identical to the workspace canonical source (sha256 `aa5c8c647e19…`), keeping the parity + hash-pin gates green.
+
 ## v1.26.1801833 (2026-06-29)
 
 Vendor-sync of the shared matcher core (`matching_core.py`) with the **bug-098** callsign-rescue hardening landed in the workspace source. **Behavior is unchanged for Channel-Maparr** — it overrides `_compute_callsign_with_confidence` (its `channel_lookup` rescue is already gated to parenthesized positions), so the core method is shadowed and never runs here. This keeps the vendored core byte-identical to the workspace source (parity gate) and is pure future-proofing should that override ever be dropped.

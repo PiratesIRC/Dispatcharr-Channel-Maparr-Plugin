@@ -1236,7 +1236,9 @@ class Plugin:
 
                 progress.update()
 
-            progress.finish()
+            progress.finish(
+                summary=f"{len(renamed_channels)} to rename, "
+                        f"{len(skipped_channels)} skipped. Scope: {scope.info}")
 
             # Log completion
             logger.info(f"{PLUGIN_LOG_PREFIX} Processing complete. {len(renamed_channels)} to rename, {len(skipped_channels)} skipped.")
@@ -1680,7 +1682,7 @@ class Plugin:
                 self._trigger_frontend_refresh(settings, logger)
 
             summary = f"Assigned {assigned} logos, {no_match} channels had no match."
-            progress.finish(summary=summary)
+            progress.finish(summary=f"{summary} Scope: {scope.info}")
             return {"status": "success", "message": f"✓ {summary}"}
 
         except Exception as e:
@@ -3034,6 +3036,42 @@ class Plugin:
                 except Exception as e:
                     validation_results.append(f"❌ DB error")
                     error_count += 1
+
+            # 2b. Group scope (ignore_groups exclusion) - the first group
+            # validation in this action. Kept to one capped line per branch so
+            # a wildcard exclusion matching many groups cannot blow the ~280
+            # char toast budget.
+            try:
+                scope = self._resolve_process_scope(settings, logger)
+                # Report only the names that actually removed something from
+                # this run, never the raw ignored_names count - it is a
+                # SUPERSET of out_of_scope_names, so a wildcard matching
+                # nothing but already-out-of-scope groups would otherwise
+                # print the same name list twice in one message.
+                out_of_scope = set(scope.out_of_scope_names)
+                effective = [n for n in scope.ignored_names if n not in out_of_scope]
+                if effective:
+                    validation_results.append(
+                        f"✅ Ignore: {len(effective)} group(s): "
+                        f"{_format_capped_name_list(effective)}")
+                if scope.out_of_scope_names:
+                    warning_count += len(scope.out_of_scope_names)
+                    # A name list already appeared above for `effective`; when
+                    # BOTH lines fire, drop the second name list rather than
+                    # cap it too - two capped-at-5 lists in one message can
+                    # still clear the ~280 char budget between them.
+                    if effective:
+                        validation_results.append(
+                            f"⚠️ Ignore: {len(scope.out_of_scope_names)} more "
+                            f"had no effect (outside scope)")
+                    else:
+                        validation_results.append(
+                            f"⚠️ Ignore: {len(scope.out_of_scope_names)} name(s) "
+                            f"had no effect (outside scope): "
+                            f"{_format_capped_name_list(scope.out_of_scope_names)}")
+            except GroupScopeError as exc:
+                validation_results.append(f"❌ Ignore: {exc}")
+                error_count += 1
 
             # 3. M3U filters (only show count if configured)
             m3u_info = []

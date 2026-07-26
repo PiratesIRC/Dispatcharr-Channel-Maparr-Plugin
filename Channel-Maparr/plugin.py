@@ -933,7 +933,7 @@ class Plugin:
             result = handler(settings, logger)
 
             status = result.get("status", "?") if isinstance(result, dict) else "ok"
-            msg = result.get("message", "")[:200] if isinstance(result, dict) else ""
+            msg = (result.get("message") or result.get("error", ""))[:200] if isinstance(result, dict) else ""
             is_bg = result.get("background", False) if isinstance(result, dict) else False
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Action complete: {action} -> {status} | {msg}")
@@ -2770,14 +2770,14 @@ class Plugin:
         try:
             result = self._do_import_m3u_streams(settings, logger)
             self._last_bg_result = result
-            msg = result.get("message", "Import complete.")
+            msg = result.get("message") or result.get("error", "Import complete.")
             logger.info(f"{PLUGIN_LOG_PREFIX} IMPORT COMPLETED: {msg}")
             send_websocket_update('updates', 'update', {
                 "type": "plugin", "plugin": self.name,
                 "message": msg
             })
         except Exception as e:
-            self._last_bg_result = {"status": "error", "message": str(e)}
+            self._last_bg_result = {"status": "error", "error": str(e)}
             logger.exception(f"{PLUGIN_LOG_PREFIX} Import error: {e}")
             send_websocket_update('updates', 'update', {
                 "type": "plugin", "plugin": self.name,

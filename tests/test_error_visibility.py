@@ -9,7 +9,17 @@ PLUGIN_PY = Path(__file__).resolve().parent.parent / "Channel-Maparr" / "plugin.
 
 
 def _error_returns_without_error_key(source):
-    """Line numbers of `return {... "status": "error" ...}` with no "error" key."""
+    """Line numbers of `return {... "status": "error" ...}` with no "error" key.
+
+    Blind spots (by design, not oversight): this only walks `ast.Return` nodes whose
+    value is a literal `ast.Dict`. It CANNOT see (a) a computed/variable `status`
+    (e.g. `return {"status": status, "message": message}` in
+    `validate_settings_action` -- cover that behaviourally instead, see
+    test_validate_settings_surfaces_a_red_error below), or (b) a dict that is
+    ASSIGNED rather than returned (e.g. `self._last_bg_result = {"status": "error",
+    ...}` in `_do_import_m3u_streams_bg`). Do not assume a clean run of this guard
+    means every failure path in the file is visible to the user.
+    """
     offenders = []
     for node in ast.walk(ast.parse(source)):
         if not isinstance(node, ast.Return) or not isinstance(node.value, ast.Dict):

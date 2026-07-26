@@ -331,14 +331,17 @@ def test_validate_settings_reports_an_out_of_scope_ignore_as_a_warning(
         plugin_instance, logger, fake_groups):
     """A real group name that the ignore filter matched but the include
     filter had already excluded is a no-op, not a typo - it must render as
-    a warning (still a green/success toast), never a red error."""
+    a warning (still a green/success toast), never a red error. The name
+    itself is NOT enumerated (logged instead) to keep the message short;
+    only the count is reported."""
     fake_groups(GROUPS_WITH_TEAMARR)
     result = plugin_instance.validate_settings_action(
         {"channel_databases": "US", "selected_groups": "Sports",
          "ignore_groups": "News"}, logger)
     assert result["status"] == "success"
-    assert "News" in result["message"]
+    assert "News" not in result["message"]
     assert "no effect" in result["message"]
+    assert "1 warning(s)" in result["message"]
 
 
 def test_validate_settings_labels_an_include_filter_typo_correctly(
@@ -355,11 +358,13 @@ def test_validate_settings_labels_an_include_filter_typo_correctly(
     assert "Ignore" not in result["error"]
 
 
-def test_validate_settings_caps_many_out_of_scope_names(
+def test_validate_settings_does_not_enumerate_out_of_scope_names(
         plugin_instance, logger, fake_groups):
-    """Many out-of-scope names must collapse to one capped line, not one
-    line per name - otherwise a broad wildcard blows the ~280 char toast
-    budget Dispatcharr clips from the middle with no visual marker."""
+    """Many out-of-scope names must collapse to a single count, with NO name
+    list at all - otherwise a broad wildcard blows the ~280 char toast budget
+    Dispatcharr clips from the middle with no visual marker. (Fix round 2:
+    even a CAPPED 5-name list was the single offender that pushed a real
+    operator's message over budget when combined with their other settings.)"""
     groups = [{"id": i, "name": f"Sport{i}"} for i in range(8)]
     groups.append({"id": 100, "name": "Keep"})
     fake_groups(groups)
@@ -367,8 +372,68 @@ def test_validate_settings_caps_many_out_of_scope_names(
         {"channel_databases": "US", "selected_groups": "Keep",
          "ignore_groups": "Sport*"}, logger)
     assert result["status"] == "success"
-    assert "and 3 more" in result["message"]
+    assert "8 names had no effect" in result["message"]
+    assert "Sport0" not in result["message"]
     assert "Sport7" not in result["message"]
+
+
+def test_validate_settings_counts_out_of_scope_as_one_warning(
+        plugin_instance, logger, fake_groups):
+    """The out-of-scope condition is reported once regardless of how many
+    names it covers - counting per-name made a healthy configuration read as
+    'Validation completed with N warning(s)' for a large N."""
+    groups = [{"id": i, "name": f"Sport{i}"} for i in range(20)]
+    groups.append({"id": 100, "name": "Keep"})
+    fake_groups(groups)
+    result = plugin_instance.validate_settings_action(
+        {"channel_databases": "US", "selected_groups": "Keep",
+         "ignore_groups": "Sport*"}, logger)
+    assert result["status"] == "success"
+    assert "1 warning(s)" in result["message"]
+
+
+def test_validate_settings_stays_within_the_toast_budget_on_a_real_profile(
+        plugin_instance, logger, fake_groups, monkeypatch, plugin_module):
+    """Regression lock for fix round 2: Dispatcharr clips an action toast at
+    roughly 280 chars from the MIDDLE with no visual marker. Budget this test
+    at 260, not 280, so the 20-char margin absorbs real deployments having
+    longer group names than this fixture's short ones. Reproduces the
+    reported real-box profile: a selected_groups include filter, an M3U
+    category filter, dry_run_mode on, and real ORM counts (not the tiny
+    fixture defaults, which understate the DB status line by ~40 chars) -
+    the combination that pushed the pre-fix message (which enumerated
+    out-of-scope names) to 282, over the clip."""
+    channel = MagicMock()
+    channel.objects.count.return_value = 1440
+    monkeypatch.setattr(plugin_module, "Channel", channel)
+    logo = MagicMock()
+    logo.objects.count.return_value = 33009
+    monkeypatch.setattr(plugin_module, "Logo", logo)
+    stream = MagicMock()
+    stream.objects.count.return_value = 25469
+    monkeypatch.setattr(plugin_module, "Stream", stream)
+
+    groups = [{"id": 1, "name": "US: ABC"}, {"id": 2, "name": "Teamarr"},
+              {"id": 3, "name": "Teamarr Live"}]
+    groups += [{"id": 10 + i, "name": f"Sport{i}"} for i in range(8)]
+    fake_groups(groups)
+    monkeypatch.setattr(plugin_module.ChannelGroup.objects, "count",
+                         lambda: 947)
+
+    result = plugin_instance.validate_settings_action(
+        {"channel_databases": "US", "selected_groups": "US: ABC",
+         "m3u_category_filter": "Entertainment", "dry_run_mode": True,
+         # Worst case: an entry that IS effective would print a second
+         # capped list, but here every ignore token is out-of-scope
+         # (selected_groups excludes them all), which is the scenario that
+         # regressed to 282 chars before this fix.
+         "ignore_groups": "Teamarr*, Sport*"},
+        logger)
+
+    message = result.get("message") or result.get("error")
+    assert len(message) <= 260, (
+        f"Validate Settings message is {len(message)} chars, over the "
+        f"260-char regression budget (Dispatcharr clips at ~280): {message!r}")
 
 
 def test_csv_header_records_the_exclusion(plugin_instance):

@@ -102,3 +102,82 @@ def matcher():
     fm.reload_databases(TEST_DATABASES)
     fm.precompute_normalizations(fm.premium_channels)
     return fm
+
+
+# ---------------------------------------------------------------------------
+# Plugin-instance fixtures
+#
+# Plugin() is safe to construct: __init__ only sets attributes, builds a
+# FuzzyMatcher (lazy - see tests/test_lazy_db_load.py) and logs. It does no
+# network or DB I/O. The `fields` PROPERTY does both, so never touch it here.
+# ---------------------------------------------------------------------------
+
+
+class FakeQuerySet:
+    """Minimal queryset that implements real filter semantics AND records calls.
+
+    A bare MagicMock returns [] for every input, which makes assertions about
+    filtering vacuously true. Recording the .filter() kwargs is what lets a
+    test prove the filter was actually applied.
+    """
+
+    def __init__(self, rows, calls):
+        self.rows = rows
+        self.calls = calls
+
+    def filter(self, **kwargs):
+        self.calls.append(kwargs)
+        ids = kwargs["channel_group_id__in"]
+        kept = [r for r in self.rows if r["channel_group_id"] in ids]
+        return FakeQuerySet(kept, self.calls)
+
+    def values(self, *fields):
+        return [{k: r[k] for k in fields} for r in self.rows]
+
+
+CHANNEL_ROWS = [
+    {"id": 1, "name": "A", "channel_number": 1.0, "channel_group_id": 10, "logo_id": None},
+    {"id": 2, "name": "B", "channel_number": 2.0, "channel_group_id": 20, "logo_id": None},
+    {"id": 3, "name": "Orphan", "channel_number": 3.0, "channel_group_id": None, "logo_id": None},
+]
+
+
+@pytest.fixture
+def plugin_instance(plugin_module):
+    return plugin_module.Plugin()
+
+
+@pytest.fixture
+def logger():
+    return MagicMock()
+
+
+@pytest.fixture
+def fake_channel(monkeypatch, plugin_module):
+    """Install a recording fake Channel.objects. Returns the recorded filter calls.
+
+    plugin_module is session-scoped and shared across the whole run, so this MUST
+    go through monkeypatch (auto-undone) and never a bare setattr.
+    """
+    calls = []
+    channel = MagicMock()
+    channel.objects.all = lambda: FakeQuerySet(list(CHANNEL_ROWS), calls)
+    monkeypatch.setattr(plugin_module, "Channel", channel)
+    return calls
+
+
+@pytest.fixture
+def fake_groups(monkeypatch, plugin_module):
+    """Install a fake ChannelGroup.objects so the REAL _get_all_groups runs.
+
+    Tests drive the real producer (_get_all_groups plus the name-map building)
+    rather than injecting a finished dict into the consumer.
+    """
+
+    def _install(rows):
+        group = MagicMock()
+        group.objects.all.return_value.values.return_value = list(rows)
+        monkeypatch.setattr(plugin_module, "ChannelGroup", group)
+        return rows
+
+    return _install

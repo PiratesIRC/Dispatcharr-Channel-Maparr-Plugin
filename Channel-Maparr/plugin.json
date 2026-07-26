@@ -1,6 +1,6 @@
 {
   "name": "Channel Mapparr",
-  "version": "1.26.1930617",
+  "version": "1.26.2071409",
   "description": "Standardizes broadcast (OTA) and premium/cable channel names using network data and channel lists. Supports M3U stream import, category organization, and fuzzy matching across 42K+ channels in 11 countries.",
   "author": "PiratesIRC",
   "license": "MIT",
@@ -39,14 +39,22 @@
       "label": "Channel Groups to Process",
       "type": "string",
       "default": "",
-      "help_text": "Comma-separated Dispatcharr channel group names. Leave blank to process ALL groups. Example: 'Sports, News, Movies'."
+      "help_text": "Comma-separated Dispatcharr channel group names. Leave blank to process ALL groups. Example: 'Sports, News, Movies'. Use 'Channel Groups to Ignore' to exclude instead."
+    },
+    {
+      "id": "ignore_groups",
+      "label": "Channel Groups to Ignore",
+      "type": "string",
+      "default": "",
+      "placeholder": "Teamarr, PPV*",
+      "help_text": "Comma-separated. Channels in these groups are excluded from renaming, tagging, logos and Organize by Category, regardless of 'Channel Groups to Process' or 'Category Organization Groups'. Supports * and ? wildcards; matching is case-insensitive. An entry that matches no channel group refuses most actions. Organize by Category skips an ignored target group and continues. Import M3U Streams does not check entries against every group; it only refuses if its own target group is ignored."
     },
     {
       "id": "category_groups",
       "label": "Category Organization Groups",
       "type": "string",
       "default": "",
-      "help_text": "Comma-separated group names the Organize-by-Category action is allowed to create or move channels into. Leave blank to use the categories defined in the channel database JSON."
+      "help_text": "Comma-separated group names the Organize-by-Category action is allowed to create or move channels into. Leave blank to use the categories defined in the channel database JSON. Use 'Channel Groups to Ignore' to exclude instead."
     },
     {
       "id": "m3u_sources",

@@ -341,6 +341,20 @@ def test_validate_settings_reports_an_out_of_scope_ignore_as_a_warning(
     assert "no effect" in result["message"]
 
 
+def test_validate_settings_labels_an_include_filter_typo_correctly(
+        plugin_instance, logger, fake_groups):
+    """A typo in selected_groups (blank ignore_groups) must be attributed to
+    'Channel Groups to Process', not mislabelled as an Ignore problem - both
+    settings raise the SAME GroupScopeError, so the generic 'Ignore:' prefix
+    the ignore branch uses would misdirect the operator to the wrong field."""
+    fake_groups(GROUPS_WITH_TEAMARR)
+    result = plugin_instance.validate_settings_action(
+        {"channel_databases": "US", "selected_groups": "Sprots"}, logger)
+    assert result["status"] == "error"
+    assert "Channel Groups to Process" in result["error"]
+    assert "Ignore" not in result["error"]
+
+
 def test_validate_settings_caps_many_out_of_scope_names(
         plugin_instance, logger, fake_groups):
     """Many out-of-scope names must collapse to one capped line, not one
@@ -568,6 +582,35 @@ def _install_channel_rows(monkeypatch, plugin_module, rows):
     channel.objects.all = lambda: _FakeQuerySet(list(rows), calls)
     monkeypatch.setattr(plugin_module, "Channel", channel)
     return calls
+
+
+def test_category_dry_run_csv_records_the_resolved_exclusion(
+        plugin_instance, logger, fake_groups, monkeypatch, plugin_module, tmp_path):
+    """category_groups_dry_run_action already has a resolved `scope` local at
+    CSV-write time (no re-parse needed), so its CSV header can record what the
+    exclusion actually MATCHED, not just echo the raw setting text."""
+    monkeypatch.setattr(plugin_module.PluginConfig, "EXPORT_DIR", str(tmp_path))
+    fake_groups([{"id": 10, "name": "Sports"}, {"id": 30, "name": "Teamarr"}])
+    monkeypatch.setattr(plugin_instance, "_load_channel_data", lambda *a, **k: True)
+    monkeypatch.setattr(plugin_instance.matcher, "broadcast_channels", [])
+    monkeypatch.setattr(
+        plugin_instance.matcher, "premium_channels_full",
+        [{"channel_name": "Orphan", "category": "Sports"}])
+    monkeypatch.setattr(plugin_instance.matcher, "premium_channels", ["Orphan"])
+    _install_channel_rows(monkeypatch, plugin_module, [
+        {"id": 1, "name": "Orphan", "channel_number": 1.0,
+         "channel_group_id": None, "logo_id": None},
+    ])
+
+    result = plugin_instance.category_groups_dry_run_action(
+        {"channel_databases": "US", "ignore_groups": "Teamarr"}, logger)
+
+    assert result["status"] == "success"
+    csv_files = list(tmp_path.glob("*.csv"))
+    assert csv_files
+    text = csv_files[0].read_text(encoding="utf-8")
+    assert "Ignore resolved to:" in text
+    assert "Teamarr" in text.split("Channel ID,Channel Name")[0]
 
 
 def test_organize_dry_run_never_previews_an_ignored_target(

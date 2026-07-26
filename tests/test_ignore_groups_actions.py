@@ -95,3 +95,52 @@ def test_scope_error_return_is_visible(plugin_instance, plugin_module):
     assert result["status"] == "error"
     assert result["error"] == "nope"
     assert "message" not in result
+
+
+# ---------------------------------------------------------------------------
+# Site-to-wrapper mapping pins.
+#
+# Each test puts an UNRESOLVABLE name under the key the action SHOULD read and
+# a RESOLVABLE decoy under the other scope key. If a site were wired to the
+# wrong wrapper it would resolve happily against the decoy and return success
+# instead of refusing - the same defect shape already caught for the wrappers
+# themselves. `channel_databases: US` is required so `_load_channel_data`
+# succeeds and the action reaches the resolver at all (it loads the real local
+# US JSON database - no network, no DB).
+# ---------------------------------------------------------------------------
+
+
+def test_load_and_process_reads_selected_groups_not_category_groups(
+        plugin_instance, logger, fake_channel, fake_groups):
+    fake_groups(GROUPS_WITH_TEAMARR)
+    result = plugin_instance.load_and_process_channels_action({
+        "selected_groups": "Nope",       # unresolvable under the CORRECT key
+        "category_groups": "Sports",     # decoy: resolvable, must be ignored here
+        "channel_databases": "US",
+    }, logger)
+    assert result["status"] == "error"
+    assert "Nope" in result["error"]
+
+
+def test_category_dry_run_reads_category_groups_not_selected_groups(
+        plugin_instance, logger, fake_channel, fake_groups):
+    fake_groups(GROUPS_WITH_TEAMARR)
+    result = plugin_instance.category_groups_dry_run_action({
+        "category_groups": "Nope",       # unresolvable under the CORRECT key
+        "selected_groups": "Sports",     # decoy: resolvable, must be ignored here
+        "channel_databases": "US",
+    }, logger)
+    assert result["status"] == "error"
+    assert "Nope" in result["error"]
+
+
+def test_organize_by_category_reads_category_groups_not_selected_groups(
+        plugin_instance, logger, fake_channel, fake_groups):
+    fake_groups(GROUPS_WITH_TEAMARR)
+    result = plugin_instance.organize_by_category_action({
+        "category_groups": "Nope",       # unresolvable under the CORRECT key
+        "selected_groups": "Sports",     # decoy: resolvable, must be ignored here
+        "channel_databases": "US",
+    }, logger)
+    assert result["status"] == "error"
+    assert "Nope" in result["error"]

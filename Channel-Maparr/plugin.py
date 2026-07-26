@@ -21,6 +21,11 @@ from .fuzzy_matcher import FuzzyMatcher
 from .progress_status import (
     build_status_message, load_progress, save_progress_atomic,
 )
+from .group_scope import (
+    GroupScopeError,  # noqa: F401 - re-exported for callers; wired in Task 10
+    build_name_to_ids,
+    resolve_group_scope,
+)
 
 # Django model imports
 from apps.channels.models import Channel, ChannelGroup, Logo, Stream, ChannelStream
@@ -669,6 +674,49 @@ class Plugin:
     def _get_all_groups(self, logger):
         """Fetch all channel groups via Django ORM."""
         return list(ChannelGroup.objects.all().values('id', 'name'))
+
+    _INCLUDE_KEYS = frozenset({"selected_groups", "category_groups"})
+    _INCLUDE_LABELS = {
+        "selected_groups": "Channel Groups to Process",
+        "category_groups": "Category Organization Groups",
+    }
+
+    def _resolve_group_scope(self, settings, logger, include_key):
+        """Resolve the channel-group scope for an action.
+
+        Raises GroupScopeError when the configured scope cannot be honoured; the
+        caller turns that into a visible error via _scope_error_return.
+        """
+        if include_key not in self._INCLUDE_KEYS:
+            raise ValueError(f"unknown include_key {include_key!r}")
+
+        name_to_ids = build_name_to_ids(self._get_all_groups(logger))
+        scope = resolve_group_scope(
+            (settings.get(include_key) or ""),
+            (settings.get("ignore_groups") or ""),
+            name_to_ids,
+            include_label=self._INCLUDE_LABELS[include_key],
+        )
+        logger.info(f"{PLUGIN_LOG_PREFIX} Scope: {scope.info}")
+        for name in scope.out_of_scope_names:
+            logger.info(
+                f"{PLUGIN_LOG_PREFIX} Ignored group '{name}' was already outside "
+                f"the selected scope - no effect."
+            )
+        return scope
+
+    def _resolve_process_scope(self, settings, logger):
+        """Scope for the scan / rename / logo actions."""
+        return self._resolve_group_scope(settings, logger, "selected_groups")
+
+    def _resolve_category_scope(self, settings, logger):
+        """Scope for the Organize-by-Category actions."""
+        return self._resolve_group_scope(settings, logger, "category_groups")
+
+    @staticmethod
+    def _scope_error_return(exc):
+        """`error`, not `message` - `status` renders nowhere on the plugin card."""
+        return {"status": "error", "error": str(exc)}
 
     def _get_all_channels(self, logger, group_ids=None, include_ungrouped=False):
         """Fetch channels via Django ORM, optionally filtered by group IDs.

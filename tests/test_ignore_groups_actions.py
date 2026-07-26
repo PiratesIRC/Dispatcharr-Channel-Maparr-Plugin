@@ -42,3 +42,43 @@ def test_logo_actions_refuse_an_unresolvable_include_filter(
     }, logger)
     assert result["status"] == "error"
     assert "Sprots" in result["error"]
+
+
+GROUPS_WITH_TEAMARR = [
+    {"id": 10, "name": "Sports"},
+    {"id": 20, "name": "News"},
+    {"id": 30, "name": "Teamarr"},
+]
+
+
+def test_resolve_process_scope_subtracts_the_exclusion(
+        plugin_instance, logger, fake_groups):
+    fake_groups(GROUPS_WITH_TEAMARR)
+    scope = plugin_instance._resolve_process_scope(
+        {"ignore_groups": "Teamarr"}, logger)
+    assert scope.group_ids == frozenset({10, 20})
+    assert scope.include_ungrouped is True
+
+
+def test_resolve_category_scope_reads_the_category_include_field(
+        plugin_instance, logger, fake_groups):
+    fake_groups(GROUPS_WITH_TEAMARR)
+    scope = plugin_instance._resolve_category_scope(
+        {"category_groups": "Sports, News", "ignore_groups": "News"}, logger)
+    assert scope.group_ids == frozenset({10})
+
+
+def test_unknown_include_key_is_rejected_loudly(plugin_instance, logger, fake_groups):
+    """A stringly-typed key that degrades to settings.get(...) == '' would mean
+    'all groups' - the same silent-widening family as bug-044."""
+    fake_groups(GROUPS_WITH_TEAMARR)
+    with pytest.raises(ValueError):
+        plugin_instance._resolve_group_scope({}, logger, "catagory_groups")
+
+
+def test_scope_error_return_is_visible(plugin_instance, plugin_module):
+    exc = plugin_module.GroupScopeError("nope")
+    result = plugin_instance._scope_error_return(exc)
+    assert result["status"] == "error"
+    assert result["error"] == "nope"
+    assert "message" not in result

@@ -94,16 +94,34 @@ everything" would inflict exactly the damage the setting exists to prevent, and 
 it silently. The second row keeps a stale entry for a since-deleted group from blocking
 every action.
 
-The third row is the subtle one. Line 956 currently reads:
+The third row is the subtle one, and it exposes a **pre-existing bug** (see §4.1).
+
+### 4.1 The empty-set footgun (pre-existing)
+
+`_get_all_channels` guards with plain truthiness (`plugin.py:676`):
 
 ```python
-all_channels = self._get_all_channels(logger, group_ids=target_group_ids if selected_groups_str else None)
+def _get_all_channels(self, logger, group_ids=None):
+    qs = Channel.objects.all()
+    if group_ids:                       # <-- an empty set is FALSY
+        qs = qs.filter(channel_group_id__in=group_ids)
 ```
 
-`group_ids=None` means *all channels*. If subtraction empties the set and the empty set
-degrades to `None`, the plugin would process precisely the groups the user excluded. After
-this change every call site passes an explicit set and never `None` whenever an ignore
-list is active.
+So `group_ids=set()` is indistinguishable from `group_ids=None`, and both mean *every
+channel in the database*. Two call sites can already reach that state today:
+`apply_logos_action` (`:1380`) and `apply_tv_logos_action` (`:1441`) build the include set
+with a filtering comprehension and **no error path**, so a typo in `selected_groups` yields
+an empty set and applies logos to every channel, silently. Only
+`load_and_process_channels_action` errors on an empty include resolution.
+
+This matters doubly here, because "subtract the ignored groups" is a new way to arrive at
+an empty set. Two independent defenses:
+
+1. `_resolve_group_scope` guarantees a **non-empty** set or raises — no caller can reach
+   the fetch with an empty scope.
+2. `_get_all_channels` is hardened to `if group_ids is not None:`, so an empty set filters
+   to nothing rather than to everything. Defense in depth, and it closes the pre-existing
+   bug at the two logo sites regardless of the resolver.
 
 ## 5. Design
 
@@ -144,8 +162,13 @@ One method replaces the five duplicated inline blocks. `include_key` is `selecte
 for three sites and `category_groups` for the two Organize sites.
 
 1. Fetch all groups once; build `name -> id` and `id -> name`.
-2. Apply the include filter with **existing semantics preserved verbatim**, including its
-   current error when none of the named include groups exist.
+2. Apply the include filter. Its **matching** semantics are preserved verbatim (exact,
+   case-sensitive). Its **error** semantics are unified: today the five sites behave three
+   different ways — `load_and_process_channels_action` errors when no include name
+   resolves, the two Organize sites error with a different message, and the two logo sites
+   silently produce an empty set (§4.1). All five now error when a non-empty include list
+   resolves to nothing. This is a deliberate, small behaviour change at the two logo
+   sites, and it is a fix rather than a regression.
 3. Parse `ignore_groups` on `[,\n]+`, resolve via `expand_patterns(..., ci_plain=True)`,
    subtract the matched ids.
 4. Apply §4's error and warning rules.
@@ -176,6 +199,8 @@ No Django is available locally, so all three test files run against the existing
   **ignore-only (the reporter's case)**, both combined, typo produces an error, partial
   match warns and proceeds, exclusion emptying the set produces an error, blank-and-blank
   yields all groups.
+- A test that `_get_all_channels(logger, group_ids=set())` returns **no** channels, pinning
+  the §4.1 hardening. This test fails against today's code.
 - **A wiring test** asserting all five `_get_all_channels(` call sites take their
   `group_ids` from `_resolve_group_scope`, and that no site can pass `None` while an
   ignore list is active. The workspace lesson is explicit: two real gaps hid behind tests

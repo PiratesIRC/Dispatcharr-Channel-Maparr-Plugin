@@ -91,3 +91,27 @@
   per-request hot path. Removing it also removes the reason tests must never execute the `fields`
   property, and removes a network dependency from plugin load. Check what surfaces the result to the
   user before deleting, and drop the now-dead cache-file helpers with it.
+
+## Channel database refresh (measured 2026-07-26, do AFTER the ignore_groups slice ships)
+
+- [ ] **Five country databases are stale; EPG-Janitor holds the newest data.** Channel-Maparr sits on
+  `2025-11-10` / `2025-12-08` for AU, CA, ES, UK and US, while `EPG-Janitor/EPG-Janitor/*.json`
+  carries `2026-05-17`. Net new channels after discounting duplicates: AU +126 (50 to 176, more than
+  tripling), CA +107, ES +123, UK +45, US +171, so about **+572** genuinely new entries. The other
+  seven databases (BR, DE, FR, IN, MX, NL, NO) are at the same version in every plugin.
+
+  **Two traps, both measured:**
+
+  1. **EPG-Janitor's newer files still contain 247 byte-identical duplicate rows** (CA 62, ES 17,
+     UK 168). A straight file copy would fail this repo's own
+     `tests/test_data_integrity.py::test_no_identical_duplicate_rows`. Re-run the dedup after
+     importing, and keep the test as the gate.
+  2. **Do NOT sync from Stream-Mapparr.** Its counts are higher at identical versions only because
+     it still carries all 651 duplicate rows this repo removed on 2026-06-10 (BR 43, CA 62, DE 136,
+     ES 17, FR 19, MX 206, UK 168). Channel-Maparr has zero duplicates in all 12 files; copying from
+     Stream-Mapparr would be a regression, not an upgrade.
+
+  `networks.json` needs no action: it is byte-identical to Stream-Mapparr's (1,915 FCC stations).
+
+  Because +572 channels changes matching behaviour, give this its own version bump and its own
+  before/after dry-run comparison rather than folding it into a feature release.

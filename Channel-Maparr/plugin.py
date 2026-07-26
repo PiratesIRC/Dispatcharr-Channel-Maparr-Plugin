@@ -671,9 +671,20 @@ class Plugin:
         return list(ChannelGroup.objects.all().values('id', 'name'))
 
     def _get_all_channels(self, logger, group_ids=None):
-        """Fetch channels via Django ORM, optionally filtered by group IDs."""
+        """Fetch channels via Django ORM, optionally filtered by group IDs.
+
+        group_ids=None means "no scope" (every channel). An EMPTY set means "a
+        scope that resolved to nothing" and must return nothing - `if group_ids:`
+        collapsed those two cases and silently widened the scope to every channel
+        in the database (bug-044).
+        """
         qs = Channel.objects.all()
-        if group_ids:
+        if group_ids is not None:
+            if not group_ids:
+                logger.warning(
+                    f"{PLUGIN_LOG_PREFIX} Group scope resolved to zero groups - "
+                    f"no channels will be processed."
+                )
             qs = qs.filter(channel_group_id__in=group_ids)
         return list(qs.values('id', 'name', 'channel_number', 'channel_group_id', 'logo_id'))
 

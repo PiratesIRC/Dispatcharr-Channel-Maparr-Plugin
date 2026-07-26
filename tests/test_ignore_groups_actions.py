@@ -307,6 +307,79 @@ def test_import_refusal_message_is_capped_for_many_ignored_categories(
     assert "Sport9" not in msg
 
 
+def test_validate_settings_reports_a_resolved_exclusion(
+        plugin_instance, logger, fake_groups):
+    fake_groups(GROUPS_WITH_TEAMARR)
+    result = plugin_instance.validate_settings_action(
+        {"channel_databases": "US", "ignore_groups": "Teamarr"}, logger)
+    body = result.get("message") or result.get("error")
+    assert "Ignore" in body and "Teamarr" in body
+
+
+def test_validate_settings_flags_an_ignore_typo_as_a_red_error(
+        plugin_instance, logger, fake_groups):
+    fake_groups(GROUPS_WITH_TEAMARR)
+    result = plugin_instance.validate_settings_action(
+        {"channel_databases": "US", "ignore_groups": "Teamar"}, logger)
+    assert result["status"] == "error"
+    assert result.get("error"), "an ignore typo rendered as a green toast"
+    assert "Teamar" in result["error"]
+    assert "message" not in result
+
+
+def test_validate_settings_reports_an_out_of_scope_ignore_as_a_warning(
+        plugin_instance, logger, fake_groups):
+    """A real group name that the ignore filter matched but the include
+    filter had already excluded is a no-op, not a typo - it must render as
+    a warning (still a green/success toast), never a red error."""
+    fake_groups(GROUPS_WITH_TEAMARR)
+    result = plugin_instance.validate_settings_action(
+        {"channel_databases": "US", "selected_groups": "Sports",
+         "ignore_groups": "News"}, logger)
+    assert result["status"] == "success"
+    assert "News" in result["message"]
+    assert "no effect" in result["message"]
+
+
+def test_validate_settings_caps_many_out_of_scope_names(
+        plugin_instance, logger, fake_groups):
+    """Many out-of-scope names must collapse to one capped line, not one
+    line per name - otherwise a broad wildcard blows the ~280 char toast
+    budget Dispatcharr clips from the middle with no visual marker."""
+    groups = [{"id": i, "name": f"Sport{i}"} for i in range(8)]
+    groups.append({"id": 100, "name": "Keep"})
+    fake_groups(groups)
+    result = plugin_instance.validate_settings_action(
+        {"channel_databases": "US", "selected_groups": "Keep",
+         "ignore_groups": "Sport*"}, logger)
+    assert result["status"] == "success"
+    assert "and 3 more" in result["message"]
+    assert "Sport7" not in result["message"]
+
+
+def test_csv_header_records_the_exclusion(plugin_instance):
+    header = plugin_instance._generate_csv_settings_header(
+        {"ignore_groups": "Teamarr", "channel_databases": "US"})
+    assert "Channel Groups to Ignore: Teamarr" in header
+
+
+def test_load_and_process_status_summary_reports_the_scope(
+        plugin_instance, logger, fake_channel, fake_groups, monkeypatch, plugin_module):
+    """Show Status (progress.finish's persisted summary) must say what scope
+    the completed run applied, not just how many channels were touched."""
+    fake_groups(GROUPS_WITH_TEAMARR)
+    captured = {}
+    monkeypatch.setattr(
+        plugin_module.ProgressTracker, "finish",
+        lambda self, summary=None: captured.__setitem__("summary", summary))
+
+    result = plugin_instance.load_and_process_channels_action(
+        {"channel_databases": "US", "ignore_groups": "Teamarr"}, logger)
+
+    assert result["status"] == "success"
+    assert "Teamarr" in captured["summary"]
+
+
 def test_import_dry_run_refuses_an_ignored_custom_group(
         plugin_instance, logger, fake_groups, monkeypatch):
     """The preview must refuse rather than silently show a plan that the real

@@ -47,7 +47,7 @@
       "type": "string",
       "default": "",
       "placeholder": "Teamarr, PPV*",
-      "help_text": "Comma-separated. Channels in these groups are excluded from renaming, tagging, logos and Organize by Category, regardless of 'Channel Groups to Process' or 'Category Organization Groups'. Supports * and ? wildcards; matching is case-insensitive. Does not apply to Import M3U Streams, which refuses to run if its target group is ignored."
+      "help_text": "Comma-separated. Channels in these groups are excluded from renaming, tagging, logos and Organize by Category, regardless of 'Channel Groups to Process' or 'Category Organization Groups'. Supports * and ? wildcards; matching is case-insensitive. An entry that matches no channel group refuses the run. Organize by Category skips an ignored target group and continues; Import M3U Streams refuses the whole run if its target group is ignored."
     },
     {
       "id": "category_groups",

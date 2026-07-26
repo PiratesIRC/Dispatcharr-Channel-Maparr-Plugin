@@ -25,9 +25,12 @@ from .group_scope import (
     GroupScopeError,
     build_name_to_ids,
     is_ignored_name,
+    is_ignored_name_tokens,
+    parse_tokens,
     resolve_group_scope,
     split_rows_by_ignore,
 )
+from .wildcard_match import expand_patterns
 
 # Django model imports
 from apps.channels.models import Channel, ChannelGroup, Logo, Stream, ChannelStream
@@ -327,8 +330,10 @@ class Plugin:
                     "renaming, tagging, logos and Organize by Category, regardless "
                     "of 'Channel Groups to Process' or 'Category Organization "
                     "Groups'. Supports * and ? wildcards; matching is "
-                    "case-insensitive. Does not apply to Import M3U Streams, which "
-                    "refuses to run if its target group is ignored."
+                    "case-insensitive. An entry that matches no channel group "
+                    "refuses the run. Organize by Category skips an ignored "
+                    "target group and continues; Import M3U Streams refuses "
+                    "the whole run if its target group is ignored."
                 ),
             },
             {
@@ -751,6 +756,32 @@ class Plugin:
     def _scope_error_return(exc):
         """`error`, not `message` - `status` renders nowhere on the plugin card."""
         return {"status": "error", "error": str(exc)}
+
+    def _ignore_tokens_error(self, settings, logger):
+        """Refuse if 'Channel Groups to Ignore' names a group absent from the DB.
+
+        The file-driven actions (Preview / Rename / Tag Unknown) resolve the
+        exclusion via split_rows_by_ignore against the group names PRESENT IN
+        THE RESULTS FILE, which deliberately never refuses on a token absent
+        from that file - a stale file may legitimately contain no rows from a
+        named group. But that means a typo'd token would otherwise pass those
+        three actions silently while every DB-scoped action (which validates
+        against every real group via resolve_group_scope) refuses. This
+        validates the tokens against the database FIRST, before the
+        file-scoped split, so all six mutating/preview actions agree on what
+        counts as an unresolvable exclusion. Returns an error dict, or None
+        when the tokens are fine (or there are none).
+        """
+        tokens = parse_tokens(settings.get("ignore_groups") or "")
+        if not tokens:
+            return None
+        names = list(build_name_to_ids(self._get_all_groups(logger)))
+        _, unmatched = expand_patterns(tokens, names, ci_plain=True)
+        if unmatched:
+            return {"status": "error", "error":
+                    "These entries in 'Channel Groups to Ignore' match no "
+                    f"channel group: {', '.join(unmatched)}."}
+        return None
 
     def _get_all_channels(self, logger, group_ids=None, include_ungrouped=False):
         """Fetch channels via Django ORM, optionally filtered by group IDs.
@@ -1290,6 +1321,13 @@ class Plugin:
 
             all_changes = data.get('changes', [])
 
+            # A token matching no DB group must refuse here too, or a typo
+            # renames/tags every excluded channel while every other action
+            # (which validates against the DB) refuses (blocker: fail-open).
+            guard = self._ignore_tokens_error(settings, logger)
+            if guard:
+                return guard
+
             # Dry run must reflect the same exclusion the real run applies, or
             # the preview contradicts what Rename/Tag Unknown actually does.
             all_changes, ignored_rows = split_rows_by_ignore(
@@ -1336,6 +1374,11 @@ class Plugin:
                             'Match Method': change.get('match_method', ''),
                             'Reason': change.get('reason', '')
                         })
+                    # Absence of a group's rows proves nothing on its own -
+                    # record how many were excluded so the CSV is self-describing.
+                    if ignored_rows:
+                        csvfile.write(
+                            f"# Excluded by ignore: {len(ignored_rows)} row(s)\n")
                 os.replace(tmp_path, csv_path)
             except Exception:
                 if tmp_path and os.path.exists(tmp_path):
@@ -1380,6 +1423,13 @@ class Plugin:
 
             all_changes = data.get('changes', [])
             channels_to_rename = [c for c in all_changes if c.get('status') == 'Renamed']
+
+            # A token matching no DB group must refuse here too (see
+            # preview_changes_action for why) - this is the action that
+            # actually writes the renames.
+            guard = self._ignore_tokens_error(settings, logger)
+            if guard:
+                return guard
 
             # These actions replay a persisted file and never fetch channels, so
             # the exclusion has to be applied here too; the file may predate the
@@ -1447,6 +1497,13 @@ class Plugin:
             all_changes = data.get('changes', [])
             skipped_channels = [c for c in all_changes if c.get('status') == 'Skipped']
 
+            # A token matching no DB group must refuse here too (see
+            # preview_changes_action for why) - this is the action that
+            # actually writes the "[Unk]" suffix renames.
+            guard = self._ignore_tokens_error(settings, logger)
+            if guard:
+                return guard
+
             # These actions replay a persisted file and never fetch channels, so
             # the exclusion has to be applied here too; the file may predate the
             # current ignore_groups value.
@@ -1467,6 +1524,11 @@ class Plugin:
 
             # Bulk update using ORM
             updates = [{'id': ch['channel_id'], 'name': ch['current_name'] + suffix} for ch in skipped_channels]
+
+            if settings.get("dry_run_mode", False):
+                return {"status": "success", "message":
+                        f"Dry Run: would tag {len(updates)} unknown channel(s) "
+                        f"with suffix '{suffix}'. No changes written."}
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Adding suffix '{suffix}' to {len(updates)} unknown channels...")
             self._bulk_update_channels(updates, ['name'], logger)
@@ -1559,6 +1621,11 @@ class Plugin:
 
             # Bulk update using ORM
             updates = [{'id': ch['id'], 'logo_id': int(logo_id)} for ch in channels_without_logos]
+
+            if settings.get("dry_run_mode", False):
+                return {"status": "success", "message":
+                        f"Dry Run: would apply default logo to {len(updates)} "
+                        f"channel(s). No changes written."}
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Applying logo ID {logo_id} to {len(updates)} channels...")
             self._bulk_update_channels(updates, ['logo_id'], logger)
@@ -1677,6 +1744,13 @@ class Plugin:
                 assigned += 1
                 progress.update()
 
+            if settings.get("dry_run_mode", False):
+                return {"status": "success", "message":
+                        f"Dry Run: would apply logos to {len(channel_updates)} "
+                        f"channel(s) ({no_match} had no match). No channel "
+                        f"changes written. NOTE: any new Logo catalog entries "
+                        f"the match required were already created above."}
+
             if channel_updates:
                 self._bulk_update_channels(channel_updates, ['logo_id'], logger)
                 self._trigger_frontend_refresh(settings, logger)
@@ -1765,7 +1839,9 @@ class Plugin:
             # Process channels and determine moves
             moves = []
             ignored_targets = set()
-            ignore_value = settings.get("ignore_groups")
+            # Parsed once, not per-channel: is_ignored_name_tokens skips the
+            # re-parse is_ignored_name would otherwise do on every iteration.
+            ignore_tokens = parse_tokens(settings.get("ignore_groups") or "")
             for channel in channels_to_process:
                 channel_name = channel.get('name', '')
                 channel_id = channel.get('id')
@@ -1817,7 +1893,7 @@ class Plugin:
 
                     # The exclusion also forbids writing INTO a group - the
                     # preview must match what the real run would refuse to do.
-                    if is_ignored_name(new_group_name, ignore_value):
+                    if is_ignored_name_tokens(new_group_name, ignore_tokens):
                         ignored_targets.add(new_group_name)
                         continue
 
@@ -1990,7 +2066,9 @@ class Plugin:
             moves = []
             groups_needed = set()
             ignored_targets = set()
-            ignore_value = settings.get("ignore_groups")
+            # Parsed once, not per-channel: is_ignored_name_tokens skips the
+            # re-parse is_ignored_name would otherwise do on every iteration.
+            ignore_tokens = parse_tokens(settings.get("ignore_groups") or "")
 
             for channel in channels_to_process:
                 channel_name = channel.get('name', '')
@@ -2035,7 +2113,7 @@ class Plugin:
 
                     # The exclusion also forbids writing INTO a group - never
                     # create or adopt a target the operator declared untouchable.
-                    if is_ignored_name(new_group_name, ignore_value):
+                    if is_ignored_name_tokens(new_group_name, ignore_tokens):
                         ignored_targets.add(new_group_name)
                         continue
 
@@ -3083,6 +3161,22 @@ class Plugin:
                 # mislabel an include-filter typo as an ignore problem.
                 validation_results.append(f"❌ {exc}")
                 error_count += 1
+
+            # 2c. Category scope (category_groups) - without this, a
+            # category_groups typo, or an exclusion that empties the category
+            # scope, validated GREEN here and only failed RED on Organize by
+            # Category. Only resolved when the setting is non-blank, so the
+            # common case (no category filter configured) costs nothing;
+            # when configured it costs exactly one line either way, to stay
+            # inside the ~260-char regression budget alongside 2b.
+            category_groups_str = (settings.get("category_groups") or "").strip()
+            if category_groups_str:
+                try:
+                    self._resolve_category_scope(settings, logger)
+                    validation_results.append("✅ Category: OK")
+                except GroupScopeError as exc:
+                    validation_results.append(f"❌ {exc}")
+                    error_count += 1
 
             # 3. M3U filters (only show count if configured)
             m3u_info = []

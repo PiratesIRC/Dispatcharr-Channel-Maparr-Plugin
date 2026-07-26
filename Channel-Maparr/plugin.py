@@ -3060,20 +3060,19 @@ class Plugin:
                         f"✅ Ignore: {len(effective)} group(s): "
                         f"{_format_capped_name_list(effective)}")
                 if scope.out_of_scope_names:
-                    warning_count += len(scope.out_of_scope_names)
-                    # A name list already appeared above for `effective`; when
-                    # BOTH lines fire, drop the second name list rather than
-                    # cap it too - two capped-at-5 lists in one message can
-                    # still clear the ~280 char budget between them.
-                    if effective:
-                        validation_results.append(
-                            f"⚠️ Ignore: {len(scope.out_of_scope_names)} more "
-                            f"had no effect (outside scope)")
-                    else:
-                        validation_results.append(
-                            f"⚠️ Ignore: {len(scope.out_of_scope_names)} name(s) "
-                            f"had no effect (outside scope): "
-                            f"{_format_capped_name_list(scope.out_of_scope_names)}")
+                    # ONE warning for the whole condition, not one per name -
+                    # this is benign (an ignore entry that already had no
+                    # effect), and counting per-name made a healthy config
+                    # read as "Validation completed with 10 warning(s)".
+                    warning_count += 1
+                    # No name list here: the names are already logged by
+                    # _resolve_group_scope, and a capped list on top of the
+                    # `effective` line above (which already fired) was the
+                    # single offender that pushed a real operator's message
+                    # over Dispatcharr's ~280 char clip.
+                    validation_results.append(
+                        f"⚠️ Ignore: {len(scope.out_of_scope_names)} names had "
+                        f"no effect (already outside the selected scope)")
             except GroupScopeError as exc:
                 # The same exception covers an unresolvable INCLUDE filter
                 # (e.g. a typo'd selected_groups) as well as an unresolvable

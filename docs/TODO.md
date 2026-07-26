@@ -80,17 +80,22 @@
   Channels, Tag Unknown Channels, Apply Default Logo, Apply Per-Channel Logos (tv-logos), Organize by
   Category, Import M3U Streams, with Show Status and Clear CSV Exports as utilities.
 
-- [ ] **Button in settings linking to the GitHub issues page** â€” a one-click way to file a bug or a
+- [ ] **Button in settings linking to the GitHub issues page**: a one-click way to file a bug or a
   feature request from inside Dispatcharr, pointing at
   `https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/issues`. Check first whether
   Dispatcharr's field/action schema can render a link or must use an action that returns the URL in
   its `message`; an action can only return text, so a true hyperlink may not be renderable.
 
-- [ ] **Remove the version checker** â€” `Plugin.fields` currently performs a LIVE GitHub HTTP request
+- [x] **Remove the version checker** (DONE 2026-07-26): `Plugin.fields` performed a LIVE GitHub HTTP request
   (`_get_latest_version`) plus an ORM query every time the property is read, which is on Dispatcharr's
-  per-request hot path. Removing it also removes the reason tests must never execute the `fields`
-  property, and removes a network dependency from plugin load. Check what surfaces the result to the
-  user before deleting, and drop the now-dead cache-file helpers with it.
+  per-request hot path, so plugin settings could not render without outbound network access and a
+  slow or hung GitHub stalled the request. Removed: the check, the three helpers
+  (`_get_latest_version`, `_should_check_for_updates`, `_save_version_check`), the
+  `VERSION_CHECK_FILE` constant and cache, and both `urllib` imports. The "Plugin Version" field
+  stays but is now static (`Installed: vX`). Pinned by
+  `tests/test_plugin_contract.py::test_no_update_check_remains`. Note `logo_matcher.py` still uses
+  the network for the tv-logos fetch, which is expected and runs inside an action rather than on the
+  request path.
 
 ## Channel database refresh (measured 2026-07-26, do AFTER the ignore_groups slice ships)
 

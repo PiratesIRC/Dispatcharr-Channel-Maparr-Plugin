@@ -6,9 +6,11 @@ truth at runtime, so changes to plugin.json alone won't take effect." These test
 catch drift between the two declarations, missing button labels, version skew,
 and the silent-action-drop caused by astral-plane (non-BMP) characters.
 
-The Plugin.fields *property* performs a live GitHub version check and an ORM
-query, so we never execute it here — field parity is checked against plugin.py's
-source text instead.
+The Plugin.fields *property* reads the DB (it lists M3U accounts), so we never
+execute it here — field parity is checked against plugin.py's source text
+instead. It no longer performs a network call; the GitHub update check was
+removed on 2026-07-26 (see test_no_update_check_remains below, which keeps it
+that way).
 """
 import json
 import re
@@ -150,3 +152,27 @@ def test_plugin_py_is_bmp_only(plugin_source):
 
 def test_ignore_groups_is_recorded_in_csv_headers(plugin_source):
     assert "'ignore_groups': 'Channel Groups to Ignore'" in plugin_source
+
+
+def test_no_update_check_remains(plugin_source):
+    """The GitHub update check was removed on 2026-07-26 and must stay removed.
+
+    `Plugin.fields` is on Dispatcharr's per-request hot path. The old code made a
+    live api.github.com request (plus a /data cache write) every time the settings
+    page was read, so plugin settings could not render without outbound network
+    access, and a slow or hung GitHub stalled the request.
+    """
+    banned = ["urllib", "api.github.com", "_get_latest_version",
+              "_should_check_for_updates", "_save_version_check",
+              "VERSION_CHECK_FILE", "cached_version_info"]
+    found = [t for t in banned if t in plugin_source]
+    assert not found, (
+        f"update-check machinery is back in plugin.py: {found}. If a network "
+        f"call is genuinely needed, it must not live in the `fields` property."
+    )
+
+
+def test_version_status_field_reports_the_installed_version(plugin_source):
+    """The field stays (operators need to know what is installed) but is static."""
+    assert '"id": "version_status"' in plugin_source
+    assert 'f"Installed: v{self.version}"' in plugin_source

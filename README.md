@@ -45,7 +45,7 @@ A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel
 
 ## Requirements
 * Dispatcharr v0.20.0+
-* Internet access (for version checking)
+* Internet access, only for **Apply Per-Channel Logos (tv-logos)**, which fetches the logo file list from GitHub. Every other action works fully offline; the plugin no longer checks for its own updates.
 
 ## Installation
 1. Log in to Dispatcharr's web UI.

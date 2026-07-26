@@ -175,7 +175,7 @@ def test_rename_skips_rows_in_an_ignored_group(
 
     assert [u["id"] for u in captured] == [1]
     assert result["status"] == "success"
-    assert "1" in result["message"]
+    assert "ignored groups" in result["message"]
 
 
 def test_tag_unknown_skips_rows_in_an_ignored_group(
@@ -213,3 +213,49 @@ def test_rename_reports_when_everything_was_ignored(
         {"dry_run_mode": False, "ignore_groups": "Teamarr"}, logger)
     assert result["status"] == "success"
     assert "ignored" in result["message"].lower()
+
+
+def test_tag_unknown_reports_when_everything_was_ignored(
+        plugin_instance, logger, tmp_path, monkeypatch):
+    """Clone of the rename-side all-ignored test: this branch in
+    rename_unknown_channels_action is otherwise executed by no test."""
+    changes = [{"channel_id": 2, "current_name": "b", "status": "Skipped",
+                "channel_group": "Teamarr"}]
+    monkeypatch.setattr(plugin_instance, "results_file",
+                        _results_file(tmp_path, changes))
+    monkeypatch.setattr(plugin_instance, "_bulk_update_channels",
+                        lambda *a, **k: pytest.fail("must not write"))
+
+    result = plugin_instance.rename_unknown_channels_action(
+        {"unknown_suffix": " [Unk]", "ignore_groups": "Teamarr"}, logger)
+    assert result["status"] == "success"
+    assert "ignored" in result["message"].lower()
+
+
+def test_preview_excludes_ignored_rows_from_csv_and_counts(
+        plugin_instance, logger, plugin_module, tmp_path, monkeypatch):
+    """Dry run must match what the real run does: without the exclusion in
+    preview_changes_action, the CSV and toast both include the Teamarr row
+    that the real (non-dry-run) rename would have skipped."""
+    monkeypatch.setattr(plugin_module.PluginConfig, "EXPORT_DIR", str(tmp_path))
+    changes = [
+        {"channel_id": 1, "current_name": "a", "new_name": "A",
+         "status": "Renamed", "channel_group": "Sports"},
+        {"channel_id": 2, "current_name": "b", "new_name": "B",
+         "status": "Renamed", "channel_group": "Teamarr"},
+    ]
+    monkeypatch.setattr(plugin_instance, "results_file",
+                        _results_file(tmp_path, changes))
+
+    result = plugin_instance.preview_changes_action(
+        {"ignore_groups": "Teamarr"}, logger)
+
+    assert result["status"] == "success"
+    assert "1 channels will be renamed" in result["message"]
+    assert "ignored groups were excluded" in result["message"]
+
+    csv_files = list(tmp_path.glob("*.csv"))
+    assert len(csv_files) == 1
+    csv_text = csv_files[0].read_text(encoding="utf-8")
+    assert "Sports,a,A,Renamed" in csv_text
+    assert "Teamarr,b,B,Renamed" not in csv_text

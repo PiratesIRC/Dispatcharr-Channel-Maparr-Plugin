@@ -155,9 +155,10 @@ def split_rows_by_ignore(rows, ignore_value, *, group_key='channel_group'):
     a group absent from *this file* would be wrong. The typo case is already
     caught at scan time by resolve_group_scope.
     """
+    rows = list(rows)
     tokens = parse_tokens(ignore_value)
     if not tokens:
-        return list(rows), []
+        return rows, []
 
     present = sorted({r.get(group_key) for r in rows if r.get(group_key)})
     matched, _ = expand_patterns(tokens, present, ci_plain=True)

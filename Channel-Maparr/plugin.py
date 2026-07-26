@@ -55,6 +55,14 @@ PROGRESS_FILE = "/data/channel_mapparr_progress.json"
 _MAX_NAMES_IN_MESSAGE = 5
 
 
+# Severity glyphs that validate_settings_action's report lines are built with.
+# The final assembly classifies lines by these prefixes, so a new validation
+# line MUST start with one of them or it will be silently dropped from the
+# operator-facing output.
+_VALIDATION_ERROR_GLYPH = "❌"      # cross mark
+_VALIDATION_WARNING_GLYPH = "⚠"    # warning sign (with or without U+FE0F)
+
+
 def _format_capped_name_list(names, limit=_MAX_NAMES_IN_MESSAGE):
     """Join up to `limit` names, then summarize the rest as a count."""
     names = list(names)
@@ -3029,6 +3037,7 @@ class Plugin:
             # include_label (process vs category can differ), so that one is
             # deliberately NOT deduped here.
             ignore_dupe_error = None
+            ignore_summary = None
             try:
                 scope = self._resolve_process_scope(settings, logger)
                 # Report only the names that actually removed something from
@@ -3039,9 +3048,13 @@ class Plugin:
                 out_of_scope = set(scope.out_of_scope_names)
                 effective = [n for n in scope.ignored_names if n not in out_of_scope]
                 if effective:
-                    validation_results.append(
-                        f"✅ Ignore: {len(effective)} group(s): "
-                        f"{_format_capped_name_list(effective)}")
+                    # Also folded into the SUCCESS toast by the assembly below.
+                    # Confirming what the exclusion actually resolved to is the
+                    # reason it is surfaced here at all, and a clean run would
+                    # otherwise report nothing but "OK".
+                    ignore_summary = (f"Ignoring {len(effective)} group(s): "
+                                      f"{_format_capped_name_list(effective)}")
+                    validation_results.append(f"✅ Ignore: {ignore_summary}")
                 if scope.out_of_scope_names:
                     # ONE warning for the whole condition, not one per name -
                     # this is benign (an ignore entry that already had no
@@ -3054,8 +3067,9 @@ class Plugin:
                     # single offender that pushed a real operator's message
                     # over Dispatcharr's ~280 char clip.
                     validation_results.append(
-                        f"⚠️ Ignore: {len(scope.out_of_scope_names)} names had "
-                        f"no effect (already outside the selected scope)")
+                        f"⚠️ Ignore: {len(scope.out_of_scope_names)} "
+                        f"name{'' if len(scope.out_of_scope_names) == 1 else 's'} "
+                        f"had no effect (already outside the selected scope)")
             except GroupScopeError as exc:
                 # The same exception covers an unresolvable INCLUDE filter
                 # (e.g. a typo'd selected_groups) as well as an unresolvable
@@ -3116,24 +3130,48 @@ class Plugin:
             if dry_run:
                 validation_results.append("ℹ️ Dry Run: ON")
 
-            # Generate summary
-            if error_count == 0 and warning_count == 0:
-                validation_results.insert(0, "✅ All settings validated successfully!")
-                status = "success"
-            elif error_count == 0:
-                validation_results.insert(0, f"⚠️ Validation completed with {warning_count} warning(s)")
-                status = "success"
-            else:
-                validation_results.insert(0, f"❌ Validation failed: {error_count} error(s), {warning_count} warning(s)")
-                status = "error"
+            # Report ONLY what the operator has to act on.
+            #
+            # Dispatcharr renders `error` persistently at the bottom of the
+            # plugin card and `message` as a transient toast. Returning the
+            # whole readout in `error` therefore parked a wall of mostly-OK
+            # lines under the settings form on every failure. So: a failure
+            # returns the failing lines and nothing else, and a clean run says
+            # so in a toast and leaves nothing behind.
+            #
+            # Severity is read from the glyph each line is built with, which is
+            # the contract for every append above. `_VALIDATION_ERROR_GLYPH`
+            # and `_VALIDATION_WARNING_GLYPH` name it so a new line cannot
+            # quietly opt out, and the assertion below fails loudly if a
+            # counter was incremented without a matching line (or vice versa).
+            errors = [ln for ln in validation_results
+                      if ln.startswith(_VALIDATION_ERROR_GLYPH)]
+            warnings = [ln for ln in validation_results
+                        if ln.startswith(_VALIDATION_WARNING_GLYPH)]
 
-            validation_results.insert(1, "")
+            if len(errors) != error_count or len(warnings) != warning_count:
+                logger.warning(
+                    f"{PLUGIN_LOG_PREFIX} validate_settings bookkeeping drift: "
+                    f"{error_count} error_count vs {len(errors)} error line(s), "
+                    f"{warning_count} warning_count vs {len(warnings)} warning line(s)"
+                )
 
-            message = "\n".join(validation_results)
+            if errors:
+                header = (f"Validation failed, {len(errors)} error(s)"
+                          + (f" and {len(warnings)} warning(s)" if warnings else "")
+                          + ":")
+                return {"status": "error",
+                        "error": "\n".join([header] + errors + warnings)}
 
-            if status == "error":
-                return {"status": status, "error": message}
-            return {"status": status, "message": message}
+            suffix = f" {ignore_summary}." if ignore_summary else ""
+
+            if warnings:
+                return {"status": "success",
+                        "message": f"✅ Settings OK.{suffix}\n"
+                                   f"{len(warnings)} warning(s):\n" + "\n".join(warnings)}
+
+            return {"status": "success",
+                    "message": f"✅ All settings validated successfully.{suffix}"}
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error during settings validation: {e}")

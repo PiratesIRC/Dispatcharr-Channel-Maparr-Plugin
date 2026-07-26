@@ -313,11 +313,47 @@ def test_import_refusal_message_is_capped_for_many_ignored_categories(
 
 def test_validate_settings_reports_a_resolved_exclusion(
         plugin_instance, logger, fake_groups):
+    """A clean run still confirms WHAT the exclusion resolved to.
+
+    That confirmation is the reason the exclusion is surfaced here at all, so it
+    survives in the success toast even though the full readout no longer is.
+    """
     fake_groups(GROUPS_WITH_TEAMARR)
     result = plugin_instance.validate_settings_action(
         {"channel_databases": "US", "ignore_groups": "Teamarr"}, logger)
-    body = result.get("message") or result.get("error")
-    assert "Ignore" in body and "Teamarr" in body
+    assert result["status"] == "success"
+    assert "error" not in result, "a clean run must leave nothing on the plugin card"
+    body = result["message"]
+    assert "Teamarr" in body, "the resolved group name is the actionable part"
+    assert "1 group(s)" in body
+
+
+def test_validate_settings_clean_run_says_only_that_it_is_ok(
+        plugin_instance, logger, fake_groups):
+    """No exclusion configured: a short toast, and no readout at all."""
+    fake_groups(GROUPS_WITH_TEAMARR)
+    result = plugin_instance.validate_settings_action(
+        {"channel_databases": "US"}, logger)
+    assert result["status"] == "success"
+    assert "error" not in result
+    assert result["message"] == "✅ All settings validated successfully."
+
+
+def test_validate_settings_failure_reports_only_the_errors(
+        plugin_instance, logger, fake_groups):
+    """The whole point of the change: a failure must not park the full readout
+    under the settings form. Only the failing lines come back, in `error`."""
+    fake_groups(GROUPS_WITH_TEAMARR)
+    result = plugin_instance.validate_settings_action(
+        {"channel_databases": "US", "ignore_groups": "Teamar"}, logger)
+    assert result["status"] == "error"
+    assert "message" not in result, "a failure must not also emit a green toast"
+    body = result["error"]
+    assert "Teamar" in body
+    # None of the informational OK lines may be carried along.
+    assert "DB OK" not in body
+    assert "Dry Run" not in body
+    assert "✅" not in body, f"OK lines leaked into the failure report: {body!r}"
 
 
 def test_validate_settings_flags_an_ignore_typo_as_a_red_error(

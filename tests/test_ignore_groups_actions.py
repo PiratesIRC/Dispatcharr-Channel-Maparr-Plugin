@@ -1,8 +1,8 @@
 """Action-level scope behaviour."""
+
 from unittest.mock import MagicMock
 
 import pytest
-
 
 GROUPS = [{"id": 10, "name": "Sports"}, {"id": 20, "name": "News"}]
 

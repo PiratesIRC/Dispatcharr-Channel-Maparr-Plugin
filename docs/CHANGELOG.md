@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+**Validate Settings reports only what needs acting on.** It previously returned its
+entire readout, so every failure parked a wall of mostly-OK lines permanently under the
+settings form (Dispatcharr renders `error` persistently on the plugin card and `message`
+as a transient toast).
+
+- A failure now returns the failing lines and nothing else, in `error`. No `DB OK`, no
+  `Dry Run: ON`, no OK lines at all.
+- A clean run returns a short toast and leaves nothing behind:
+  `All settings validated successfully.` If an exclusion is configured it adds what that
+  exclusion actually resolved to, since confirming that is the reason it is reported here.
+- Warnings are not failures, so they ride in the success toast rather than creating a
+  persistent card.
+- Severity is read from the glyph each report line is built with, now named by
+  `_VALIDATION_ERROR_GLYPH` / `_VALIDATION_WARNING_GLYPH`, and a mismatch between a
+  counter and its lines is logged rather than silently mis-reported.
+
 **Removed the plugin's self-update check.** `Plugin.fields` is read on Dispatcharr's
 per-request hot path, and it made a live call to GitHub's releases API (plus a `/data`
 cache write) every time the settings page was rendered. Plugin settings therefore could

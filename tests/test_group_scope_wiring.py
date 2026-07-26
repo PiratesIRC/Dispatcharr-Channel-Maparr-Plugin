@@ -64,6 +64,8 @@ def check_wiring(source, expected_sites):
 
     for fn, call in sites:
         kwargs = {kw.arg: kw.value for kw in call.keywords}
+        bound = _resolver_bound_names(fn)
+
         assert "group_ids" in kwargs, f"{fn.name}: group_ids not passed by keyword"
         value = kwargs["group_ids"]
         assert not (isinstance(value, ast.Constant) and value.value is None), \
@@ -73,12 +75,27 @@ def check_wiring(source, expected_sites):
             f"this is the shape that shipped bug-044")
         assert isinstance(value, ast.Attribute) or isinstance(value, ast.Name), \
             f"{fn.name}: group_ids should come from the resolved scope"
-        bound = _resolver_bound_names(fn)
+        if isinstance(value, ast.Attribute):
+            assert value.attr == "group_ids", (
+                f"{fn.name}: group_ids kwarg reads .{value.attr}, not .group_ids - "
+                f"provenance must be pinned to the FIELD, not just the resolved object")
         root = value.value.id if isinstance(value, ast.Attribute) and isinstance(
             value.value, ast.Name) else getattr(value, "id", None)
         assert root in bound, (
             f"{fn.name}: group_ids does not trace to a _resolve_*_scope() result "
             f"(bound names: {sorted(bound)})")
+
+        # A site that passes group_ids but omits include_ungrouped silently
+        # evicts every NULL-group channel from a bulk rename/logo/move run -
+        # exactly the defect class this slice exists to prevent.
+        assert "include_ungrouped" in kwargs, (
+            f"{fn.name}: include_ungrouped not passed (would evict ungrouped channels)")
+        ug = kwargs["include_ungrouped"]
+        assert isinstance(ug, ast.Attribute) and getattr(ug.value, "id", None) in bound, (
+            f"{fn.name}: include_ungrouped does not trace to a _resolve_*_scope() result")
+        assert ug.attr == "include_ungrouped", (
+            f"{fn.name}: include_ungrouped kwarg reads .{ug.attr}, not "
+            f".include_ungrouped - provenance must be pinned to the FIELD")
 
 
 def check_channel_objects_confined(source):
@@ -127,6 +144,21 @@ class P:
         return self._get_all_channels(l, group_ids=ids)
 '''
 
+BAD_MISSING_UNGROUPED = '''
+class P:
+    def a(self, s, l):
+        scope = self._resolve_process_scope(s, l)
+        return self._get_all_channels(l, group_ids=scope.group_ids)
+'''
+
+BAD_WRONG_FIELD = '''
+class P:
+    def a(self, s, l):
+        scope = self._resolve_process_scope(s, l)
+        return self._get_all_channels(
+            l, group_ids=scope.ignored_names, include_ungrouped=scope.include_ungrouped)
+'''
+
 GOOD = '''
 class P:
     def a(self, s, l):
@@ -136,7 +168,9 @@ class P:
 '''
 
 
-@pytest.mark.parametrize("src", [BAD_LITERAL_NONE, BAD_IFEXP, BAD_UNWIRED])
+@pytest.mark.parametrize("src", [
+    BAD_LITERAL_NONE, BAD_IFEXP, BAD_UNWIRED, BAD_MISSING_UNGROUPED, BAD_WRONG_FIELD,
+])
 def test_detector_rejects_unwired_shapes(src):
     with pytest.raises(AssertionError):
         check_wiring(src, expected_sites=1)

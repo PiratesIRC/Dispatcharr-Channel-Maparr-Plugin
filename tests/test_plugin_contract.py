@@ -120,3 +120,33 @@ def test_no_placeholder_question_mark_in_button_labels(manifest, plugin_module):
     bad_class = [a["id"] for a in plugin_module.Plugin.actions if "?" in (a.get("button_label") or "")]
     assert not bad_json, f"plugin.json button_labels contain a placeholder '?': {bad_json}"
     assert not bad_class, f"Plugin.actions button_labels contain a placeholder '?': {bad_class}"
+
+
+def test_ignore_groups_field_is_declared_in_both_places(manifest, plugin_source):
+    ids = {f["id"] for f in manifest["fields"]}
+    assert "ignore_groups" in ids, "field missing from plugin.json"
+    assert '"id": "ignore_groups"' in plugin_source, "field missing from Plugin.fields"
+
+
+def test_every_field_id_in_source_is_also_in_the_manifest(manifest, plugin_source):
+    """The existing parity test only checks manifest -> source. A field added to
+    the Plugin.fields property alone renders in the UI but is absent from the
+    manifest, and that direction passed silently."""
+    import re
+    source_ids = set(re.findall(r'"id":\s*"([a-z0-9_]+)"', plugin_source))
+    known = ({f["id"] for f in manifest["fields"]}
+             | {a["id"] for a in manifest["actions"]})
+    assert not (source_ids - known), (
+        f"ids declared in plugin.py but not in plugin.json: {sorted(source_ids - known)}")
+
+
+def test_plugin_py_is_bmp_only(plugin_source):
+    """Astral-plane characters make Dispatcharr's loader silently drop an action.
+    plugin.json is already checked; the class side was not, and the `fields`
+    property cannot be executed in tests."""
+    offenders = sorted({c for c in plugin_source if ord(c) > 0xFFFF})
+    assert not offenders, [hex(ord(c)) for c in offenders]
+
+
+def test_ignore_groups_is_recorded_in_csv_headers(plugin_source):
+    assert "'ignore_groups': 'Channel Groups to Ignore'" in plugin_source

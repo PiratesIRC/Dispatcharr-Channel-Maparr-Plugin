@@ -24,6 +24,7 @@ from .progress_status import (
 from .group_scope import (
     GroupScopeError,
     build_name_to_ids,
+    is_ignored_name,
     resolve_group_scope,
     split_rows_by_ignore,
 )
@@ -1746,6 +1747,8 @@ class Plugin:
 
             # Process channels and determine moves
             moves = []
+            ignored_targets = set()
+            ignore_value = settings.get("ignore_groups")
             for channel in channels_to_process:
                 channel_name = channel.get('name', '')
                 channel_id = channel.get('id')
@@ -1795,6 +1798,12 @@ class Plugin:
                 if category:
                     new_group_name = category
 
+                    # The exclusion also forbids writing INTO a group - the
+                    # preview must match what the real run would refuse to do.
+                    if is_ignored_name(new_group_name, ignore_value):
+                        ignored_targets.add(new_group_name)
+                        continue
+
                     # Check if group exists
                     group_exists = new_group_name in group_name_to_id
 
@@ -1812,7 +1821,13 @@ class Plugin:
                         })
 
             if not moves:
-                return {"status": "success", "message": "No channels need to be moved to category-based groups."}
+                message = "No channels need to be moved to category-based groups."
+                if ignored_targets:
+                    message += (
+                        f" Skipped {len(ignored_targets)} ignored target group(s): "
+                        f"{', '.join(sorted(ignored_targets))}."
+                    )
+                return {"status": "success", "message": message}
 
             # Create export directory
             export_dir = PluginConfig.EXPORT_DIR
@@ -1852,10 +1867,18 @@ class Plugin:
             broadcast_count = sum(1 for m in moves if 'Broadcast' in m['match_type'])
             premium_count = sum(1 for m in moves if 'Premium' in m['match_type'])
 
-            return {
-                "status": "success",
-                "message": f"✓ Preview exported to: {csv_filename}\n\n{len(moves)} channels will be moved ({broadcast_count} broadcast, {premium_count} premium).\n{new_groups_needed} new groups will be created."
-            }
+            message = (
+                f"✓ Preview exported to: {csv_filename}\n\n{len(moves)} channels will "
+                f"be moved ({broadcast_count} broadcast, {premium_count} premium).\n"
+                f"{new_groups_needed} new groups will be created."
+            )
+            if ignored_targets:
+                message += (
+                    f"\nSkipped {len(ignored_targets)} ignored target group(s): "
+                    f"{', '.join(sorted(ignored_targets))}."
+                )
+
+            return {"status": "success", "message": message}
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error generating category groups preview: {e}")
@@ -1944,6 +1967,8 @@ class Plugin:
             # Process channels and determine moves
             moves = []
             groups_needed = set()
+            ignored_targets = set()
+            ignore_value = settings.get("ignore_groups")
 
             for channel in channels_to_process:
                 channel_name = channel.get('name', '')
@@ -1986,6 +2011,12 @@ class Plugin:
                 if category:
                     new_group_name = category
 
+                    # The exclusion also forbids writing INTO a group - never
+                    # create or adopt a target the operator declared untouchable.
+                    if is_ignored_name(new_group_name, ignore_value):
+                        ignored_targets.add(new_group_name)
+                        continue
+
                     # Track groups that need to be created
                     if new_group_name not in group_name_to_id:
                         groups_needed.add(new_group_name)
@@ -1999,7 +2030,13 @@ class Plugin:
                         })
 
             if not moves:
-                return {"status": "success", "message": "No channels need to be moved to category-based groups."}
+                message = "No channels need to be moved to category-based groups."
+                if ignored_targets:
+                    message += (
+                        f" Skipped {len(ignored_targets)} ignored target group(s): "
+                        f"{', '.join(sorted(ignored_targets))}."
+                    )
+                return {"status": "success", "message": message}
 
             # Create new groups if needed using ORM
             created_groups = []
@@ -2040,6 +2077,12 @@ class Plugin:
                 message_parts.append(f"• '{move['channel_name']}' → {move['new_group_name']}")
             if len(moves) > 5:
                 message_parts.append(f"...and {len(moves) - 5} more.")
+
+            if ignored_targets:
+                message_parts.append(
+                    f"\nSkipped {len(ignored_targets)} ignored target group(s): "
+                    f"{', '.join(sorted(ignored_targets))}."
+                )
 
             return {"status": "success", "message": "\n".join(message_parts)}
 
@@ -2376,6 +2419,21 @@ class Plugin:
 
         return matched_by_category, unmatched_streams
 
+    @staticmethod
+    def _check_group_destinations_not_ignored(names, ignore_value):
+        """Refuse rather than create or adopt a group the operator declared untouchable.
+
+        The scope filters channels out of a scan; this is the other direction -
+        import must not write INTO a group listed in 'Channel Groups to Ignore'.
+        """
+        blocked = sorted({name for name in names if is_ignored_name(name, ignore_value)})
+        if blocked:
+            raise GroupScopeError(
+                f"Import would create or write into group(s) listed in 'Channel "
+                f"Groups to Ignore': {', '.join(blocked)}. Change the import "
+                f"target or remove them from the ignore list."
+            )
+
     def _ensure_category_groups_exist(self, categories, settings, logger):
         """
         Ensure all category-based channel groups exist in Dispatcharr.
@@ -2387,7 +2445,14 @@ class Plugin:
             dict: Mapping of category name to group ID
         """
         # Check if custom group name is specified
-        custom_group_name = settings.get("m3u_custom_group_name", "").strip()
+        custom_group_name = (settings.get("m3u_custom_group_name") or "").strip()
+
+        # The exclusion also forbids writing INTO a group. Refuse rather than
+        # create or adopt a group the operator declared untouchable.
+        self._check_group_destinations_not_ignored(
+            [custom_group_name] if custom_group_name else list(categories),
+            settings.get("ignore_groups"),
+        )
 
         # Fetch existing groups
         existing_groups = self._get_all_groups(logger)
@@ -2757,6 +2822,17 @@ class Plugin:
 
             # Step 3: Check which category groups exist
             categories = list(matched_by_category.keys())
+
+            # The preview must match what the real run would refuse to do.
+            custom_group_name = (settings.get("m3u_custom_group_name") or "").strip()
+            try:
+                self._check_group_destinations_not_ignored(
+                    [custom_group_name] if custom_group_name else categories,
+                    settings.get("ignore_groups"),
+                )
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
+
             existing_groups = self._get_all_groups(logger)
             existing_group_names = {group['name'] for group in existing_groups}
 
@@ -2882,6 +2958,17 @@ class Plugin:
         dry_run = settings.get("dry_run_mode", False)
         if dry_run:
             return self.import_m3u_streams_dry_run_action(settings, logger)
+
+        # The real import runs in a background thread whose result the card
+        # never shows, so the destination must be validated BEFORE
+        # backgrounding or a refusal would be silently swallowed.
+        custom_group_name = (settings.get("m3u_custom_group_name") or "").strip()
+        if custom_group_name:
+            try:
+                self._check_group_destinations_not_ignored(
+                    [custom_group_name], settings.get("ignore_groups"))
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
 
         if not self._try_start_thread(self._do_import_m3u_streams_bg, (copy.deepcopy(settings), logger)):
             return {"status": "error", "error": "An operation is already running. Please wait for it to finish."}

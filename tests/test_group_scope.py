@@ -228,6 +228,17 @@ def test_accented_names_match_case_insensitively(gs):
     assert scope.group_ids == frozenset({2})
 
 
+# --- is_ignored_name ------------------------------------------------------
+
+def test_is_ignored_name(gs):
+    assert gs.is_ignored_name("Teamarr", "Teamarr") is True
+    assert gs.is_ignored_name("teamarr", "Teamarr") is True
+    assert gs.is_ignored_name("Teamarr Live", "Teamarr*") is True
+    assert gs.is_ignored_name("Sports", "Teamarr*") is False
+    assert gs.is_ignored_name("Sports", " , ") is False
+    assert gs.is_ignored_name("", "Teamarr") is False
+
+
 # --- results-file row filtering ------------------------------------------
 
 ROWS = [

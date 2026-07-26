@@ -56,6 +56,21 @@ def parse_tokens(raw):
     return [tok.strip() for tok in _SPLIT.split(raw) if tok.strip()]
 
 
+def is_ignored_name(name, ignore_value):
+    """True if a group name the plugin is about to CREATE or write into is ignored.
+
+    The scope filters channels out of a scan; this is the other direction -
+    nothing should create or adopt a group the operator declared untouchable.
+    """
+    if not name:
+        return False
+    tokens = parse_tokens(ignore_value)
+    if not tokens:
+        return False
+    matched, _ = expand_patterns(tokens, [name], ci_plain=True)
+    return bool(matched)
+
+
 def build_name_to_ids(rows):
     """Map group name -> SET of ids.
 

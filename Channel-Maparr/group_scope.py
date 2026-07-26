@@ -62,11 +62,20 @@ def is_ignored_name(name, ignore_value):
     The scope filters channels out of a scan; this is the other direction -
     nothing should create or adopt a group the operator declared untouchable.
     """
+    return is_ignored_name_tokens(name, parse_tokens(ignore_value))
+
+
+def is_ignored_name_tokens(name, tokens):
+    """Same check as is_ignored_name, but takes ALREADY-PARSED tokens.
+
+    Lets a caller that tests many names against one setting (e.g. a per-channel
+    Organize loop) parse_tokens() once outside the loop instead of re-parsing
+    the raw setting string on every iteration.
+    """
     if not name:
         return False
     if not isinstance(name, str):
         return False
-    tokens = parse_tokens(ignore_value)
     if not tokens:
         return False
     matched, _ = expand_patterns(tokens, [name], ci_plain=True)

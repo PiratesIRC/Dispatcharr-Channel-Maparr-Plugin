@@ -154,8 +154,9 @@ def _results_file(tmp_path, changes):
 
 
 def test_rename_skips_rows_in_an_ignored_group(
-        plugin_instance, logger, tmp_path, monkeypatch):
+        plugin_instance, logger, tmp_path, monkeypatch, fake_groups):
     """The stale-file case: the results file predates the ignore setting."""
+    fake_groups(GROUPS_WITH_TEAMARR)
     changes = [
         {"channel_id": 1, "current_name": "a", "new_name": "A",
          "status": "Renamed", "channel_group": "Sports"},
@@ -179,7 +180,8 @@ def test_rename_skips_rows_in_an_ignored_group(
 
 
 def test_tag_unknown_skips_rows_in_an_ignored_group(
-        plugin_instance, logger, tmp_path, monkeypatch):
+        plugin_instance, logger, tmp_path, monkeypatch, fake_groups):
+    fake_groups(GROUPS_WITH_TEAMARR)
     changes = [
         {"channel_id": 1, "current_name": "a", "status": "Skipped",
          "channel_group": "Sports"},
@@ -201,7 +203,8 @@ def test_tag_unknown_skips_rows_in_an_ignored_group(
 
 
 def test_rename_reports_when_everything_was_ignored(
-        plugin_instance, logger, tmp_path, monkeypatch):
+        plugin_instance, logger, tmp_path, monkeypatch, fake_groups):
+    fake_groups(GROUPS_WITH_TEAMARR)
     changes = [{"channel_id": 2, "current_name": "b", "new_name": "B",
                 "status": "Renamed", "channel_group": "Teamarr"}]
     monkeypatch.setattr(plugin_instance, "results_file",
@@ -216,9 +219,10 @@ def test_rename_reports_when_everything_was_ignored(
 
 
 def test_tag_unknown_reports_when_everything_was_ignored(
-        plugin_instance, logger, tmp_path, monkeypatch):
+        plugin_instance, logger, tmp_path, monkeypatch, fake_groups):
     """Clone of the rename-side all-ignored test: this branch in
     rename_unknown_channels_action is otherwise executed by no test."""
+    fake_groups(GROUPS_WITH_TEAMARR)
     changes = [{"channel_id": 2, "current_name": "b", "status": "Skipped",
                 "channel_group": "Teamarr"}]
     monkeypatch.setattr(plugin_instance, "results_file",
@@ -356,6 +360,31 @@ def test_validate_settings_labels_an_include_filter_typo_correctly(
     assert result["status"] == "error"
     assert "Channel Groups to Process" in result["error"]
     assert "Ignore" not in result["error"]
+
+
+def test_validate_settings_catches_a_category_groups_typo(
+        plugin_instance, logger, fake_groups):
+    """Blocker item 4: Validate Settings only ever resolved the PROCESS scope
+    (selected_groups), so a category_groups typo validated GREEN and only
+    failed RED on Organize by Category. This pins the added category-scope
+    resolve: the same typo must be visible here too."""
+    fake_groups(GROUPS_WITH_TEAMARR)
+    result = plugin_instance.validate_settings_action(
+        {"channel_databases": "US", "category_groups": "Sprots"}, logger)
+    assert result["status"] == "error"
+    assert "Sprots" in result["error"]
+
+
+def test_validate_settings_category_groups_blank_costs_nothing(
+        plugin_instance, logger, fake_groups):
+    """The common case (no category filter configured) must add no line -
+    a category_groups resolve on every run would burn into the ~260-char
+    toast budget for operators who never touch that setting."""
+    fake_groups(GROUPS_WITH_TEAMARR)
+    result = plugin_instance.validate_settings_action(
+        {"channel_databases": "US"}, logger)
+    assert result["status"] == "success"
+    assert "Category scope" not in result["message"]
 
 
 def test_validate_settings_does_not_enumerate_out_of_scope_names(
@@ -725,10 +754,11 @@ def test_organize_dry_run_never_previews_an_ignored_target(
 
 
 def test_preview_excludes_ignored_rows_from_csv_and_counts(
-        plugin_instance, logger, plugin_module, tmp_path, monkeypatch):
+        plugin_instance, logger, plugin_module, tmp_path, monkeypatch, fake_groups):
     """Dry run must match what the real run does: without the exclusion in
     preview_changes_action, the CSV and toast both include the Teamarr row
     that the real (non-dry-run) rename would have skipped."""
+    fake_groups(GROUPS_WITH_TEAMARR)
     monkeypatch.setattr(plugin_module.PluginConfig, "EXPORT_DIR", str(tmp_path))
     changes = [
         {"channel_id": 1, "current_name": "a", "new_name": "A",
@@ -751,3 +781,164 @@ def test_preview_excludes_ignored_rows_from_csv_and_counts(
     csv_text = csv_files[0].read_text(encoding="utf-8")
     assert "Sports,a,A,Renamed" in csv_text
     assert "Teamarr,b,B,Renamed" not in csv_text
+    assert "# Excluded by ignore: 1 row(s)" in csv_text
+
+
+# ---------------------------------------------------------------------------
+# Final whole-branch review, blocker 1: the three file-driven actions used to
+# resolve ignore_groups only against the group names PRESENT IN THE RESULTS
+# FILE (split_rows_by_ignore never refuses on an unmatched token, correctly -
+# a stale file may legitimately hold no rows from a named group). That meant
+# a typo'd ignore_groups renamed/tagged every excluded channel with a GREEN
+# toast while every DB-scoped action (Load & Process, both logo actions,
+# Organize, Validate Settings) refuses on the same typo. These three tests
+# pin the fix: resolving the tokens against the DATABASE first.
+# ---------------------------------------------------------------------------
+
+def test_preview_refuses_a_typo_in_ignore_groups(
+        plugin_instance, logger, plugin_module, tmp_path, monkeypatch, fake_groups):
+    fake_groups(GROUPS_WITH_TEAMARR)
+    monkeypatch.setattr(plugin_module.PluginConfig, "EXPORT_DIR", str(tmp_path))
+    changes = [
+        {"channel_id": 1, "current_name": "a", "new_name": "A",
+         "status": "Renamed", "channel_group": "Sports"},
+    ]
+    monkeypatch.setattr(plugin_instance, "results_file",
+                        _results_file(tmp_path, changes))
+    monkeypatch.setattr(plugin_instance, "_bulk_update_channels",
+                        lambda *a, **k: pytest.fail("must not write"))
+
+    result = plugin_instance.preview_changes_action(
+        {"ignore_groups": "Teamarr_typo"}, logger)
+
+    assert result["status"] == "error"
+    assert "Teamarr_typo" in result["error"]
+    assert list(tmp_path.glob("*.csv")) == []
+
+
+def test_rename_refuses_a_typo_in_ignore_groups(
+        plugin_instance, logger, tmp_path, monkeypatch, fake_groups):
+    """The action that actually writes the renames must refuse too - before
+    this fix it renamed every 'Sports' channel while silently keeping the
+    typo'd 'Teamarr_typo' row (there is nothing to drop, since no row is IN
+    that group), giving no signal that the setting is broken."""
+    fake_groups(GROUPS_WITH_TEAMARR)
+    changes = [
+        {"channel_id": 1, "current_name": "a", "new_name": "A",
+         "status": "Renamed", "channel_group": "Sports"},
+    ]
+    monkeypatch.setattr(plugin_instance, "results_file",
+                        _results_file(tmp_path, changes))
+    monkeypatch.setattr(plugin_instance, "_bulk_update_channels",
+                        lambda *a, **k: pytest.fail("must not write"))
+
+    result = plugin_instance.rename_channels_action(
+        {"dry_run_mode": False, "ignore_groups": "Teamarr_typo"}, logger)
+
+    assert result["status"] == "error"
+    assert "Teamarr_typo" in result["error"]
+
+
+def test_tag_unknown_refuses_a_typo_in_ignore_groups(
+        plugin_instance, logger, tmp_path, monkeypatch, fake_groups):
+    fake_groups(GROUPS_WITH_TEAMARR)
+    changes = [
+        {"channel_id": 1, "current_name": "a", "status": "Skipped",
+         "channel_group": "Sports"},
+    ]
+    monkeypatch.setattr(plugin_instance, "results_file",
+                        _results_file(tmp_path, changes))
+    monkeypatch.setattr(plugin_instance, "_bulk_update_channels",
+                        lambda *a, **k: pytest.fail("must not write"))
+
+    result = plugin_instance.rename_unknown_channels_action(
+        {"unknown_suffix": " [Unk]", "ignore_groups": "Teamarr_typo"}, logger)
+
+    assert result["status"] == "error"
+    assert "Teamarr_typo" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# Final whole-branch review, blocker 2: rename_unknown_channels_action,
+# apply_logos_action and apply_tv_logos_action never read dry_run_mode, so
+# turning Dry Run ON (as the deploy acceptance procedure instructs) still
+# tagged every unmatched channel and reassigned the default/tv-logo across
+# every channel missing one. These pin the fix: each now returns a "Dry Run"
+# success without calling _bulk_update_channels or _trigger_frontend_refresh.
+# ---------------------------------------------------------------------------
+
+def test_tag_unknown_dry_run_writes_nothing(
+        plugin_instance, logger, tmp_path, monkeypatch):
+    changes = [
+        {"channel_id": 1, "current_name": "a", "status": "Skipped",
+         "channel_group": "Sports"},
+    ]
+    monkeypatch.setattr(plugin_instance, "results_file",
+                        _results_file(tmp_path, changes))
+    monkeypatch.setattr(plugin_instance, "_bulk_update_channels",
+                        lambda *a, **k: pytest.fail("dry run must not write"))
+    monkeypatch.setattr(plugin_instance, "_trigger_frontend_refresh",
+                        lambda *a, **k: pytest.fail("dry run must not refresh"))
+
+    result = plugin_instance.rename_unknown_channels_action(
+        {"unknown_suffix": " [Unk]", "dry_run_mode": True}, logger)
+
+    assert result["status"] == "success"
+    assert "Dry Run" in result["message"]
+
+
+def test_apply_logos_dry_run_writes_nothing(
+        plugin_instance, logger, fake_channel, fake_groups, fake_logo, monkeypatch):
+    fake_groups(GROUPS)
+    monkeypatch.setattr(plugin_instance, "_bulk_update_channels",
+                        lambda *a, **k: pytest.fail("dry run must not write"))
+    monkeypatch.setattr(plugin_instance, "_trigger_frontend_refresh",
+                        lambda *a, **k: pytest.fail("dry run must not refresh"))
+
+    result = plugin_instance.apply_logos_action(
+        {"default_logo": "MyLogo", "dry_run_mode": True}, logger)
+
+    assert result["status"] == "success"
+    assert "Dry Run" in result["message"]
+
+
+def test_apply_tv_logos_dry_run_writes_nothing(
+        plugin_instance, logger, fake_channel, fake_groups, monkeypatch, plugin_module):
+    """NOTE (documented, not fixed here): apply_tv_logos_action creates any
+    missing Logo catalog rows INSIDE the matching loop, before channel_updates
+    is finalized - a write that precedes this dry-run gate. Dry Run therefore
+    still writes new Logo entries for this action; only the per-channel
+    logo_id reassignment is skipped. See the final-fix-report for the caveat.
+    """
+    fake_groups(GROUPS)
+    import channel_maparr.logo_matcher as logo_matcher_module
+
+    monkeypatch.setattr(logo_matcher_module, "fetch_tv_logos_filelist",
+                         lambda repo, branch, country_dir: ["a.png"])
+    monkeypatch.setattr(logo_matcher_module, "match_channel_to_logo",
+                         lambda name, files, suffix: "a.png")
+    monkeypatch.setattr(logo_matcher_module, "build_logo_url",
+                         lambda repo, branch, country_dir, filename: f"https://example/{filename}")
+
+    logo_mock = MagicMock()
+    logo_mock.objects.all.return_value = []
+
+    def _create(**kwargs):
+        obj = MagicMock()
+        obj.id = 999
+        obj.url = kwargs.get("url")
+        return obj
+
+    logo_mock.objects.create.side_effect = _create
+    monkeypatch.setattr(plugin_module, "Logo", logo_mock)
+
+    monkeypatch.setattr(plugin_instance, "_bulk_update_channels",
+                        lambda *a, **k: pytest.fail("dry run must not write channels"))
+    monkeypatch.setattr(plugin_instance, "_trigger_frontend_refresh",
+                        lambda *a, **k: pytest.fail("dry run must not refresh"))
+
+    result = plugin_instance.apply_tv_logos_action(
+        {"channel_databases": "US", "dry_run_mode": True}, logger)
+
+    assert result["status"] == "success"
+    assert "Dry Run" in result["message"]

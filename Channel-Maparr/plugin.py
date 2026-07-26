@@ -488,6 +488,7 @@ class Plugin:
             "label": "Show Status",
             "description": "Show live progress and ETA for the most recent or running operation. Reads a persistent progress file so you can check without watching container logs.",
             "button_label": "\u24d8 Status",
+             "button_variant": "outline", "button_color": "blue",
         },
         {
             "id": "clear_csv_exports",

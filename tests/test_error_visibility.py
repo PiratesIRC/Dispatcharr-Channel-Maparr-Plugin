@@ -25,7 +25,7 @@ def _error_returns_without_error_key(source):
         if not isinstance(node, ast.Return) or not isinstance(node.value, ast.Dict):
             continue
         pairs = {}
-        for key, value in zip(node.value.keys, node.value.values):
+        for key, value in zip(node.value.keys, node.value.values, strict=False):
             if isinstance(key, ast.Constant):
                 pairs[key.value] = value
         status = pairs.get("status")

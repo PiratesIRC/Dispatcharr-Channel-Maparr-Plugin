@@ -44,7 +44,7 @@ PROGRESS_FILE = "/data/channel_mapparr_progress.json"
 class PluginConfig:
     """Configuration constants for Channel Maparr."""
 
-    PLUGIN_VERSION = "1.26.1930617"
+    PLUGIN_VERSION = "1.26.2071035"
 
     # Channel Database Settings
     DEFAULT_CHANNEL_DATABASES = "US"

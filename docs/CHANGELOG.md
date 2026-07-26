@@ -1,5 +1,23 @@
 # Channel Maparr — Changelog
 
+## v1.26.2071035 (July 26, 2026)
+
+**Hardening release. No new settings.** Fixes three defects found while designing the
+`ignore_groups` feature (`docs/superpowers/specs/2026-07-26-ignore-groups-design.md`).
+
+- **bug-044 — a typo in "Channel Groups to Process" applied logos to EVERY channel.**
+  `_get_all_channels` guarded with `if group_ids:`, so an empty set was indistinguishable
+  from `None` and both meant "no filter". The two logo actions built their include set with
+  no error path, so an unresolvable value silently widened the scope from the named groups to
+  the whole database. Fixed in two layers: an empty set now filters to nothing (loudly), and
+  both logo actions refuse an unresolvable include filter with a visible error.
+- **Ungrouped channels are no longer at risk of being evicted** when a scope is explicit.
+  Channels with no channel group were included only because a blank filter passed `None`.
+- **Every failure is now visible.** Dispatcharr's plugin card renders `error` (persistent
+  red) and `message` (a transient green toast) but never `status`, and this plugin set
+  `error` on none of its ~30 failure returns — so every failure looked like success. An AST
+  guard now enforces it.
+
 ## v1.26.1930617 (2026-07-12)
 
 Vendor-sync of the shared matcher core (`matching_core.py`) with the **bug-105** zero-width Unicode strip landed in the workspace source.

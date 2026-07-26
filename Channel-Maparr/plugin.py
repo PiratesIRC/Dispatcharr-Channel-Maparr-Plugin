@@ -1858,6 +1858,11 @@ class Plugin:
             with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
                 # Write settings header as comments
                 csvfile.write(self._generate_csv_settings_header(settings))
+                # `scope` is already resolved above in this same function, so
+                # this is not a re-parse: record what the ignore/include
+                # filters actually MATCHED, not just the raw setting text
+                # already echoed by the header above.
+                csvfile.write(f"# Ignore resolved to: {scope.info}\n")
 
                 fieldnames = ['Channel ID', 'Channel Name', 'Current Group', 'New Group', 'Category', 'Match Type', 'Match Value', 'Group Exists']
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -3070,7 +3075,14 @@ class Plugin:
                             f"had no effect (outside scope): "
                             f"{_format_capped_name_list(scope.out_of_scope_names)}")
             except GroupScopeError as exc:
-                validation_results.append(f"❌ Ignore: {exc}")
+                # The same exception covers an unresolvable INCLUDE filter
+                # (e.g. a typo'd selected_groups) as well as an unresolvable
+                # ignore filter, and every other consumer of this exception
+                # surfaces its raw wording with no prefix - the message
+                # already names the setting it came from (e.g. "'Channel
+                # Groups to Process'"), so prepending "Ignore:" would
+                # mislabel an include-filter typo as an ignore problem.
+                validation_results.append(f"❌ {exc}")
                 error_count += 1
 
             # 3. M3U filters (only show count if configured)

@@ -60,6 +60,19 @@ def test_resolve_process_scope_subtracts_the_exclusion(
     assert scope.include_ungrouped is True
 
 
+def test_resolve_process_scope_reads_selected_groups_not_category_groups(
+        plugin_instance, logger, fake_groups):
+    """Pins WHICH key the wrapper reads: a decoy under category_groups must be
+    ignored. Without the decoy, swapping the two wrappers would go unnoticed."""
+    fake_groups(GROUPS_WITH_TEAMARR)
+    scope = plugin_instance._resolve_process_scope(
+        {"selected_groups": "Sports, News",
+         "category_groups": "Teamarr",          # decoy - must be ignored here
+         "ignore_groups": "Teamarr"}, logger)
+    assert scope.group_ids == frozenset({10, 20})
+    assert scope.include_ungrouped is False     # an include filter WAS applied
+
+
 def test_resolve_category_scope_reads_the_category_include_field(
         plugin_instance, logger, fake_groups):
     fake_groups(GROUPS_WITH_TEAMARR)

@@ -22,7 +22,7 @@ from .progress_status import (
     build_status_message, load_progress, save_progress_atomic,
 )
 from .group_scope import (
-    GroupScopeError,  # noqa: F401 - re-exported for callers; wired in Task 10
+    GroupScopeError,  # noqa: F401 - re-exported for call-site except clauses
     build_name_to_ids,
     resolve_group_scope,
 )

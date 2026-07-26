@@ -1405,13 +1405,19 @@ class Plugin:
             logger.info(f"{PLUGIN_LOG_PREFIX} Fetching current channel data from database...")
 
             # Get groups to filter
-            selected_groups_str = settings.get("selected_groups", "").strip()
+            selected_groups_str = (settings.get("selected_groups") or "").strip()
             target_group_ids = None
             if selected_groups_str:
                 all_groups = self._get_all_groups(logger)
                 group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
                 input_names = {name.strip() for name in selected_groups_str.split(',') if name.strip()}
-                target_group_ids = {group_name_to_id[name] for name in input_names if name in group_name_to_id}
+                valid_names = {n for n in input_names if n in group_name_to_id}
+                invalid_names = input_names - valid_names
+                target_group_ids = {group_name_to_id[name] for name in valid_names}
+                if not target_group_ids:
+                    msg = (f"None of the specified groups could be found: "
+                           f"{', '.join(sorted(invalid_names))}")
+                    return {"status": "error", "error": msg}
 
             # Get all channels
             all_channels = self._get_all_channels(logger, group_ids=target_group_ids)
@@ -1466,13 +1472,19 @@ class Plugin:
             if not country_codes:
                 return {"status": "error", "message": "No country databases selected. Set 'Channel Databases' first."}
 
-            selected_groups_str = settings.get("selected_groups", "").strip()
+            selected_groups_str = (settings.get("selected_groups") or "").strip()
             target_group_ids = None
             if selected_groups_str:
                 all_groups = self._get_all_groups(logger)
                 group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
                 input_names = {name.strip() for name in selected_groups_str.split(',') if name.strip()}
-                target_group_ids = {group_name_to_id[name] for name in input_names if name in group_name_to_id}
+                valid_names = {n for n in input_names if n in group_name_to_id}
+                invalid_names = input_names - valid_names
+                target_group_ids = {group_name_to_id[name] for name in valid_names}
+                if not target_group_ids:
+                    msg = (f"None of the specified groups could be found: "
+                           f"{', '.join(sorted(invalid_names))}")
+                    return {"status": "error", "error": msg}
 
             all_channels = self._get_all_channels(logger, group_ids=target_group_ids)
             channels_without_logos = [

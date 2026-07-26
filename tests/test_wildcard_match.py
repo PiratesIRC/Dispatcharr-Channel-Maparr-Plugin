@@ -48,6 +48,20 @@ def test_results_are_deduplicated(expand):
     assert expand(["Teamarr", "teamarr"], NAMES, ci_plain=True)[0] == ["Teamarr"]
 
 
+def test_glob_matches_case_insensitively_even_when_not_ci_plain(expand):
+    """Globs never consult ci_plain - only literals do. Pinning the asymmetry."""
+    assert expand(["teamarr*"], NAMES, ci_plain=False)[0] == ["Teamarr", "Teamarr Live"]
+
+
+def test_ordering_follows_token_order_then_available_order(expand):
+    # "Sports" is later than "Teamarr" in NAMES, but its token comes first.
+    assert expand(["Sports", "Teamarr"], NAMES, ci_plain=True)[0] == ["Sports", "Teamarr"]
+
+
+def test_name_matched_by_two_different_tokens_appears_once(expand):
+    assert expand(["Teamarr", "Team*"], NAMES, ci_plain=True)[0] == ["Teamarr", "Teamarr Live"]
+
+
 def test_provenance_hash():
     """This file is a verbatim copy of EPG-Janitor's wildcard_match.py.
 

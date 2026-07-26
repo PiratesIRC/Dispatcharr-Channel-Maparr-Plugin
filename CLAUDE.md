@@ -2,6 +2,52 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## NEEDS FIXING - this plugin is deployed root:root on the live box (E3 trap)
+
+Observed 2026-07-26 on the Dispatcharr container. **This plugin is
+`enabled=True`, so it is live in this state.**
+
+```
+drwxr-xr-x 3 root root 4096 Jul 26 11:33 /data/plugins/channel-mapparr
+-rwxr-xr-x 1 root root       aliases.py, *_channels.json, plugin.py, ...
+drwxr-xr-x 2 root root       __pycache__/    <- every .pyc is root-owned too
+```
+
+**Every file and directory is `root:root`.** Dispatcharr's uWSGI workers and
+Celery pools run as **`dispatch`**, so they cannot write anything here.
+
+### Why this happens
+`docker exec` defaults to **root**, and `docker cp` has no ownership flag. Any
+deploy done without `-u dispatch` (or without a follow-up `chown`) creates
+root-owned files. This is the workspace-wide **E3 root-file trap**.
+
+### Why it is dangerous rather than merely untidy
+It fails **silently**. Nothing raises, nothing logs, the action returns its usual
+green toast. The same trap caused **bug-078** in Metricsarr, where the scheduled
+report returned SUCCESS while writing nothing because `/data/logos/metricsarr`
+was `root:root` - the counts were computed before the write, so a green Celery
+result proved only that the task returned.
+
+Today it is latent here because this plugin's writes go to the DB rather than to
+its own directory. It stops being latent the moment any code writes beside its
+own module: a cache, a state file, an export, a downloaded lineup. Root-owned
+`__pycache__` also means the workers cannot refresh bytecode after a code update.
+
+### The fix
+```bash
+docker exec dispatcharr chown -R dispatch:dispatch /data/plugins/channel-mapparr
+docker restart dispatcharr
+```
+Then verify by EFFECT, never by exit code:
+```bash
+docker exec dispatcharr find /data/plugins/channel-mapparr ! -user dispatch
+```
+Empty output means fixed.
+
+### Preventing the recurrence
+Deploy with `docker exec -u dispatch`, and run the `chown` above after every
+`docker cp` into `/data/plugins/`. The chown is mandatory, not optional.
+
 # OpenWolf
 
 @.wolf/OPENWOLF.md
@@ -57,3 +103,46 @@ Support classes in `plugin.py`: `ProgressTracker` (WebSocket progress + ETA + pe
 - `docs/TODO.md` — open work (US category granularity, adding UK/CA to defaults, EPG matching, test suite).
 - `Channel-Maparr.txt` — implementation-status notes (older; CHANGELOG is more current).
 - `.wolf/cerebrum.md` — accumulated do-not-repeat lessons (alias asymmetry, BMP-only emojis, `/data/` writability, parenthesized-abbreviation matching limitation).
+
+
+## Dispatcharr CLIPS every action toast at ~280 characters (measured 2026-07-26)
+
+Found while fixing Newsflasharr. It is a property of **Dispatcharr's frontend**, not of any one
+plugin, so it applies here too.
+
+Dispatcharr mounts Mantine's `Notifications` with `containerWidth: 350` but leaves
+**`notificationMaxHeight` at Mantine's default 200px**, and the notification body clips
+(`overflow:hidden`). At that width and Mantine's `font-size-sm` / `line-height-sm` that is about
+**7 lines of ~40 characters, so roughly 280 characters are visible.** Four details decide how you
+should write an action result:
+
+* it clips from the **MIDDLE**, not the tail, so "put the important part first" does NOT
+  guarantee it is seen;
+* `text-overflow: ellipsis` is **inert** without `white-space: nowrap`, so there is **no visual
+  marker** that anything was cut. It just stops.
+* nothing sets `whiteSpace`, so your newlines **collapse into one paragraph**;
+* `autoClose` is the default **4000 ms**, so even the visible part gets four seconds.
+
+**The card renders exactly three things from an action result:** `message` (the transient toast
+above), `error` (red, persistent) and `file` (persistent, rendered as plain text
+`Output: <path>`, and NOT a clickable link). **`details`, `problems` and `checks` appear in NO
+frontend bundle** - returning them renders nothing at all, anywhere.
+
+**Exposure in THIS plugin, measured 2026-07-26:** `Channel-Maparr/Channel-Maparr/plugin.py` has **41 `"message"` returns, of
+which 29 are built with a `.join(...)` or an embedded `
+`** - that is, multi-line readouts
+the toast structurally cannot show. **Their actual lengths have NOT been measured.** Do that
+before assuming they fit: `len(result["message"])` against the **DEPLOYED** code, not the source
+you believe is deployed.
+
+**The fix Newsflasharr shipped, if you want the pattern** (`1.26.2071641`): write the complete
+readout to a file and return its path in `file`, keeping `message` to a short headline that fits.
+Newsflasharr writes to `/config/newsflasharr/<action>.txt` (= `O:\docker\dispatcharr\config\...`,
+browsable in Explorer). **Deliberately NOT `/data/logos/`**, which nginx serves
+**unauthenticated** to the whole LAN. Design and the measured geometry:
+`notifier/docs/superpowers/specs/2026-07-26-action-readout-files-design.md`; the operational
+record is in `notifier/CLAUDE.md`.
+
+**Newsflasharr's own numbers before and after**, as a sense of scale: `validate_settings` 652 ->
+293 chars, `show_ticker_filter` **989 -> 147** (that one is an ffmpeg string whose entire purpose
+is to be copied, of which ~28% was visible and the hidden tail could not even be selected).

@@ -22,7 +22,7 @@ from .progress_status import (
     build_status_message, load_progress, save_progress_atomic,
 )
 from .group_scope import (
-    GroupScopeError,  # noqa: F401 - re-exported for call-site except clauses
+    GroupScopeError,
     build_name_to_ids,
     resolve_group_scope,
 )
@@ -1012,33 +1012,28 @@ class Plugin:
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Loading channels from database...")
 
-            # Get all groups first to build name-to-id mapping
+            # Get all groups first to build the id-to-name mapping used below
             all_groups = self._get_all_groups(logger)
-            group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
             group_id_to_name = {g['id']: g['name'] for g in all_groups if 'name' in g and 'id' in g}
             self.group_name_map = group_id_to_name
 
-            # Filter by selected groups if specified
-            selected_groups_str = settings.get("selected_groups", "").strip()
-            if selected_groups_str:
-                input_names = {name.strip() for name in selected_groups_str.split(',') if name.strip()}
-                valid_names = {n for n in input_names if n in group_name_to_id}
-                invalid_names = input_names - valid_names
-                target_group_ids = {group_name_to_id[name] for name in valid_names}
+            # Resolve the group scope (include filter minus ignore_groups)
+            try:
+                scope = self._resolve_process_scope(settings, logger)
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
 
-                if not target_group_ids:
-                    return {"status": "error", "error": f"None of the specified groups could be found: {', '.join(invalid_names)}"}
-
-                logger.info(f"{PLUGIN_LOG_PREFIX} Target group IDs: {target_group_ids}")
-            else:
-                target_group_ids = set(group_name_to_id.values())
-                valid_names = set(group_name_to_id.keys())
-
-            # Fetch all channels and filter by group ID
-            all_channels = self._get_all_channels(logger, group_ids=target_group_ids if selected_groups_str else None)
+            all_channels = self._get_all_channels(
+                logger,
+                group_ids=scope.group_ids,
+                include_ungrouped=scope.include_ungrouped,
+            )
 
             channels_to_process = all_channels
-            logger.info(f"{PLUGIN_LOG_PREFIX} Filtered to {len(channels_to_process)} channels in groups: {selected_groups_str if selected_groups_str else 'all groups'}")
+            logger.info(
+                f"{PLUGIN_LOG_PREFIX} Filtered to {len(channels_to_process)} "
+                f"channels ({scope.info})"
+            )
 
             # Store channels with proper group names
             for channel in channels_to_process:
@@ -1452,23 +1447,17 @@ class Plugin:
             # Fetch FRESH channel data from database
             logger.info(f"{PLUGIN_LOG_PREFIX} Fetching current channel data from database...")
 
-            # Get groups to filter
-            selected_groups_str = (settings.get("selected_groups") or "").strip()
-            target_group_ids = None
-            if selected_groups_str:
-                all_groups = self._get_all_groups(logger)
-                group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
-                input_names = {name.strip() for name in selected_groups_str.split(',') if name.strip()}
-                valid_names = {n for n in input_names if n in group_name_to_id}
-                invalid_names = input_names - valid_names
-                target_group_ids = {group_name_to_id[name] for name in valid_names}
-                if not target_group_ids:
-                    msg = (f"None of the specified groups could be found: "
-                           f"{', '.join(sorted(invalid_names))}")
-                    return {"status": "error", "error": msg}
+            # Resolve the group scope (include filter minus ignore_groups)
+            try:
+                scope = self._resolve_process_scope(settings, logger)
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
 
-            # Get all channels
-            all_channels = self._get_all_channels(logger, group_ids=target_group_ids)
+            all_channels = self._get_all_channels(
+                logger,
+                group_ids=scope.group_ids,
+                include_ungrouped=scope.include_ungrouped,
+            )
 
             # Filter channels without logos or with "Default" logo (ID 0)
             channels_without_logos = []
@@ -1520,21 +1509,16 @@ class Plugin:
             if not country_codes:
                 return {"status": "error", "error": "No country databases selected. Set 'Channel Databases' first."}
 
-            selected_groups_str = (settings.get("selected_groups") or "").strip()
-            target_group_ids = None
-            if selected_groups_str:
-                all_groups = self._get_all_groups(logger)
-                group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
-                input_names = {name.strip() for name in selected_groups_str.split(',') if name.strip()}
-                valid_names = {n for n in input_names if n in group_name_to_id}
-                invalid_names = input_names - valid_names
-                target_group_ids = {group_name_to_id[name] for name in valid_names}
-                if not target_group_ids:
-                    msg = (f"None of the specified groups could be found: "
-                           f"{', '.join(sorted(invalid_names))}")
-                    return {"status": "error", "error": msg}
+            try:
+                scope = self._resolve_process_scope(settings, logger)
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
 
-            all_channels = self._get_all_channels(logger, group_ids=target_group_ids)
+            all_channels = self._get_all_channels(
+                logger,
+                group_ids=scope.group_ids,
+                include_ungrouped=scope.include_ungrouped,
+            )
             channels_without_logos = [
                 ch for ch in all_channels
                 if ch.get('logo_id') in (None, 0, '0')
@@ -1635,20 +1619,17 @@ class Plugin:
             group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
             group_id_to_name = {g['id']: g['name'] for g in all_groups if 'name' in g and 'id' in g}
 
-            # Filter by category groups if specified
-            category_groups_str = settings.get("category_groups", "").strip()
-            if category_groups_str:
-                input_names = {name.strip() for name in category_groups_str.split(',') if name.strip()}
-                valid_names = {n for n in input_names if n in group_name_to_id}
-                target_group_ids = {group_name_to_id[name] for name in valid_names}
+            # Resolve the group scope (include filter minus ignore_groups)
+            try:
+                scope = self._resolve_category_scope(settings, logger)
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
 
-                if not target_group_ids:
-                    return {"status": "error", "error": f"None of the specified category groups could be found."}
-            else:
-                target_group_ids = set(group_name_to_id.values())
-
-            # Get all channels and filter by group
-            all_channels = self._get_all_channels(logger, group_ids=target_group_ids)
+            all_channels = self._get_all_channels(
+                logger,
+                group_ids=scope.group_ids,
+                include_ungrouped=scope.include_ungrouped,
+            )
             channels_to_process = all_channels
 
             # Build category mapping from channel databases
@@ -1835,20 +1816,17 @@ class Plugin:
             group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
             group_id_to_name = {g['id']: g['name'] for g in all_groups if 'name' in g and 'id' in g}
 
-            # Filter by category groups if specified
-            category_groups_str = settings.get("category_groups", "").strip()
-            if category_groups_str:
-                input_names = {name.strip() for name in category_groups_str.split(',') if name.strip()}
-                valid_names = {n for n in input_names if n in group_name_to_id}
-                target_group_ids = {group_name_to_id[name] for name in valid_names}
+            # Resolve the group scope (include filter minus ignore_groups)
+            try:
+                scope = self._resolve_category_scope(settings, logger)
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
 
-                if not target_group_ids:
-                    return {"status": "error", "error": f"None of the specified category groups could be found."}
-            else:
-                target_group_ids = set(group_name_to_id.values())
-
-            # Get all channels and filter by group
-            all_channels = self._get_all_channels(logger, group_ids=target_group_ids)
+            all_channels = self._get_all_channels(
+                logger,
+                group_ids=scope.group_ids,
+                include_ungrouped=scope.include_ungrouped,
+            )
             channels_to_process = all_channels
 
             # Build category mapping from channel databases

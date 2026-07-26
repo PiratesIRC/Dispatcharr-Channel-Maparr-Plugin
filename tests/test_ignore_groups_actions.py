@@ -331,6 +331,25 @@ def test_validate_settings_flags_an_ignore_typo_as_a_red_error(
     assert "message" not in result
 
 
+def test_validate_settings_does_not_double_report_an_ignore_typo_via_category_scope(
+        plugin_instance, logger, fake_groups):
+    """SHOULD 5(a) from the re-review: an unmatched ignore_groups token makes
+    BOTH _resolve_process_scope (2b) and _resolve_category_scope (2c) raise
+    the byte-identical GroupScopeError (that message doesn't depend on
+    include_label), so with category_groups also set the pre-fix code printed
+    the same ~200-char complaint twice and reported '2 error(s)' for one
+    broken setting. 2c must be skipped once 2b has already reported it."""
+    fake_groups(GROUPS_WITH_TEAMARR)
+    result = plugin_instance.validate_settings_action(
+        {"channel_databases": "US", "category_groups": "Sports",
+         "ignore_groups": "Teamar"}, logger)
+    assert result["status"] == "error"
+    assert result["error"].count("Teamar") == 1, (
+        "the ignore-typo complaint was printed more than once: "
+        f"{result['error']!r}")
+    assert "1 error(s)" in result["error"]
+
+
 def test_validate_settings_reports_an_out_of_scope_ignore_as_a_warning(
         plugin_instance, logger, fake_groups):
     """A real group name that the ignore filter matched but the include
@@ -384,7 +403,10 @@ def test_validate_settings_category_groups_blank_costs_nothing(
     result = plugin_instance.validate_settings_action(
         {"channel_databases": "US"}, logger)
     assert result["status"] == "success"
-    assert "Category scope" not in result["message"]
+    # Not "Category scope" (the old, longer wording) - the shipped line reads
+    # "Category: OK", and asserting against the old string would pass whether
+    # block 2c is unconditional, conditional, or deleted outright.
+    assert "Category" not in result["message"]
 
 
 def test_validate_settings_does_not_enumerate_out_of_scope_names(
@@ -456,6 +478,43 @@ def test_validate_settings_stays_within_the_toast_budget_on_a_real_profile(
          # capped list, but here every ignore token is out-of-scope
          # (selected_groups excludes them all), which is the scenario that
          # regressed to 282 chars before this fix.
+         "ignore_groups": "Teamarr*, Sport*"},
+        logger)
+
+    message = result.get("message") or result.get("error")
+    assert len(message) <= 260, (
+        f"Validate Settings message is {len(message)} chars, over the "
+        f"260-char regression budget (Dispatcharr clips at ~280): {message!r}")
+
+
+def test_validate_settings_stays_within_the_toast_budget_with_category_groups_set(
+        plugin_instance, logger, fake_groups, monkeypatch, plugin_module):
+    """Same real-box profile as the test above, PLUS a healthy category_groups
+    setting - the combination item 4's re-review flagged as unmeasured by the
+    original pin (that test never sets category_groups, so the new 2c line
+    was outside what it covers). Manual arithmetic put this at 257 chars;
+    pin it so a future regression here is caught, not just estimated."""
+    channel = MagicMock()
+    channel.objects.count.return_value = 1440
+    monkeypatch.setattr(plugin_module, "Channel", channel)
+    logo = MagicMock()
+    logo.objects.count.return_value = 33009
+    monkeypatch.setattr(plugin_module, "Logo", logo)
+    stream = MagicMock()
+    stream.objects.count.return_value = 25469
+    monkeypatch.setattr(plugin_module, "Stream", stream)
+
+    groups = [{"id": 1, "name": "US: ABC"}, {"id": 2, "name": "Teamarr"},
+              {"id": 3, "name": "Teamarr Live"}]
+    groups += [{"id": 10 + i, "name": f"Sport{i}"} for i in range(8)]
+    fake_groups(groups)
+    monkeypatch.setattr(plugin_module.ChannelGroup.objects, "count",
+                         lambda: 947)
+
+    result = plugin_instance.validate_settings_action(
+        {"channel_databases": "US", "selected_groups": "US: ABC",
+         "category_groups": "US: ABC",
+         "m3u_category_filter": "Entertainment", "dry_run_mode": True,
          "ignore_groups": "Teamarr*, Sport*"},
         logger)
 

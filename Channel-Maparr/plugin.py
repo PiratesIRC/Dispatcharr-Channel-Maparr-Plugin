@@ -331,9 +331,10 @@ class Plugin:
                     "of 'Channel Groups to Process' or 'Category Organization "
                     "Groups'. Supports * and ? wildcards; matching is "
                     "case-insensitive. An entry that matches no channel group "
-                    "refuses the run. Organize by Category skips an ignored "
-                    "target group and continues; Import M3U Streams refuses "
-                    "the whole run if its target group is ignored."
+                    "refuses most actions. Organize by Category skips an ignored "
+                    "target group and continues. Import M3U Streams does not "
+                    "check entries against every group; it only refuses if its "
+                    "own target group is ignored."
                 ),
             },
             {
@@ -1706,9 +1707,16 @@ class Plugin:
             if not country_filelists:
                 return {"status": "error", "error": "No tv-logos file lists could be fetched. Check network access or repo path."}
 
+            # Hoisted above the loop: a dry run must create NOTHING, including
+            # the Logo catalog rows the real run creates on a first-time match
+            # (previously created even under Dry Run, orphaning them in the
+            # catalog if the operator then declined the real run).
+            dry_run = settings.get("dry_run_mode", False)
+
             progress = ProgressTracker(len(channels_without_logos), "apply_tv_logos", logger)
             assigned = 0
             no_match = 0
+            would_create = 0
             channel_updates = []
 
             for ch in channels_without_logos:
@@ -1732,6 +1740,12 @@ class Plugin:
 
                 logo = existing_logos_by_url.get(matched_url)
                 if not logo:
+                    if dry_run:
+                        # No Logo.objects.create - a dry run must write nothing.
+                        would_create += 1
+                        assigned += 1
+                        progress.update()
+                        continue
                     try:
                         logo = Logo.objects.create(name=name, url=matched_url)
                         existing_logos_by_url[matched_url] = logo
@@ -1744,12 +1758,14 @@ class Plugin:
                 assigned += 1
                 progress.update()
 
-            if settings.get("dry_run_mode", False):
-                return {"status": "success", "message":
-                        f"Dry Run: would apply logos to {len(channel_updates)} "
-                        f"channel(s) ({no_match} had no match). No channel "
-                        f"changes written. NOTE: any new Logo catalog entries "
-                        f"the match required were already created above."}
+            if dry_run:
+                summary = (
+                    f"Dry Run: would apply logos to {assigned} channel(s) "
+                    f"({no_match} had no match, {would_create} would need a "
+                    f"new Logo catalog entry). No changes written."
+                )
+                progress.finish(summary=f"{summary} Scope: {scope.info}")
+                return {"status": "success", "message": summary}
 
             if channel_updates:
                 self._bulk_update_channels(channel_updates, ['logo_id'], logger)
@@ -3124,6 +3140,17 @@ class Plugin:
             # validation in this action. Kept to one capped line per branch so
             # a wildcard exclusion matching many groups cannot blow the ~280
             # char toast budget.
+            #
+            # ignore_dupe_error is set only when 2b's failure comes from the
+            # ignore filter ITSELF (an unmatched token, or no groups exist at
+            # all) - those two GroupScopeError messages don't mention
+            # include_label, so _resolve_category_scope below would raise the
+            # BYTE-IDENTICAL text and double-print/double-count one
+            # misconfigured setting as "2 error(s)". The "excluded every
+            # group that '<include_label>' selected" message DOES depend on
+            # include_label (process vs category can differ), so that one is
+            # deliberately NOT deduped here.
+            ignore_dupe_error = None
             try:
                 scope = self._resolve_process_scope(settings, logger)
                 # Report only the names that actually removed something from
@@ -3161,6 +3188,10 @@ class Plugin:
                 # mislabel an include-filter typo as an ignore problem.
                 validation_results.append(f"❌ {exc}")
                 error_count += 1
+                exc_text = str(exc)
+                if ("Channel Groups to Ignore" in exc_text
+                        and "excluded every group" not in exc_text):
+                    ignore_dupe_error = exc_text
 
             # 2c. Category scope (category_groups) - without this, a
             # category_groups typo, or an exclusion that empties the category
@@ -3168,9 +3199,13 @@ class Plugin:
             # Category. Only resolved when the setting is non-blank, so the
             # common case (no category filter configured) costs nothing;
             # when configured it costs exactly one line either way, to stay
-            # inside the ~260-char regression budget alongside 2b.
+            # inside the ~260-char regression budget alongside 2b. Skipped
+            # entirely when 2b already reported the identical ignore-filter
+            # failure (see ignore_dupe_error above) - re-resolving would just
+            # print the same complaint twice and report "2 error(s)" for one
+            # broken setting.
             category_groups_str = (settings.get("category_groups") or "").strip()
-            if category_groups_str:
+            if category_groups_str and ignore_dupe_error is None:
                 try:
                     self._resolve_category_scope(settings, logger)
                     validation_results.append("✅ Category: OK")

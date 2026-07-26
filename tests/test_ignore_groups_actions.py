@@ -281,6 +281,32 @@ def test_import_action_refuses_an_ignored_custom_group_before_backgrounding(
     assert "message" not in result
 
 
+def test_format_capped_name_list_caps_at_five_and_summarizes_the_rest(plugin_module):
+    names = [f"Group{i}" for i in range(8)]
+    assert (plugin_module._format_capped_name_list(names) ==
+            "Group0, Group1, Group2, Group3, Group4 and 3 more")
+
+
+def test_format_capped_name_list_does_not_summarize_within_the_cap(plugin_module):
+    assert plugin_module._format_capped_name_list(["A", "B"]) == "A, B"
+
+
+def test_import_refusal_message_is_capped_for_many_ignored_categories(
+        plugin_instance, logger, fake_groups):
+    """Dispatcharr clips action toasts at ~280 chars from the MIDDLE with no
+    visual marker - a wildcard ignore token matching many categories (e.g.
+    "Sport*") must not dump an unbounded name list into the error."""
+    fake_groups([{"id": i, "name": f"Sport{i}"} for i in range(10)])
+    categories = [f"Sport{i}" for i in range(10)]
+    with pytest.raises(Exception) as exc:
+        plugin_instance._ensure_category_groups_exist(
+            categories, {"ignore_groups": "Sport*"}, logger)
+    msg = str(exc.value)
+    assert "Sport0" in msg
+    assert "and 5 more" in msg
+    assert "Sport9" not in msg
+
+
 def test_import_dry_run_refuses_an_ignored_custom_group(
         plugin_instance, logger, fake_groups, monkeypatch):
     """The preview must refuse rather than silently show a plan that the real
@@ -352,7 +378,17 @@ def test_organize_never_creates_or_fills_an_ignored_group(
     """ignore_groups must block the write direction too: a channel-database
     category whose name is ignored must not be created or filled - proven
     against the same seeded scenario the sanity check above confirms reaches
-    the category-write path."""
+    the category-write path.
+
+    NOTE: because "Teamarr" already exists as a group here (id 30),
+    `new_group_name not in group_name_to_id` is False and _get_or_create_group
+    is never called for it either WITH or WITHOUT the guard - so
+    `"Teamarr" not in created` alone is vacuous for the "would CREATE it" claim.
+    This test only covers the ADOPT-an-existing-group direction (the
+    `all(u["id"] != 3 ...)` assertion); the create-a-brand-new-group direction
+    is covered separately below by
+    test_organize_never_creates_an_ignored_group_that_does_not_exist_yet,
+    which uses a category name that does NOT pre-exist as a group."""
     fake_groups([{"id": 10, "name": "Sports"}, {"id": 30, "name": "Teamarr"}])
     _seed_matcher_for_teamarr_category(plugin_instance, monkeypatch)
 
@@ -377,12 +413,118 @@ def test_organize_never_creates_or_fills_an_ignored_group(
     assert "Teamarr" in result["message"]
 
 
+def test_organize_never_creates_an_ignored_group_that_does_not_exist_yet(
+        plugin_instance, logger, fake_groups, fake_channel, monkeypatch):
+    """The create-path variant of the guard test above, using a category name
+    that does NOT already exist as a group, so _get_or_create_group would
+    genuinely be called for it absent the guard.
+
+    A WILDCARD is required to reach this scenario at all: _resolve_category_scope
+    runs first and refuses the whole action when an ignore token matches no
+    existing group, so a bare "Teamarr" token could never reach the loop while
+    the category "Teamarr" itself doesn't exist as a group yet. "Teamarr Live"
+    is a real, pre-existing group so "Teamarr*" resolves the scope check; the
+    channel-database category "Teamarr" (distinct from the group "Teamarr
+    Live") does not exist as a group, so absent the guard it would be CREATED.
+    """
+    fake_groups([{"id": 10, "name": "Sports"}, {"id": 30, "name": "Teamarr Live"}])
+    _seed_matcher_for_teamarr_category(plugin_instance, monkeypatch)
+    created = []
+    monkeypatch.setattr(
+        plugin_instance, "_get_or_create_group",
+        lambda name, lg: created.append(name) or type("G", (), {"id": 99})())
+    monkeypatch.setattr(plugin_instance, "_bulk_update_channels", lambda *a, **k: None)
+    monkeypatch.setattr(plugin_instance, "_trigger_frontend_refresh", lambda *a, **k: None)
+
+    result = plugin_instance.organize_by_category_action(
+        {"channel_databases": "US", "ignore_groups": "Teamarr*", "dry_run_mode": False},
+        logger)
+
+    assert created == []
+    assert "Skipped" in result["message"]
+
+
+def test_organize_creates_the_category_group_when_nothing_is_ignored(
+        plugin_instance, logger, fake_groups, fake_channel, monkeypatch):
+    """Control for the test above: the IDENTICAL setup with ignore_groups
+    removed must actually create the "Teamarr" group. Without this control,
+    `created == []` in the guard test could just as easily mean the seeded
+    category was never reached at all (as happened during development, when
+    _load_channel_data silently overwrote the seeded matcher and every
+    "created == []" assertion passed for the wrong reason)."""
+    fake_groups([{"id": 10, "name": "Sports"}, {"id": 30, "name": "Teamarr Live"}])
+    _seed_matcher_for_teamarr_category(plugin_instance, monkeypatch)
+    created = []
+    monkeypatch.setattr(
+        plugin_instance, "_get_or_create_group",
+        lambda name, lg: created.append(name) or type("G", (), {"id": 99})())
+    monkeypatch.setattr(plugin_instance, "_bulk_update_channels", lambda *a, **k: None)
+    monkeypatch.setattr(plugin_instance, "_trigger_frontend_refresh", lambda *a, **k: None)
+
+    result = plugin_instance.organize_by_category_action(
+        {"channel_databases": "US", "dry_run_mode": False}, logger)
+
+    assert created == ["Teamarr"]
+    assert result["status"] == "success"
+
+
+class _FakeQuerySet:
+    """Local copy of conftest's FakeQuerySet, parameterized by caller-supplied
+    rows. conftest's fixed CHANNEL_ROWS names ("A", "B") are too short to
+    survive matcher normalization (anything under 2 chars is discarded), so a
+    test that needs a SURVIVING (un-ignored) category match alongside an
+    ignored one needs its own longer-named rows. conftest is never modified."""
+
+    def __init__(self, rows, calls):
+        self.rows = rows
+        self.calls = calls
+
+    def filter(self, **kwargs):
+        self.calls.append(kwargs)
+        ids = kwargs["channel_group_id__in"]
+        kept = [r for r in self.rows if r["channel_group_id"] in ids]
+        return _FakeQuerySet(kept, self.calls)
+
+    def values(self, *fields):
+        return [{k: r[k] for k in fields} for r in self.rows]
+
+
+def _install_channel_rows(monkeypatch, plugin_module, rows):
+    calls = []
+    channel = MagicMock()
+    channel.objects.all = lambda: _FakeQuerySet(list(rows), calls)
+    monkeypatch.setattr(plugin_module, "Channel", channel)
+    return calls
+
+
 def test_organize_dry_run_never_previews_an_ignored_target(
-        plugin_instance, logger, fake_groups, fake_channel, monkeypatch, plugin_module, tmp_path):
-    """category_groups_dry_run_action must match what the real run refuses."""
+        plugin_instance, logger, fake_groups, monkeypatch, plugin_module, tmp_path):
+    """category_groups_dry_run_action must match what the real run refuses.
+
+    Seeds a SURVIVING row ("Sportsline" -> category "Sports", an un-ignored,
+    already-existing group) alongside the ignored one ("Orphan" -> "Teamarr")
+    so a CSV is actually written: with only the ignored row present, every
+    move is skipped, `moves` stays empty, and category_groups_dry_run_action
+    early-returns BEFORE ever writing a CSV - which would leave any assertion
+    about CSV contents dead code that always passes vacuously (confirmed by
+    running that variant: csv_files was always []).
+    """
     monkeypatch.setattr(plugin_module.PluginConfig, "EXPORT_DIR", str(tmp_path))
     fake_groups([{"id": 10, "name": "Sports"}, {"id": 30, "name": "Teamarr"}])
-    _seed_matcher_for_teamarr_category(plugin_instance, monkeypatch)
+    monkeypatch.setattr(plugin_instance, "_load_channel_data", lambda *a, **k: True)
+    monkeypatch.setattr(plugin_instance.matcher, "broadcast_channels", [])
+    monkeypatch.setattr(
+        plugin_instance.matcher, "premium_channels_full",
+        [{"channel_name": "Orphan", "category": "Teamarr"},
+         {"channel_name": "Sportsline", "category": "Sports"}])
+    monkeypatch.setattr(
+        plugin_instance.matcher, "premium_channels", ["Orphan", "Sportsline"])
+    _install_channel_rows(monkeypatch, plugin_module, [
+        {"id": 1, "name": "Orphan", "channel_number": 1.0,
+         "channel_group_id": None, "logo_id": None},
+        {"id": 2, "name": "Sportsline", "channel_number": 2.0,
+         "channel_group_id": None, "logo_id": None},
+    ])
 
     result = plugin_instance.category_groups_dry_run_action(
         {"channel_databases": "US", "ignore_groups": "Teamarr"}, logger)
@@ -390,8 +532,15 @@ def test_organize_dry_run_never_previews_an_ignored_target(
     assert result["status"] == "success"
     assert "Skipped" in result["message"]
     csv_files = list(tmp_path.glob("*.csv"))
-    if csv_files:
-        assert "Orphan" not in csv_files[0].read_text(encoding="utf-8")
+    assert csv_files, "a preview CSV must be written for the surviving move"
+    text = csv_files[0].read_text(encoding="utf-8")
+    # The settings header block echoes the setting "Channel Groups to Ignore:
+    # Teamarr" verbatim, so check only the DATA rows (after the CSV column
+    # header) for the ignored name/category, not the whole file.
+    data_rows = text.split("Channel ID,Channel Name")[-1]
+    assert "Orphan" not in data_rows
+    assert "Teamarr" not in data_rows
+    assert "Sportsline" in data_rows
 
 
 def test_preview_excludes_ignored_rows_from_csv_and_counts(

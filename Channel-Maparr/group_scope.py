@@ -64,6 +64,8 @@ def is_ignored_name(name, ignore_value):
     """
     if not name:
         return False
+    if not isinstance(name, str):
+        return False
     tokens = parse_tokens(ignore_value)
     if not tokens:
         return False

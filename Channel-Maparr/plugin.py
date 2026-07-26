@@ -47,6 +47,21 @@ PLUGIN_LOG_PREFIX = "[Channel Mapparr]"
 # is owned by root and not writable by the dispatch uwsgi user.
 PROGRESS_FILE = "/data/channel_mapparr_progress.json"
 
+# Dispatcharr clips action toasts at roughly 280 characters from the MIDDLE
+# with no visual marker, so a name list that enumerates every match of a
+# wildcard ignore token (e.g. "Sport*") could silently truncate the more
+# important parts of the message. Cap enumeration and fall back to a count.
+_MAX_NAMES_IN_MESSAGE = 5
+
+
+def _format_capped_name_list(names, limit=_MAX_NAMES_IN_MESSAGE):
+    """Join up to `limit` names, then summarize the rest as a count."""
+    names = list(names)
+    shown = ", ".join(names[:limit])
+    if len(names) > limit:
+        shown += f" and {len(names) - limit} more"
+    return shown
+
 
 class PluginConfig:
     """Configuration constants for Channel Maparr."""
@@ -1825,7 +1840,7 @@ class Plugin:
                 if ignored_targets:
                     message += (
                         f" Skipped {len(ignored_targets)} ignored target group(s): "
-                        f"{', '.join(sorted(ignored_targets))}."
+                        f"{_format_capped_name_list(sorted(ignored_targets))}."
                     )
                 return {"status": "success", "message": message}
 
@@ -1875,7 +1890,7 @@ class Plugin:
             if ignored_targets:
                 message += (
                     f"\nSkipped {len(ignored_targets)} ignored target group(s): "
-                    f"{', '.join(sorted(ignored_targets))}."
+                    f"{_format_capped_name_list(sorted(ignored_targets))}."
                 )
 
             return {"status": "success", "message": message}
@@ -2034,7 +2049,7 @@ class Plugin:
                 if ignored_targets:
                     message += (
                         f" Skipped {len(ignored_targets)} ignored target group(s): "
-                        f"{', '.join(sorted(ignored_targets))}."
+                        f"{_format_capped_name_list(sorted(ignored_targets))}."
                     )
                 return {"status": "success", "message": message}
 
@@ -2081,7 +2096,7 @@ class Plugin:
             if ignored_targets:
                 message_parts.append(
                     f"\nSkipped {len(ignored_targets)} ignored target group(s): "
-                    f"{', '.join(sorted(ignored_targets))}."
+                    f"{_format_capped_name_list(sorted(ignored_targets))}."
                 )
 
             return {"status": "success", "message": "\n".join(message_parts)}
@@ -2430,8 +2445,8 @@ class Plugin:
         if blocked:
             raise GroupScopeError(
                 f"Import would create or write into group(s) listed in 'Channel "
-                f"Groups to Ignore': {', '.join(blocked)}. Change the import "
-                f"target or remove them from the ignore list."
+                f"Groups to Ignore': {_format_capped_name_list(blocked)}. Change "
+                f"the import target or remove them from the ignore list."
             )
 
     def _ensure_category_groups_exist(self, categories, settings, logger):

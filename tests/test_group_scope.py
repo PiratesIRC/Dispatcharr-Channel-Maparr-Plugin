@@ -239,6 +239,15 @@ def test_is_ignored_name(gs):
     assert gs.is_ignored_name("", "Teamarr") is False
 
 
+def test_is_ignored_name_rejects_a_non_string_name(gs):
+    """A non-string name (e.g. an int slipping through) must return False, not
+    raise from inside name.lower() - this is the safety guard for a
+    data-destructive direction, and an uncaught raise here would be swallowed
+    by a caller's broad except Exception, silently losing the guard."""
+    assert gs.is_ignored_name(3, "Teamarr") is False
+    assert gs.is_ignored_name(None, "Teamarr") is False
+
+
 # --- results-file row filtering ------------------------------------------
 
 ROWS = [

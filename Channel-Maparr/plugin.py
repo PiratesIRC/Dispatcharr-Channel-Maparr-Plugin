@@ -236,7 +236,7 @@ class Plugin:
                     if current == latest_clean:
                         version_message = f"✅ You are up to date (v{current})"
                     else:
-                        version_message = f"🔔 Update available! Current: v{current} → Latest: {latest_version}"
+                        version_message = f"⬆️ Update available! Current: v{current} → Latest: {latest_version}"
             else:
                 # Use cached version info
                 if self.cached_version_info:
@@ -247,7 +247,7 @@ class Plugin:
                     if current == latest_clean:
                         version_message = f"✅ You are up to date (v{current})"
                     else:
-                        version_message = f"🔔 Update available! Current: v{current} → Latest: {latest_version}"
+                        version_message = f"⬆️ Update available! Current: v{current} → Latest: {latest_version}"
                 else:
                     version_message = "ℹ️ Version check will run on next page load"
         except Exception as e:
@@ -297,7 +297,22 @@ class Plugin:
                 "type": "string",
                 "default": "",
                 "placeholder": "Locals, News, Entertainment",
-                "help_text": "Comma-separated. Limits rename/logo actions to these groups. Leave empty for all.",
+                "help_text": "Comma-separated. Limits rename/logo actions to these groups. Leave empty for all. Use 'Channel Groups to Ignore' to exclude instead.",
+            },
+            {
+                "id": "ignore_groups",
+                "label": "Channel Groups to Ignore",
+                "type": "string",
+                "default": "",
+                "placeholder": "Teamarr, PPV*",
+                "help_text": (
+                    "Comma-separated. Channels in these groups are excluded from "
+                    "renaming, tagging, logos and Organize by Category, regardless "
+                    "of 'Channel Groups to Process' or 'Category Organization "
+                    "Groups'. Supports * and ? wildcards; matching is "
+                    "case-insensitive. Does not apply to Import M3U Streams, which "
+                    "refuses to run if its target group is ignored."
+                ),
             },
             {
                 "id": "category_groups",
@@ -305,7 +320,7 @@ class Plugin:
                 "type": "string",
                 "default": "",
                 "placeholder": "Locals, News, Entertainment",
-                "help_text": "Source groups for category-based reorganization. Leave empty for all.",
+                "help_text": "Source groups for category-based reorganization. Leave empty for all. Use 'Channel Groups to Ignore' to exclude instead.",
             },
             {
                 "id": "m3u_sources",
@@ -638,6 +653,7 @@ class Plugin:
             'channel_databases': 'Channel Databases',
             'match_sensitivity': 'Match Sensitivity',
             'selected_groups': 'Channel Groups to Process',
+            'ignore_groups': 'Channel Groups to Ignore',
             'category_groups': 'Channel Groups for Category Organization',
             'm3u_sources': 'M3U Sources',
             'm3u_group_filter': 'M3U Group Filter',

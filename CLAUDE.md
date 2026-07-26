@@ -146,3 +146,20 @@ record is in `notifier/CLAUDE.md`.
 **Newsflasharr's own numbers before and after**, as a sense of scale: `validate_settings` 652 ->
 293 chars, `show_ticker_filter` **989 -> 147** (that one is an ffmpeg string whose entire purpose
 is to be copied, of which ~28% was visible and the hidden tail could not even be selected).
+
+
+## plugin_status button coloured (2026-07-26)
+
+`plugin_status` was the only one of ten actions with no `button_color`; it is now
+`outline`/`blue` (read-only report), matching the other nine. **Verified 10 declared == 10
+served** through the container's real `_normalize_actions` -- an unrecognised colour or variant
+makes the serializer drop the whole action silently.
+
+**COMMITTED ON `feat/ignore-groups`, NOT on main and NOT DEPLOYED.** Byte-compared 2026-07-26:
+the version string matches the container while the code differs, because this was not
+version-bumped.
+
+**Worth recording:** this plugin uses `button_color: "violet"` on `import_m3u_streams`, which is
+OUTSIDE the `blue|cyan|green|orange|red` vocabulary the workspace CLAUDE.md documents. The
+serializer accepts it (Mantine supports more colours than we wrote down). Left alone
+deliberately -- it works, and churning a live plugin for consistency is not worth the risk.

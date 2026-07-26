@@ -1,5 +1,23 @@
 # Channel Maparr — Changelog
 
+## Unreleased
+
+**Removed the plugin's self-update check.** `Plugin.fields` is read on Dispatcharr's
+per-request hot path, and it made a live call to GitHub's releases API (plus a `/data`
+cache write) every time the settings page was rendered. Plugin settings therefore could
+not display without outbound network access, and a slow or unreachable GitHub stalled the
+request.
+
+- Removed the check itself, the three helpers (`_get_latest_version`,
+  `_should_check_for_updates`, `_save_version_check`), the `VERSION_CHECK_FILE` constant
+  and its `/data` cache, and both `urllib` imports from `plugin.py`.
+- The **Plugin Version** field stays, and now simply reports `Installed: vX.Y.Z`. Operators
+  still see what is installed; the plugin no longer has an opinion about what is newest.
+- `tests/test_plugin_contract.py::test_no_update_check_remains` fails the build if any of
+  that machinery returns to `plugin.py`.
+- Unrelated but worth knowing: `logo_matcher.py` still uses the network for the tv-logos
+  file list. That is expected, and it runs inside an action rather than on the request path.
+
 ## v1.26.2071409 (July 26, 2026)
 
 **New setting: "Channel Groups to Ignore"** - process every group except the ones you name.

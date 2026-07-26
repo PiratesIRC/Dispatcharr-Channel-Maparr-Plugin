@@ -12,8 +12,6 @@ import json
 import time
 import tempfile
 import threading
-import urllib.request
-import urllib.error
 from datetime import datetime
 
 # Import the fuzzy matcher module
@@ -90,7 +88,6 @@ class PluginConfig:
 
     # File Paths
     RESULTS_FILE = "/data/channel_mapparr_loaded_channels.json"
-    VERSION_CHECK_FILE = "/data/channel_mapparr_version_check.json"
     EXPORT_DIR = "/data/exports"
 
     # tv-logos GitHub repo for per-channel logo lookup
@@ -232,47 +229,18 @@ class Plugin:
     # Settings rendered by UI
     @property
     def fields(self):
-        """Dynamically generate fields list with version check"""
-        # Check for updates from GitHub
-        version_message = "Checking for updates..."
-        try:
-            # Check if we should perform a version check (once per day)
-            if self._should_check_for_updates():
-                # Perform the version check
-                latest_version = self._get_latest_version("PiratesIRC", "Dispatcharr-Channel-Maparr-Plugin")
+        """Build the fields list. Reads the DB for M3U source options.
 
-                # Check if it's an error message
-                if latest_version.startswith("Error"):
-                    version_message = f"⚠️ Could not check for updates: {latest_version}"
-                else:
-                    # Save the check result
-                    self._save_version_check(latest_version)
-
-                    # Compare versions
-                    current = self.version
-                    # Remove 'v' prefix if present in latest_version
-                    latest_clean = latest_version.lstrip('v')
-
-                    if current == latest_clean:
-                        version_message = f"✅ You are up to date (v{current})"
-                    else:
-                        version_message = f"⬆️ Update available! Current: v{current} → Latest: {latest_version}"
-            else:
-                # Use cached version info
-                if self.cached_version_info:
-                    latest_version = self.cached_version_info['latest_version']
-                    current = self.version
-                    latest_clean = latest_version.lstrip('v')
-
-                    if current == latest_clean:
-                        version_message = f"✅ You are up to date (v{current})"
-                    else:
-                        version_message = f"⬆️ Update available! Current: v{current} → Latest: {latest_version}"
-                else:
-                    version_message = "ℹ️ Version check will run on next page load"
-        except Exception as e:
-            LOGGER.debug(f"{PLUGIN_LOG_PREFIX} Error during version check: {e}")
-            version_message = f"⚠️ Error checking for updates: {str(e)}"
+        There is deliberately NO update check here. This property is on
+        Dispatcharr's per-request hot path, and it used to make a live call to
+        GitHub's releases API (plus a /data cache write) every time the settings
+        page was read. That meant plugin settings could not render without
+        outbound network access, and a slow or hung GitHub stalled the request.
+        The installed version is reported statically below.
+        `tests/test_plugin_contract.py::test_no_update_check_remains` keeps it
+        that way.
+        """
+        version_message = f"Installed: v{self.version}"
 
         # Discover M3U sources from database
         m3u_source_options = [{"value": "_all", "label": "All sources (no filter)"}]
@@ -529,8 +497,6 @@ class Plugin:
         self.group_name_map = {}
 
         # Version check cache state
-        self.version_check_file = PluginConfig.VERSION_CHECK_FILE
-        self.cached_version_info = None
 
         # Background threading
         self._thread = None
@@ -581,94 +547,6 @@ class Plugin:
         threshold = max(0, min(100, threshold))
         logger.info(f"{PLUGIN_LOG_PREFIX} Match sensitivity: {sensitivity} (threshold: {threshold})")
         return threshold
-
-    def _get_latest_version(self, owner, repo):
-        """
-        Fetches the latest release tag name from GitHub using only Python's standard library.
-        Returns the version string or an error message.
-        """
-        url = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
-
-        # Add a user-agent to avoid potential 403 Forbidden errors
-        headers = {
-            'User-Agent': 'Dispatcharr-Plugin-Version-Checker'
-        }
-
-        try:
-            # Create a request object with headers
-            req = urllib.request.Request(url, headers=headers)
-
-            # Make the request and open the URL with a timeout
-            with urllib.request.urlopen(req, timeout=5) as response:
-                # Read the response and decode it as UTF-8
-                data = response.read().decode('utf-8')
-
-                # Parse the JSON string
-                json_data = json.loads(data)
-
-                # Get the tag name
-                latest_version = json_data.get("tag_name")
-
-                if latest_version:
-                    return latest_version
-                else:
-                    return "Error: 'tag_name' key not found."
-
-        except urllib.error.HTTPError as http_err:
-            if http_err.code == 404:
-                return f"Error: Repo not found or has no releases."
-            else:
-                return f"HTTP error: {http_err.code}"
-        except Exception as e:
-            # Catch other errors like timeouts
-            return f"Error: {str(e)}"
-
-    def _should_check_for_updates(self):
-        """
-        Check if we should perform a version check (once per day).
-        Returns True if we should check, False otherwise.
-        Also loads and caches the last check data.
-        """
-        try:
-            if os.path.exists(self.version_check_file):
-                with open(self.version_check_file, 'r') as f:
-                    data = json.load(f)
-                    last_check_time = data.get('last_check_time')
-                    cached_latest_version = data.get('latest_version')
-
-                    if last_check_time and cached_latest_version:
-                        # Check if last check was within 24 hours
-                        last_check_dt = datetime.fromisoformat(last_check_time)
-                        now = datetime.now()
-                        time_diff = now - last_check_dt
-
-                        if time_diff.total_seconds() < 86400:  # 24 hours in seconds
-                            # Use cached data
-                            self.cached_version_info = {
-                                'latest_version': cached_latest_version,
-                                'last_check_time': last_check_time
-                            }
-                            return False  # Don't check again
-
-            # Either file doesn't exist, or it's been more than 24 hours
-            return True
-
-        except Exception as e:
-            LOGGER.debug(f"{PLUGIN_LOG_PREFIX} Error checking version check time: {e}")
-            return True  # Check if there's an error
-
-    def _save_version_check(self, latest_version):
-        """Save the version check result to disk with timestamp"""
-        try:
-            data = {
-                'latest_version': latest_version,
-                'last_check_time': datetime.now().isoformat()
-            }
-            with open(self.version_check_file, 'w') as f:
-                json.dump(data, f, indent=2)
-            LOGGER.debug(f"{PLUGIN_LOG_PREFIX} Saved version check: {latest_version}")
-        except Exception as e:
-            LOGGER.debug(f"{PLUGIN_LOG_PREFIX} Error saving version check: {e}")
 
     def _generate_csv_settings_header(self, settings):
         """Generate CSV header comments with plugin settings"""

@@ -13,8 +13,11 @@ the pure helper modules, and the plugin's static field/action contract — we:
      synthetic name ``channel_maparr``.
 
 Nothing here touches the network or a database. The ``fields`` property on the
-Plugin class *does* (live GitHub version check + ORM query), so tests assert the
-field/action contract against static sources, never by executing that property.
+Plugin class still reads the DB (it lists M3U accounts), so tests assert the
+field/action contract against static sources rather than by executing it.
+
+The property no longer makes a network call: the GitHub update check was
+removed on 2026-07-26 because it ran on Dispatcharr's per-request hot path.
 """
 import importlib.util
 import sys

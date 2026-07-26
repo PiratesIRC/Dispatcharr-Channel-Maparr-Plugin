@@ -927,7 +927,7 @@ class Plugin:
             handler = action_map.get(action)
             if not handler:
                 logger.warning(f"{PLUGIN_LOG_PREFIX} Unknown action: {action}")
-                return {"status": "error", "message": f"Unknown action: {action}"}
+                return {"status": "error", "error": f"Unknown action: {action}"}
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Action triggered: {action}")
             result = handler(settings, logger)
@@ -949,7 +949,7 @@ class Plugin:
 
         except Exception as e:
             LOGGER.exception(f"{PLUGIN_LOG_PREFIX} Error in action '{action}': {e}")
-            return {"status": "error", "message": str(e)}
+            return {"status": "error", "error": str(e)}
 
     def load_and_process_channels_action(self, settings, logger):
         """Load channels from database and process them with channel data."""
@@ -960,7 +960,7 @@ class Plugin:
             channels_loaded = self._load_channel_data(settings, logger)
 
             if not channels_loaded:
-                return {"status": "error", "message": "Channel databases could not be loaded. Please check your channel_databases setting and ensure the files exist."}
+                return {"status": "error", "error": "Channel databases could not be loaded. Please check your channel_databases setting and ensure the files exist."}
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Loading channels from database...")
 
@@ -979,7 +979,7 @@ class Plugin:
                 target_group_ids = {group_name_to_id[name] for name in valid_names}
 
                 if not target_group_ids:
-                    return {"status": "error", "message": f"None of the specified groups could be found: {', '.join(invalid_names)}"}
+                    return {"status": "error", "error": f"None of the specified groups could be found: {', '.join(invalid_names)}"}
 
                 logger.info(f"{PLUGIN_LOG_PREFIX} Target group IDs: {target_group_ids}")
             else:
@@ -1196,7 +1196,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error loading and processing channels: {e}")
-            return {"status": "error", "message": f"Error loading and processing channels: {e}"}
+            return {"status": "error", "error": f"Error loading and processing channels: {e}"}
 
     def preview_changes_action(self, settings, logger):
         """Export a CSV showing the preview of channel renaming changes."""
@@ -1204,7 +1204,7 @@ class Plugin:
 
 
             if not os.path.exists(self.results_file):
-                return {"status": "error", "message": "No processed channels found. Please run 'Load/Process Channels' first."}
+                return {"status": "error", "error": "No processed channels found. Please run 'Load/Process Channels' first."}
 
             with open(self.results_file, 'r') as f:
                 data = json.load(f)
@@ -1266,7 +1266,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error exporting preview: {e}")
-            return {"status": "error", "message": f"Error exporting preview: {e}"}
+            return {"status": "error", "error": f"Error exporting preview: {e}"}
 
     def rename_channels_action(self, settings, logger):
         """Apply the standardized names to channels."""
@@ -1281,7 +1281,7 @@ class Plugin:
                 return self.preview_changes_action(settings, logger)
 
             if not os.path.exists(self.results_file):
-                return {"status": "error", "message": "No processed channels found. Please run 'Load/Process Channels' first."}
+                return {"status": "error", "error": "No processed channels found. Please run 'Load/Process Channels' first."}
 
             with open(self.results_file, 'r') as f:
                 data = json.load(f)
@@ -1311,7 +1311,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error renaming channels: {e}")
-            return {"status": "error", "message": f"Error renaming channels: {e}"}
+            return {"status": "error", "error": f"Error renaming channels: {e}"}
 
     def rename_unknown_channels_action(self, settings, logger):
         """Append suffix to channels that could not be matched (OTA and premium/cable)."""
@@ -1319,7 +1319,7 @@ class Plugin:
 
 
             if not os.path.exists(self.results_file):
-                return {"status": "error", "message": "No processed channels found. Please run 'Load/Process Channels' first."}
+                return {"status": "error", "error": "No processed channels found. Please run 'Load/Process Channels' first."}
 
             # Get suffix with default fallback matching the field default
             suffix = settings.get("unknown_suffix", PluginConfig.DEFAULT_UNKNOWN_SUFFIX)
@@ -1329,7 +1329,7 @@ class Plugin:
 
             # Only reject if suffix is None or empty after strip
             if not suffix or not suffix.strip():
-                return {"status": "error", "message": "No suffix configured. Please set 'Suffix for Unknown Channels' in plugin settings. Default is ' [Unk]' (with leading space)."}
+                return {"status": "error", "error": "No suffix configured. Please set 'Suffix for Unknown Channels' in plugin settings. Default is ' [Unk]' (with leading space)."}
 
             with open(self.results_file, 'r') as f:
                 data = json.load(f)
@@ -1360,7 +1360,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error renaming unknown channels: {e}")
-            return {"status": "error", "message": f"Error renaming unknown channels: {e}"}
+            return {"status": "error", "error": f"Error renaming unknown channels: {e}"}
 
     def apply_logos_action(self, settings, logger):
         """Apply default logo to channels without logos."""
@@ -1370,7 +1370,7 @@ class Plugin:
             default_logo = settings.get("default_logo", "").strip()
 
             if not default_logo:
-                return {"status": "error", "message": "No default logo configured. Please set 'Default Logo' in plugin settings."}
+                return {"status": "error", "error": "No default logo configured. Please set 'Default Logo' in plugin settings."}
 
             # Get all logos from database
             logger.info(f"{PLUGIN_LOG_PREFIX} Fetching all logos from database...")
@@ -1398,7 +1398,7 @@ class Plugin:
 
                 return {
                     "status": "error",
-                    "message": f"Logo '{default_logo}' not found in logo manager.\n\nSearched through {len(all_logos)} logos. Check the Dispatcharr logs to see available logo names."
+                    "error": f"Logo '{default_logo}' not found in logo manager.\n\nSearched through {len(all_logos)} logos. Check the Dispatcharr logs to see available logo names."
                 }
 
             # Fetch FRESH channel data from database
@@ -1456,7 +1456,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error applying logos: {e}")
-            return {"status": "error", "message": f"Error applying logos: {e}"}
+            return {"status": "error", "error": f"Error applying logos: {e}"}
 
     def apply_tv_logos_action(self, settings, logger):
         """Assign per-channel logos by fuzzy-matching channel names to the
@@ -1470,7 +1470,7 @@ class Plugin:
             country_codes_str = settings.get("channel_databases", PluginConfig.DEFAULT_CHANNEL_DATABASES).strip()
             country_codes = [c.strip().upper() for c in country_codes_str.split(',') if c.strip()]
             if not country_codes:
-                return {"status": "error", "message": "No country databases selected. Set 'Channel Databases' first."}
+                return {"status": "error", "error": "No country databases selected. Set 'Channel Databases' first."}
 
             selected_groups_str = (settings.get("selected_groups") or "").strip()
             target_group_ids = None
@@ -1520,7 +1520,7 @@ class Plugin:
                     country_filelists.append((cc.lower(), country_dir, files))
 
             if not country_filelists:
-                return {"status": "error", "message": "No tv-logos file lists could be fetched. Check network access or repo path."}
+                return {"status": "error", "error": "No tv-logos file lists could be fetched. Check network access or repo path."}
 
             progress = ProgressTracker(len(channels_without_logos), "apply_tv_logos", logger)
             assigned = 0
@@ -1570,7 +1570,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error applying tv-logos: {e}")
-            return {"status": "error", "message": f"Error applying tv-logos: {e}"}
+            return {"status": "error", "error": f"Error applying tv-logos: {e}"}
 
     def category_groups_dry_run_action(self, settings, logger):
         """Export a CSV showing which channels would be moved to which category-based groups."""
@@ -1580,7 +1580,7 @@ class Plugin:
             # Load channel data to get categories
             channels_loaded = self._load_channel_data(settings, logger)
             if not channels_loaded:
-                return {"status": "error", "message": "Channel databases could not be loaded."}
+                return {"status": "error", "error": "Channel databases could not be loaded."}
 
             # Get all groups and channels
             all_groups = self._get_all_groups(logger)
@@ -1595,7 +1595,7 @@ class Plugin:
                 target_group_ids = {group_name_to_id[name] for name in valid_names}
 
                 if not target_group_ids:
-                    return {"status": "error", "message": f"None of the specified category groups could be found."}
+                    return {"status": "error", "error": f"None of the specified category groups could be found."}
             else:
                 target_group_ids = set(group_name_to_id.values())
 
@@ -1763,7 +1763,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error generating category groups preview: {e}")
-            return {"status": "error", "message": f"Error generating category groups preview: {e}"}
+            return {"status": "error", "error": f"Error generating category groups preview: {e}"}
 
     def organize_by_category_action(self, settings, logger):
         """Create groups based on category names and move matching channels to those groups."""
@@ -1780,7 +1780,7 @@ class Plugin:
             # Load channel data to get categories
             channels_loaded = self._load_channel_data(settings, logger)
             if not channels_loaded:
-                return {"status": "error", "message": "Channel databases could not be loaded."}
+                return {"status": "error", "error": "Channel databases could not be loaded."}
 
             # Get all groups and channels
             all_groups = self._get_all_groups(logger)
@@ -1795,7 +1795,7 @@ class Plugin:
                 target_group_ids = {group_name_to_id[name] for name in valid_names}
 
                 if not target_group_ids:
-                    return {"status": "error", "message": f"None of the specified category groups could be found."}
+                    return {"status": "error", "error": f"None of the specified category groups could be found."}
             else:
                 target_group_ids = set(group_name_to_id.values())
 
@@ -1930,7 +1930,7 @@ class Plugin:
                     })
 
             if not updates:
-                return {"status": "error", "message": "Failed to create necessary groups. Please check logs."}
+                return {"status": "error", "error": "Failed to create necessary groups. Please check logs."}
 
             # Apply the moves using ORM
             logger.info(f"{PLUGIN_LOG_PREFIX} Moving {len(updates)} channels to category-based groups...")
@@ -1952,7 +1952,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error organizing channels by category: {e}")
-            return {"status": "error", "message": f"Error organizing channels by category: {e}"}
+            return {"status": "error", "error": f"Error organizing channels by category: {e}"}
 
     # ========================================
     # M3U STREAM IMPORT METHODS
@@ -2649,7 +2649,7 @@ class Plugin:
             streams = self._fetch_streams_from_m3u_sources(settings, logger)
 
             if not streams:
-                return {"status": "error", "message": "No streams found in specified M3U sources"}
+                return {"status": "error", "error": "No streams found in specified M3U sources"}
 
             # Step 2: Match streams to categories
             matched_by_category, unmatched_streams = self._match_streams_to_categories(
@@ -2659,7 +2659,7 @@ class Plugin:
             if not matched_by_category:
                 return {
                     "status": "error",
-                    "message": f"No streams matched to channel databases. {len(unmatched_streams)} unmatched streams."
+                    "error": f"No streams matched to channel databases. {len(unmatched_streams)} unmatched streams."
                 }
 
             # Step 3: Check which category groups exist
@@ -2698,7 +2698,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} M3U import dry run failed: {e}")
-            return {"status": "error", "message": f"Dry run failed: {str(e)}"}
+            return {"status": "error", "error": f"Dry run failed: {str(e)}"}
 
     def _do_import_m3u_streams(self, settings, logger):
         """Core M3U import logic."""
@@ -2708,7 +2708,7 @@ class Plugin:
         streams = self._fetch_streams_from_m3u_sources(settings, logger)
 
         if not streams:
-            return {"status": "error", "message": "No streams found in specified M3U sources"}
+            return {"status": "error", "error": "No streams found in specified M3U sources"}
 
         # Step 2: Match streams to categories
         matched_by_category, unmatched_streams = self._match_streams_to_categories(
@@ -2718,7 +2718,7 @@ class Plugin:
         if not matched_by_category:
             return {
                 "status": "error",
-                "message": f"No streams matched to channel databases. {len(unmatched_streams)} unmatched streams."
+                "error": f"No streams matched to channel databases. {len(unmatched_streams)} unmatched streams."
             }
 
         # Step 3: Ensure category groups exist
@@ -2791,7 +2791,7 @@ class Plugin:
             return self.import_m3u_streams_dry_run_action(settings, logger)
 
         if not self._try_start_thread(self._do_import_m3u_streams_bg, (copy.deepcopy(settings), logger)):
-            return {"status": "error", "message": "An operation is already running. Please wait for it to finish."}
+            return {"status": "error", "error": "An operation is already running. Please wait for it to finish."}
 
         return {
             "status": "ok",
@@ -2880,10 +2880,9 @@ class Plugin:
 
             message = "\n".join(validation_results)
 
-            return {
-                "status": status,
-                "message": message
-            }
+            if status == "error":
+                return {"status": status, "error": message}
+            return {"status": status, "message": message}
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error during settings validation: {e}")
@@ -2891,7 +2890,7 @@ class Plugin:
             traceback.print_exc()
             return {
                 "status": "error",
-                "message": f"Validation error: {e}\n\nSee logs for details."
+                "error": f"Validation error: {e}\n\nSee logs for details."
             }
 
     def plugin_status_action(self, settings, logger):
@@ -2937,4 +2936,4 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error clearing CSV exports: {e}")
-            return {"status": "error", "message": f"Error clearing CSV exports: {e}"}
+            return {"status": "error", "error": f"Error clearing CSV exports: {e}"}

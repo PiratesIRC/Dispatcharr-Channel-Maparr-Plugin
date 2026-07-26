@@ -1272,7 +1272,16 @@ class Plugin:
 
             all_changes = data.get('changes', [])
 
+            # Dry run must reflect the same exclusion the real run applies, or
+            # the preview contradicts what Rename/Tag Unknown actually does.
+            all_changes, ignored_rows = split_rows_by_ignore(
+                all_changes, settings.get("ignore_groups"))
+
             if not all_changes:
+                if ignored_rows:
+                    return {"status": "success", "message":
+                            f"No changes to preview; all {len(ignored_rows)} "
+                            f"pending change(s) are in ignored groups."}
                 return {"status": "success", "message": "No changes to preview."}
 
             # Create export directory if it does not exist
@@ -1320,9 +1329,13 @@ class Plugin:
             renamed_count = sum(1 for c in all_changes if c.get('status') == 'Renamed')
             skipped_count = sum(1 for c in all_changes if c.get('status') == 'Skipped')
 
+            preview_message = f"✓ Preview exported to: {csv_filename}\n\n{renamed_count} channels will be renamed, {skipped_count} will be skipped."
+            if ignored_rows:
+                preview_message += f"\n{len(ignored_rows)} row(s) in ignored groups were excluded."
+
             return {
                 "status": "success",
-                "message": f"✓ Preview exported to: {csv_filename}\n\n{renamed_count} channels will be renamed, {skipped_count} will be skipped."
+                "message": preview_message
             }
 
         except Exception as e:

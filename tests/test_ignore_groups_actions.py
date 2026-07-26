@@ -1,5 +1,6 @@
 """Action-level scope behaviour."""
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -144,3 +145,71 @@ def test_organize_by_category_reads_category_groups_not_selected_groups(
     }, logger)
     assert result["status"] == "error"
     assert "Nope" in result["error"]
+
+
+def _results_file(tmp_path, changes):
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps({"changes": changes}), encoding="utf-8")
+    return str(path)
+
+
+def test_rename_skips_rows_in_an_ignored_group(
+        plugin_instance, logger, tmp_path, monkeypatch):
+    """The stale-file case: the results file predates the ignore setting."""
+    changes = [
+        {"channel_id": 1, "current_name": "a", "new_name": "A",
+         "status": "Renamed", "channel_group": "Sports"},
+        {"channel_id": 2, "current_name": "b", "new_name": "B",
+         "status": "Renamed", "channel_group": "Teamarr"},
+    ]
+    monkeypatch.setattr(plugin_instance, "results_file",
+                        _results_file(tmp_path, changes))
+    captured = []
+    monkeypatch.setattr(plugin_instance, "_bulk_update_channels",
+                        lambda updates, fields, lg: captured.extend(updates))
+    monkeypatch.setattr(plugin_instance, "_trigger_frontend_refresh",
+                        lambda *a, **k: None)
+
+    result = plugin_instance.rename_channels_action(
+        {"dry_run_mode": False, "ignore_groups": "Teamarr"}, logger)
+
+    assert [u["id"] for u in captured] == [1]
+    assert result["status"] == "success"
+    assert "1" in result["message"]
+
+
+def test_tag_unknown_skips_rows_in_an_ignored_group(
+        plugin_instance, logger, tmp_path, monkeypatch):
+    changes = [
+        {"channel_id": 1, "current_name": "a", "status": "Skipped",
+         "channel_group": "Sports"},
+        {"channel_id": 2, "current_name": "b", "status": "Skipped",
+         "channel_group": "Teamarr"},
+    ]
+    monkeypatch.setattr(plugin_instance, "results_file",
+                        _results_file(tmp_path, changes))
+    captured = []
+    monkeypatch.setattr(plugin_instance, "_bulk_update_channels",
+                        lambda updates, fields, lg: captured.extend(updates))
+    monkeypatch.setattr(plugin_instance, "_trigger_frontend_refresh",
+                        lambda *a, **k: None)
+
+    plugin_instance.rename_unknown_channels_action(
+        {"unknown_suffix": " [Unk]", "ignore_groups": "Teamarr"}, logger)
+
+    assert [u["id"] for u in captured] == [1]
+
+
+def test_rename_reports_when_everything_was_ignored(
+        plugin_instance, logger, tmp_path, monkeypatch):
+    changes = [{"channel_id": 2, "current_name": "b", "new_name": "B",
+                "status": "Renamed", "channel_group": "Teamarr"}]
+    monkeypatch.setattr(plugin_instance, "results_file",
+                        _results_file(tmp_path, changes))
+    monkeypatch.setattr(plugin_instance, "_bulk_update_channels",
+                        lambda *a, **k: pytest.fail("must not write"))
+
+    result = plugin_instance.rename_channels_action(
+        {"dry_run_mode": False, "ignore_groups": "Teamarr"}, logger)
+    assert result["status"] == "success"
+    assert "ignored" in result["message"].lower()

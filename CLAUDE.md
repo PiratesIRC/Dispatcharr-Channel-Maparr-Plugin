@@ -2,19 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## NEEDS FIXING - this plugin is deployed root:root on the live box (E3 trap)
+## FIXED 2026-07-26 - the E3 root-file trap on the live box (keep this, the cause recurs)
 
-Observed 2026-07-26 on the Dispatcharr container. **This plugin is
-`enabled=True`, so it is live in this state.**
+**Resolved the same day it was found.** `chown -R dispatch:dispatch` was applied
+and verified BY EFFECT (`find ... ! -user dispatch` went from 31 entries to 0),
+then the container was restarted. Re-verified after the later
+`1.26.2071409` deploy: still 0. Post-fix state is `dispatch:dispatch`
+throughout, container healthy, 1440 channels / 947 groups unchanged.
 
-```
-drwxr-xr-x 3 root root 4096 Jul 26 11:33 /data/plugins/channel-mapparr
--rwxr-xr-x 1 root root       aliases.py, *_channels.json, plugin.py, ...
-drwxr-xr-x 2 root root       __pycache__/    <- every .pyc is root-owned too
-```
+Kept because the CAUSE recurs on every deploy, and because the reasoning below
+is the argument for why the chown is mandatory rather than tidy-up.
 
-**Every file and directory is `root:root`.** Dispatcharr's uWSGI workers and
-Celery pools run as **`dispatch`**, so they cannot write anything here.
+**What was observed:** every file and directory under
+`/data/plugins/channel-mapparr` was `root:root`, including `__pycache__`, while
+Dispatcharr's uWSGI workers and Celery pools run as **`dispatch`** and so could
+not write anything there. The plugin was `enabled=True` at the time.
 
 ### Why this happens
 `docker exec` defaults to **root**, and `docker cp` has no ownership flag. Any
@@ -28,12 +30,15 @@ report returned SUCCESS while writing nothing because `/data/logos/metricsarr`
 was `root:root` - the counts were computed before the write, so a green Celery
 result proved only that the task returned.
 
-Today it is latent here because this plugin's writes go to the DB rather than to
-its own directory. It stops being latent the moment any code writes beside its
-own module: a cache, a state file, an export, a downloaded lineup. Root-owned
-`__pycache__` also means the workers cannot refresh bytecode after a code update.
+It was latent here because this plugin's writes go to the DB rather than to its
+own directory. It stops being latent the moment any code writes beside its own
+module: a cache, a state file, an export, a downloaded lineup. Root-owned
+`__pycache__` also means the workers cannot refresh bytecode after a code update,
+which is the part that bit the 2026-07-26 deploy: the deploying agent reasoned
+the chown was unnecessary "because the plugin only reads these files", which is
+true of the module files and false of `__pycache__`.
 
-### The fix
+### The fix (already applied; this is the recipe for next time)
 ```bash
 docker exec dispatcharr chown -R dispatch:dispatch /data/plugins/channel-mapparr
 docker restart dispatcharr
@@ -90,7 +95,13 @@ Support classes in `plugin.py`: `ProgressTracker` (WebSocket progress + ETA + pe
 
 **`Channel-Maparr/logo_matcher.py`** — Stateless tv-logo/tv-logos fetcher. `fetch_tv_logos_filelist` uses the **Git Trees API with `recursive=1`** (the Contents API silently truncates at 1000 entries, which breaks `united-states`). Caller (`apply_tv_logos_action`) caches the result on `self._tv_logos_cache` per `(repo, branch, country_dir)` to respect GitHub anonymous rate limits (60 req/hr/IP).
 
-**`Channel-Maparr/progress_status.py`** — Django-free helpers: `load_progress`, `save_progress_atomic`, `build_status_message`. Used by `ProgressTracker._persist` and `plugin_status_action`. Path **must** live in `/data/` (not the plugin dir, which is `root:root` mode 755 and unwritable by the uwsgi `dispatch` user).
+**`Channel-Maparr/progress_status.py`** — Django-free helpers: `load_progress`, `save_progress_atomic`, `build_status_message`. Used by `ProgressTracker._persist` and `plugin_status_action`. Path **must** live in `/data/` (the plugin dir was historically `root:root` mode 755 and unwritable by the uwsgi `dispatch` user; it is `dispatch`-owned since 2026-07-26, but keep state in `/data/` regardless since any deploy can reintroduce root ownership).
+
+**`Channel-Maparr/group_scope.py`** (new 2026-07-26) — Pure, Django-free channel-group scope resolution, the whole contract behind the **"Channel Groups to Ignore"** (`ignore_groups`) setting. Exports `parse_tokens`, `build_name_to_ids` (name -> **set** of ids, because Dispatcharr permits duplicate group names and a scalar map leaves one unprotected), `GroupScope` (frozen; `group_ids`, `include_ungrouped`, `ignored_names`, `out_of_scope_names`, `info` — note `ignored_names` is a **superset** of `out_of_scope_names`, so summing the two over-counts), `GroupScopeError`, `resolve_group_scope`, `split_rows_by_ignore`, `is_ignored_name`. Zero mocks needed to test it. **Two asymmetries are deliberate and both are pinned by tests:** `resolve_group_scope` **refuses** when an ignore token matches no group in the DB (a typo must not degrade to "process everything"), while `split_rows_by_ignore` deliberately does **not** refuse when a valid group simply has no rows in the current results file. `plugin.py` imports it with the same try-relative/except-absolute pattern `fuzzy_matcher.py` uses, because `tests/conftest.py` loads the folder as a synthetic package **without** putting it on `sys.path`.
+
+**`Channel-Maparr/wildcard_match.py`** (new 2026-07-26) — `expand_patterns(tokens, available_names, ci_plain)`, a byte-identical vendored copy of EPG-Janitor's helper, pinned by a provenance-hash test. **Do not edit it**; that breaks the pin. Globs (`*`/`?`) are case-insensitive **unconditionally**; only literal tokens consult `ci_plain` (this plugin passes `True`, EPG-Janitor passes `False`). It uses `.lower()`, not `.casefold()`, so Turkish dotted-I and German sharp-s do not fold — a documented limit with a test pinning it.
+
+**Where `ignore_groups` is enforced** (all of it, because none of these paths is optional): the five `_get_all_channels` call sites; `rename_channels_action`, `rename_unknown_channels_action` and `preview_changes_action`, which replay a persisted results file and never query the DB (so a file produced before the exclusion was set is still filtered, matched on the stored group **name** so it survives a rename or delete); and the two **write** directions, where Organize skips an ignored category target and continues while Import M3U Streams refuses the whole run. `tests/test_group_scope_wiring.py` is an AST guard pinning the fetch-site count, forbidding a literal `None` or a conditional `group_ids`, requiring both kwargs to trace to a resolver result, and confining `Channel.objects` to an allowlist — with synthetic self-tests so it cannot rot into a no-op.
 
 **`Channel-Maparr/<CC>_channels.json`** — static per-country channel/category databases (US, UK, CA, BR, DE, ES, FR, MX, NL, AU, IN, NO). `channel_databases` setting selects which to load via `FuzzyMatcher.reload_databases()`. These contain ONLY premium `National`/`Regional` entries (no `broadcast` type, no `callsign` field) — they feed `premium_channels`, never `broadcast_channels`. Editing these JSON files is how match coverage and category granularity are tuned (see `docs/TODO.md`).
 
@@ -99,7 +110,7 @@ Support classes in `plugin.py`: `ProgressTracker` (WebSocket progress + ETA + pe
 ## Reference docs
 
 - `MIGRATION_GUIDE.md` — ORM patterns/recipes and common pitfalls (`.values()` returns `logo_id` not `logo`; `bulk_update` can't use `@property` fields; Stream uses `channel_group` FK, not `group_title`).
-- `docs/CHANGELOG.md` — release history and rationale (latest: 2026-07-12 — **v1.26.1930617**, bug-105 zero-width `Cf` strip re-vendor, RELEASED [bare tag, `v`-prefixed Release title]; **NO Hub PR was opened — user said not to push to the Hub**, so the Hub still serves the older version. Previous: 2026-06-29 v1.26.1801833 bug-098 callsign-rescue core hardening; 2026-06-28 matcher shared-core migration).
+- `docs/CHANGELOG.md` — release history and rationale (latest: 2026-07-26 — **v1.26.2071409**, the `ignore_groups` feature; and **v1.26.2071035** the same day, a hardening slice carrying bug-044. Both are DEPLOYED and accepted on the live box and merged to `main` (`9082303`, `--no-ff`), pushed to origin. **NOT tagged and NO Hub PR — neither was requested**, so the Hub still serves a much older version. Previous: 2026-07-12 v1.26.1930617 bug-105 zero-width `Cf` strip; 2026-06-29 v1.26.1801833 bug-098 callsign-rescue hardening; 2026-06-28 matcher shared-core migration).
 - `docs/TODO.md` — open work (US category granularity, adding UK/CA to defaults, EPG matching, test suite).
 - `Channel-Maparr.txt` — implementation-status notes (older; CHANGELOG is more current).
 - `.wolf/cerebrum.md` — accumulated do-not-repeat lessons (alias asymmetry, BMP-only emojis, `/data/` writability, parenthesized-abbreviation matching limitation).

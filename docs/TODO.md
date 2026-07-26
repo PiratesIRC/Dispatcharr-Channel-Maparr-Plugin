@@ -63,3 +63,55 @@
 - [ ] **PR #2 (`RedShieldArr`)** — Closed-out by v1.26.1430910 (alias support superseded). Remaining unique bits:
   - `_expand_ignored_tags()` DRY helper for the 4 duplicated bracket/paren expansion blocks.
   - **Debug Match Export** action + `debug_top_n` setting. Must route through `get_candidates()` + normalization cache (the PR's version bypassed the token pre-filter).
+
+## GUI / UX backlog (requested 2026-07-26)
+
+- [ ] **Quick Start block at the top of the settings** â€” Mirror the pattern EPG-Janitor uses: a short
+  "New here?" orientation paragraph naming the recommended run order, noting that every mutating
+  action has a Preview/Dry Run to run first, and that long jobs continue in the background and are
+  watched via Show Status. Must be written WITHOUT em dashes (use commas, semicolons, parentheses or
+  a period). BMP-only characters, since Dispatcharr's loader silently drops an action containing any
+  character above U+FFFF. EPG-Janitor's wording, kept here only as a shape reference:
+  "Quick Start / New here? Typical workflow: 1) Validate 2) Scan Missing finds channels whose EPG has
+  no program data 3) Preview Auto-Match, then Apply Auto-Match to assign EPG 4) Preview Heal, then
+  Apply Heal to repair stale assignments. Every action that changes data has a Preview, run it first.
+  Long jobs keep running in the background, click Status / Results to watch them."
+  Channel-Maparr's own documented run order is: Validate Settings, Load and Process Channels, Rename
+  Channels, Tag Unknown Channels, Apply Default Logo, Apply Per-Channel Logos (tv-logos), Organize by
+  Category, Import M3U Streams, with Show Status and Clear CSV Exports as utilities.
+
+- [ ] **Button in settings linking to the GitHub issues page** â€” a one-click way to file a bug or a
+  feature request from inside Dispatcharr, pointing at
+  `https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/issues`. Check first whether
+  Dispatcharr's field/action schema can render a link or must use an action that returns the URL in
+  its `message`; an action can only return text, so a true hyperlink may not be renderable.
+
+- [ ] **Remove the version checker** â€” `Plugin.fields` currently performs a LIVE GitHub HTTP request
+  (`_get_latest_version`) plus an ORM query every time the property is read, which is on Dispatcharr's
+  per-request hot path. Removing it also removes the reason tests must never execute the `fields`
+  property, and removes a network dependency from plugin load. Check what surfaces the result to the
+  user before deleting, and drop the now-dead cache-file helpers with it.
+
+## Channel database refresh (measured 2026-07-26, do AFTER the ignore_groups slice ships)
+
+- [ ] **Five country databases are stale; EPG-Janitor holds the newest data.** Channel-Maparr sits on
+  `2025-11-10` / `2025-12-08` for AU, CA, ES, UK and US, while `EPG-Janitor/EPG-Janitor/*.json`
+  carries `2026-05-17`. Net new channels after discounting duplicates: AU +126 (50 to 176, more than
+  tripling), CA +107, ES +123, UK +45, US +171, so about **+572** genuinely new entries. The other
+  seven databases (BR, DE, FR, IN, MX, NL, NO) are at the same version in every plugin.
+
+  **Two traps, both measured:**
+
+  1. **EPG-Janitor's newer files still contain 247 byte-identical duplicate rows** (CA 62, ES 17,
+     UK 168). A straight file copy would fail this repo's own
+     `tests/test_data_integrity.py::test_no_identical_duplicate_rows`. Re-run the dedup after
+     importing, and keep the test as the gate.
+  2. **Do NOT sync from Stream-Mapparr.** Its counts are higher at identical versions only because
+     it still carries all 651 duplicate rows this repo removed on 2026-06-10 (BR 43, CA 62, DE 136,
+     ES 17, FR 19, MX 206, UK 168). Channel-Maparr has zero duplicates in all 12 files; copying from
+     Stream-Mapparr would be a regression, not an upgrade.
+
+  `networks.json` needs no action: it is byte-identical to Stream-Mapparr's (1,915 FCC stations).
+
+  Because +572 channels changes matching behaviour, give this its own version bump and its own
+  before/after dry-run comparison rather than folding it into a feature release.

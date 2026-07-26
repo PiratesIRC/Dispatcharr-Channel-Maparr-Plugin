@@ -1,5 +1,56 @@
 # Channel Maparr — Changelog
 
+## v1.26.2071409 (July 26, 2026)
+
+**New setting: "Channel Groups to Ignore"** - process every group except the ones you name.
+Requested by a user running Teamarr, which owns its own static channel group.
+
+- Comma-separated, supports `*` and `?` wildcards, case-insensitive. Composes with
+  "Channel Groups to Process" (include first, then subtract), so leaving that blank and
+  ignoring one group gives "everything except that group".
+- **Enforced everywhere it has to be**, not just where it was easy: the five channel-fetch
+  sites, the two actions that replay a persisted results file without fetching channels
+  (Rename Channels, Tag Unknown Channels, and the dry-run preview - a stale results file
+  produced before the exclusion was set is still filtered, not just a live query), and the
+  two write directions that could otherwise create channels *into* an ignored group
+  (Organize by Category's target groups, and Import M3U Streams' destination, which now
+  refuses the whole run rather than skip the one target). That asymmetry (Organize skips and
+  continues, Import refuses the run) is deliberate: Organize is one write per category target,
+  Import is one run per destination group.
+- **Does not apply to Import M3U Streams' stream matching or duplicate detection.** Those
+  read channel names in ignored groups to decide what already exists, but never write to
+  them, so the exclusion has nothing to guard there.
+- **Fail-closed on a typo.** An entry matching no group refuses the run rather than
+  degrading to "process everything" - silent damage to the channels you were protecting is
+  the failure this setting exists to prevent. A stray comma reads as blank, not as an
+  unmatched entry. Validate Settings reports the resolved exclusion.
+- **Organize by Category now also organizes channels that are in no group.** Previously they
+  were silently skipped by the same `if group_ids:` gap that bug-044 fixed for the logo
+  actions in the prior release. This is a real behaviour change for other installs; on this
+  box it is inert (0 of 1440 channels are currently ungrouped).
+
+**Divergence from EPG-Janitor, deliberately:** EPG-Janitor raises when both its group filters
+are set, though its help text says the ignore list is applied after the include filter.
+Channel-Maparr implements the help text as written. See the spec's follow-ups.
+
+## v1.26.2071035 (July 26, 2026)
+
+**Hardening release. No new settings.** Fixes three defects found while designing the
+`ignore_groups` feature (`docs/superpowers/specs/2026-07-26-ignore-groups-design.md`).
+
+- **bug-044 — a typo in "Channel Groups to Process" applied logos to EVERY channel.**
+  `_get_all_channels` guarded with `if group_ids:`, so an empty set was indistinguishable
+  from `None` and both meant "no filter". The two logo actions built their include set with
+  no error path, so an unresolvable value silently widened the scope from the named groups to
+  the whole database. Fixed in two layers: an empty set now filters to nothing (loudly), and
+  both logo actions refuse an unresolvable include filter with a visible error.
+- **Ungrouped channels are no longer at risk of being evicted** when a scope is explicit.
+  Channels with no channel group were included only because a blank filter passed `None`.
+- **Every failure is now visible.** Dispatcharr's plugin card renders `error` (persistent
+  red) and `message` (a transient green toast) but never `status`, and this plugin set
+  `error` on none of its ~30 failure returns — so every failure looked like success. An AST
+  guard now enforces it.
+
 ## v1.26.1930617 (2026-07-12)
 
 Vendor-sync of the shared matcher core (`matching_core.py`) with the **bug-105** zero-width Unicode strip landed in the workspace source.

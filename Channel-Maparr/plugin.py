@@ -21,6 +21,16 @@ from .fuzzy_matcher import FuzzyMatcher
 from .progress_status import (
     build_status_message, load_progress, save_progress_atomic,
 )
+from .group_scope import (
+    GroupScopeError,
+    build_name_to_ids,
+    is_ignored_name,
+    is_ignored_name_tokens,
+    parse_tokens,
+    resolve_group_scope,
+    split_rows_by_ignore,
+)
+from .wildcard_match import expand_patterns
 
 # Django model imports
 from apps.channels.models import Channel, ChannelGroup, Logo, Stream, ChannelStream
@@ -40,11 +50,26 @@ PLUGIN_LOG_PREFIX = "[Channel Mapparr]"
 # is owned by root and not writable by the dispatch uwsgi user.
 PROGRESS_FILE = "/data/channel_mapparr_progress.json"
 
+# Dispatcharr clips action toasts at roughly 280 characters from the MIDDLE
+# with no visual marker, so a name list that enumerates every match of a
+# wildcard ignore token (e.g. "Sport*") could silently truncate the more
+# important parts of the message. Cap enumeration and fall back to a count.
+_MAX_NAMES_IN_MESSAGE = 5
+
+
+def _format_capped_name_list(names, limit=_MAX_NAMES_IN_MESSAGE):
+    """Join up to `limit` names, then summarize the rest as a count."""
+    names = list(names)
+    shown = ", ".join(names[:limit])
+    if len(names) > limit:
+        shown += f" and {len(names) - limit} more"
+    return shown
+
 
 class PluginConfig:
     """Configuration constants for Channel Maparr."""
 
-    PLUGIN_VERSION = "1.26.1930617"
+    PLUGIN_VERSION = "1.26.2071409"
 
     # Channel Database Settings
     DEFAULT_CHANNEL_DATABASES = "US"
@@ -231,7 +256,7 @@ class Plugin:
                     if current == latest_clean:
                         version_message = f"✅ You are up to date (v{current})"
                     else:
-                        version_message = f"🔔 Update available! Current: v{current} → Latest: {latest_version}"
+                        version_message = f"⬆️ Update available! Current: v{current} → Latest: {latest_version}"
             else:
                 # Use cached version info
                 if self.cached_version_info:
@@ -242,7 +267,7 @@ class Plugin:
                     if current == latest_clean:
                         version_message = f"✅ You are up to date (v{current})"
                     else:
-                        version_message = f"🔔 Update available! Current: v{current} → Latest: {latest_version}"
+                        version_message = f"⬆️ Update available! Current: v{current} → Latest: {latest_version}"
                 else:
                     version_message = "ℹ️ Version check will run on next page load"
         except Exception as e:
@@ -292,7 +317,25 @@ class Plugin:
                 "type": "string",
                 "default": "",
                 "placeholder": "Locals, News, Entertainment",
-                "help_text": "Comma-separated. Limits rename/logo actions to these groups. Leave empty for all.",
+                "help_text": "Comma-separated. Limits rename/logo actions to these groups. Leave empty for all. Use 'Channel Groups to Ignore' to exclude instead.",
+            },
+            {
+                "id": "ignore_groups",
+                "label": "Channel Groups to Ignore",
+                "type": "string",
+                "default": "",
+                "placeholder": "Teamarr, PPV*",
+                "help_text": (
+                    "Comma-separated. Channels in these groups are excluded from "
+                    "renaming, tagging, logos and Organize by Category, regardless "
+                    "of 'Channel Groups to Process' or 'Category Organization "
+                    "Groups'. Supports * and ? wildcards; matching is "
+                    "case-insensitive. An entry that matches no channel group "
+                    "refuses most actions. Organize by Category skips an ignored "
+                    "target group and continues. Import M3U Streams does not "
+                    "check entries against every group; it only refuses if its "
+                    "own target group is ignored."
+                ),
             },
             {
                 "id": "category_groups",
@@ -300,7 +343,7 @@ class Plugin:
                 "type": "string",
                 "default": "",
                 "placeholder": "Locals, News, Entertainment",
-                "help_text": "Source groups for category-based reorganization. Leave empty for all.",
+                "help_text": "Source groups for category-based reorganization. Leave empty for all. Use 'Channel Groups to Ignore' to exclude instead.",
             },
             {
                 "id": "m3u_sources",
@@ -467,6 +510,7 @@ class Plugin:
             "label": "Show Status",
             "description": "Show live progress and ETA for the most recent or running operation. Reads a persistent progress file so you can check without watching container logs.",
             "button_label": "\u24d8 Status",
+             "button_variant": "outline", "button_color": "blue",
         },
         {
             "id": "clear_csv_exports",
@@ -633,6 +677,7 @@ class Plugin:
             'channel_databases': 'Channel Databases',
             'match_sensitivity': 'Match Sensitivity',
             'selected_groups': 'Channel Groups to Process',
+            'ignore_groups': 'Channel Groups to Ignore',
             'category_groups': 'Channel Groups for Category Organization',
             'm3u_sources': 'M3U Sources',
             'm3u_group_filter': 'M3U Group Filter',
@@ -670,12 +715,115 @@ class Plugin:
         """Fetch all channel groups via Django ORM."""
         return list(ChannelGroup.objects.all().values('id', 'name'))
 
-    def _get_all_channels(self, logger, group_ids=None):
-        """Fetch channels via Django ORM, optionally filtered by group IDs."""
+    _INCLUDE_KEYS = frozenset({"selected_groups", "category_groups"})
+    _INCLUDE_LABELS = {
+        "selected_groups": "Channel Groups to Process",
+        "category_groups": "Category Organization Groups",
+    }
+
+    def _resolve_group_scope(self, settings, logger, include_key):
+        """Resolve the channel-group scope for an action.
+
+        Raises GroupScopeError when the configured scope cannot be honoured; the
+        caller turns that into a visible error via _scope_error_return.
+        """
+        if include_key not in self._INCLUDE_KEYS:
+            raise ValueError(f"unknown include_key {include_key!r}")
+
+        name_to_ids = build_name_to_ids(self._get_all_groups(logger))
+        scope = resolve_group_scope(
+            (settings.get(include_key) or ""),
+            (settings.get("ignore_groups") or ""),
+            name_to_ids,
+            include_label=self._INCLUDE_LABELS[include_key],
+        )
+        logger.info(f"{PLUGIN_LOG_PREFIX} Scope: {scope.info}")
+        for name in scope.out_of_scope_names:
+            logger.info(
+                f"{PLUGIN_LOG_PREFIX} Ignored group '{name}' was already outside "
+                f"the selected scope - no effect."
+            )
+        return scope
+
+    def _resolve_process_scope(self, settings, logger):
+        """Scope for the scan / rename / logo actions."""
+        return self._resolve_group_scope(settings, logger, "selected_groups")
+
+    def _resolve_category_scope(self, settings, logger):
+        """Scope for the Organize-by-Category actions."""
+        return self._resolve_group_scope(settings, logger, "category_groups")
+
+    @staticmethod
+    def _scope_error_return(exc):
+        """`error`, not `message` - `status` renders nowhere on the plugin card."""
+        return {"status": "error", "error": str(exc)}
+
+    def _ignore_tokens_error(self, settings, logger):
+        """Refuse if 'Channel Groups to Ignore' names a group absent from the DB.
+
+        The file-driven actions (Preview / Rename / Tag Unknown) resolve the
+        exclusion via split_rows_by_ignore against the group names PRESENT IN
+        THE RESULTS FILE, which deliberately never refuses on a token absent
+        from that file - a stale file may legitimately contain no rows from a
+        named group. But that means a typo'd token would otherwise pass those
+        three actions silently while every DB-scoped action (which validates
+        against every real group via resolve_group_scope) refuses. This
+        validates the tokens against the database FIRST, before the
+        file-scoped split, so all six mutating/preview actions agree on what
+        counts as an unresolvable exclusion. Returns an error dict, or None
+        when the tokens are fine (or there are none).
+        """
+        tokens = parse_tokens(settings.get("ignore_groups") or "")
+        if not tokens:
+            return None
+        names = list(build_name_to_ids(self._get_all_groups(logger)))
+        _, unmatched = expand_patterns(tokens, names, ci_plain=True)
+        if unmatched:
+            return {"status": "error", "error":
+                    "These entries in 'Channel Groups to Ignore' match no "
+                    f"channel group: {', '.join(unmatched)}."}
+        return None
+
+    def _get_all_channels(self, logger, group_ids=None, include_ungrouped=False):
+        """Fetch channels via Django ORM, optionally filtered by group IDs.
+
+        group_ids=None means "no scope" (every channel). An EMPTY set means "a
+        scope that resolved to nothing" and returns nothing - `if group_ids:`
+        collapsed those two cases and silently widened the scope to every channel
+        in the database (bug-044).
+
+        include_ungrouped keeps channels whose channel_group_id is NULL. A blank
+        include filter used to pass group_ids=None, which included them; once an
+        explicit id set is always passed they would silently vanish, and no
+        exclusion can name a NULL group anyway.
+        """
         qs = Channel.objects.all()
-        if group_ids:
+        scoped = group_ids is not None
+
+        if scoped and not include_ungrouped:
+            if not group_ids:
+                logger.warning(
+                    f"{PLUGIN_LOG_PREFIX} Group scope resolved to zero groups - "
+                    f"no channels will be processed."
+                )
             qs = qs.filter(channel_group_id__in=group_ids)
-        return list(qs.values('id', 'name', 'channel_number', 'channel_group_id', 'logo_id'))
+
+        rows = list(qs.values(
+            'id', 'name', 'channel_number', 'channel_group_id', 'logo_id'))
+
+        if scoped and include_ungrouped:
+            keep = set(group_ids)
+            rows = [
+                r for r in rows
+                if r.get('channel_group_id') in keep
+                or r.get('channel_group_id') is None
+            ]
+            if not group_ids:
+                logger.warning(
+                    f"{PLUGIN_LOG_PREFIX} Group scope resolved to zero groups - "
+                    f"only ungrouped channels will be processed."
+                )
+        return rows
 
     def _bulk_update_channels(self, updates, fields, logger):
         """Bulk update Channel instances.
@@ -893,13 +1041,13 @@ class Plugin:
             handler = action_map.get(action)
             if not handler:
                 logger.warning(f"{PLUGIN_LOG_PREFIX} Unknown action: {action}")
-                return {"status": "error", "message": f"Unknown action: {action}"}
+                return {"status": "error", "error": f"Unknown action: {action}"}
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Action triggered: {action}")
             result = handler(settings, logger)
 
             status = result.get("status", "?") if isinstance(result, dict) else "ok"
-            msg = result.get("message", "")[:200] if isinstance(result, dict) else ""
+            msg = (result.get("message") or result.get("error", ""))[:200] if isinstance(result, dict) else ""
             is_bg = result.get("background", False) if isinstance(result, dict) else False
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Action complete: {action} -> {status} | {msg}")
@@ -915,7 +1063,7 @@ class Plugin:
 
         except Exception as e:
             LOGGER.exception(f"{PLUGIN_LOG_PREFIX} Error in action '{action}': {e}")
-            return {"status": "error", "message": str(e)}
+            return {"status": "error", "error": str(e)}
 
     def load_and_process_channels_action(self, settings, logger):
         """Load channels from database and process them with channel data."""
@@ -926,37 +1074,32 @@ class Plugin:
             channels_loaded = self._load_channel_data(settings, logger)
 
             if not channels_loaded:
-                return {"status": "error", "message": "Channel databases could not be loaded. Please check your channel_databases setting and ensure the files exist."}
+                return {"status": "error", "error": "Channel databases could not be loaded. Please check your channel_databases setting and ensure the files exist."}
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Loading channels from database...")
 
-            # Get all groups first to build name-to-id mapping
+            # Get all groups first to build the id-to-name mapping used below
             all_groups = self._get_all_groups(logger)
-            group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
             group_id_to_name = {g['id']: g['name'] for g in all_groups if 'name' in g and 'id' in g}
             self.group_name_map = group_id_to_name
 
-            # Filter by selected groups if specified
-            selected_groups_str = settings.get("selected_groups", "").strip()
-            if selected_groups_str:
-                input_names = {name.strip() for name in selected_groups_str.split(',') if name.strip()}
-                valid_names = {n for n in input_names if n in group_name_to_id}
-                invalid_names = input_names - valid_names
-                target_group_ids = {group_name_to_id[name] for name in valid_names}
+            # Resolve the group scope (include filter minus ignore_groups)
+            try:
+                scope = self._resolve_process_scope(settings, logger)
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
 
-                if not target_group_ids:
-                    return {"status": "error", "message": f"None of the specified groups could be found: {', '.join(invalid_names)}"}
-
-                logger.info(f"{PLUGIN_LOG_PREFIX} Target group IDs: {target_group_ids}")
-            else:
-                target_group_ids = set(group_name_to_id.values())
-                valid_names = set(group_name_to_id.keys())
-
-            # Fetch all channels and filter by group ID
-            all_channels = self._get_all_channels(logger, group_ids=target_group_ids if selected_groups_str else None)
+            all_channels = self._get_all_channels(
+                logger,
+                group_ids=scope.group_ids,
+                include_ungrouped=scope.include_ungrouped,
+            )
 
             channels_to_process = all_channels
-            logger.info(f"{PLUGIN_LOG_PREFIX} Filtered to {len(channels_to_process)} channels in groups: {selected_groups_str if selected_groups_str else 'all groups'}")
+            logger.info(
+                f"{PLUGIN_LOG_PREFIX} Filtered to {len(channels_to_process)} "
+                f"channels ({scope.info})"
+            )
 
             # Store channels with proper group names
             for channel in channels_to_process:
@@ -1125,7 +1268,9 @@ class Plugin:
 
                 progress.update()
 
-            progress.finish()
+            progress.finish(
+                summary=f"{len(renamed_channels)} to rename, "
+                        f"{len(skipped_channels)} skipped. Scope: {scope.info}")
 
             # Log completion
             logger.info(f"{PLUGIN_LOG_PREFIX} Processing complete. {len(renamed_channels)} to rename, {len(skipped_channels)} skipped.")
@@ -1162,7 +1307,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error loading and processing channels: {e}")
-            return {"status": "error", "message": f"Error loading and processing channels: {e}"}
+            return {"status": "error", "error": f"Error loading and processing channels: {e}"}
 
     def preview_changes_action(self, settings, logger):
         """Export a CSV showing the preview of channel renaming changes."""
@@ -1170,14 +1315,30 @@ class Plugin:
 
 
             if not os.path.exists(self.results_file):
-                return {"status": "error", "message": "No processed channels found. Please run 'Load/Process Channels' first."}
+                return {"status": "error", "error": "No processed channels found. Please run 'Load/Process Channels' first."}
 
             with open(self.results_file, 'r') as f:
                 data = json.load(f)
 
             all_changes = data.get('changes', [])
 
+            # A token matching no DB group must refuse here too, or a typo
+            # renames/tags every excluded channel while every other action
+            # (which validates against the DB) refuses (blocker: fail-open).
+            guard = self._ignore_tokens_error(settings, logger)
+            if guard:
+                return guard
+
+            # Dry run must reflect the same exclusion the real run applies, or
+            # the preview contradicts what Rename/Tag Unknown actually does.
+            all_changes, ignored_rows = split_rows_by_ignore(
+                all_changes, settings.get("ignore_groups"))
+
             if not all_changes:
+                if ignored_rows:
+                    return {"status": "success", "message":
+                            f"No changes to preview; all {len(ignored_rows)} "
+                            f"pending change(s) are in ignored groups."}
                 return {"status": "success", "message": "No changes to preview."}
 
             # Create export directory if it does not exist
@@ -1214,6 +1375,11 @@ class Plugin:
                             'Match Method': change.get('match_method', ''),
                             'Reason': change.get('reason', '')
                         })
+                    # Absence of a group's rows proves nothing on its own -
+                    # record how many were excluded so the CSV is self-describing.
+                    if ignored_rows:
+                        csvfile.write(
+                            f"# Excluded by ignore: {len(ignored_rows)} row(s)\n")
                 os.replace(tmp_path, csv_path)
             except Exception:
                 if tmp_path and os.path.exists(tmp_path):
@@ -1225,14 +1391,18 @@ class Plugin:
             renamed_count = sum(1 for c in all_changes if c.get('status') == 'Renamed')
             skipped_count = sum(1 for c in all_changes if c.get('status') == 'Skipped')
 
+            preview_message = f"✓ Preview exported to: {csv_filename}\n\n{renamed_count} channels will be renamed, {skipped_count} will be skipped."
+            if ignored_rows:
+                preview_message += f"\n{len(ignored_rows)} row(s) in ignored groups were excluded."
+
             return {
                 "status": "success",
-                "message": f"✓ Preview exported to: {csv_filename}\n\n{renamed_count} channels will be renamed, {skipped_count} will be skipped."
+                "message": preview_message
             }
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error exporting preview: {e}")
-            return {"status": "error", "message": f"Error exporting preview: {e}"}
+            return {"status": "error", "error": f"Error exporting preview: {e}"}
 
     def rename_channels_action(self, settings, logger):
         """Apply the standardized names to channels."""
@@ -1247,7 +1417,7 @@ class Plugin:
                 return self.preview_changes_action(settings, logger)
 
             if not os.path.exists(self.results_file):
-                return {"status": "error", "message": "No processed channels found. Please run 'Load/Process Channels' first."}
+                return {"status": "error", "error": "No processed channels found. Please run 'Load/Process Channels' first."}
 
             with open(self.results_file, 'r') as f:
                 data = json.load(f)
@@ -1255,7 +1425,29 @@ class Plugin:
             all_changes = data.get('changes', [])
             channels_to_rename = [c for c in all_changes if c.get('status') == 'Renamed']
 
+            # A token matching no DB group must refuse here too (see
+            # preview_changes_action for why) - this is the action that
+            # actually writes the renames.
+            guard = self._ignore_tokens_error(settings, logger)
+            if guard:
+                return guard
+
+            # These actions replay a persisted file and never fetch channels, so
+            # the exclusion has to be applied here too; the file may predate the
+            # current ignore_groups value.
+            channels_to_rename, ignored_rows = split_rows_by_ignore(
+                channels_to_rename, settings.get("ignore_groups"))
+            if ignored_rows:
+                logger.info(
+                    f"{PLUGIN_LOG_PREFIX} Skipped {len(ignored_rows)} channel(s) "
+                    f"in ignored groups."
+                )
+
             if not channels_to_rename:
+                if ignored_rows:
+                    return {"status": "success", "message":
+                            f"No channels renamed; all {len(ignored_rows)} "
+                            f"pending change(s) are in ignored groups."}
                 return {"status": "success", "message": "No channels need to be renamed."}
 
             # Bulk update using ORM
@@ -1266,6 +1458,9 @@ class Plugin:
             self._trigger_frontend_refresh(settings, logger)
 
             message_parts = [f"✓ Successfully renamed {len(updates)} channels."]
+            if ignored_rows:
+                message_parts.append(
+                    f"Skipped {len(ignored_rows)} channel(s) in ignored groups.")
             if channels_to_rename:
                 message_parts.append("\n**Sample Changes:**")
                 for change in channels_to_rename[:5]:
@@ -1277,7 +1472,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error renaming channels: {e}")
-            return {"status": "error", "message": f"Error renaming channels: {e}"}
+            return {"status": "error", "error": f"Error renaming channels: {e}"}
 
     def rename_unknown_channels_action(self, settings, logger):
         """Append suffix to channels that could not be matched (OTA and premium/cable)."""
@@ -1285,7 +1480,7 @@ class Plugin:
 
 
             if not os.path.exists(self.results_file):
-                return {"status": "error", "message": "No processed channels found. Please run 'Load/Process Channels' first."}
+                return {"status": "error", "error": "No processed channels found. Please run 'Load/Process Channels' first."}
 
             # Get suffix with default fallback matching the field default
             suffix = settings.get("unknown_suffix", PluginConfig.DEFAULT_UNKNOWN_SUFFIX)
@@ -1295,7 +1490,7 @@ class Plugin:
 
             # Only reject if suffix is None or empty after strip
             if not suffix or not suffix.strip():
-                return {"status": "error", "message": "No suffix configured. Please set 'Suffix for Unknown Channels' in plugin settings. Default is ' [Unk]' (with leading space)."}
+                return {"status": "error", "error": "No suffix configured. Please set 'Suffix for Unknown Channels' in plugin settings. Default is ' [Unk]' (with leading space)."}
 
             with open(self.results_file, 'r') as f:
                 data = json.load(f)
@@ -1303,17 +1498,47 @@ class Plugin:
             all_changes = data.get('changes', [])
             skipped_channels = [c for c in all_changes if c.get('status') == 'Skipped']
 
+            # A token matching no DB group must refuse here too (see
+            # preview_changes_action for why) - this is the action that
+            # actually writes the "[Unk]" suffix renames.
+            guard = self._ignore_tokens_error(settings, logger)
+            if guard:
+                return guard
+
+            # These actions replay a persisted file and never fetch channels, so
+            # the exclusion has to be applied here too; the file may predate the
+            # current ignore_groups value.
+            skipped_channels, ignored_rows = split_rows_by_ignore(
+                skipped_channels, settings.get("ignore_groups"))
+            if ignored_rows:
+                logger.info(
+                    f"{PLUGIN_LOG_PREFIX} Skipped {len(ignored_rows)} channel(s) "
+                    f"in ignored groups."
+                )
+
             if not skipped_channels:
+                if ignored_rows:
+                    return {"status": "success", "message":
+                            f"No unknown channels renamed; all {len(ignored_rows)} "
+                            f"pending change(s) are in ignored groups."}
                 return {"status": "success", "message": "No unknown channels to rename."}
 
             # Bulk update using ORM
             updates = [{'id': ch['channel_id'], 'name': ch['current_name'] + suffix} for ch in skipped_channels]
+
+            if settings.get("dry_run_mode", False):
+                return {"status": "success", "message":
+                        f"Dry Run: would tag {len(updates)} unknown channel(s) "
+                        f"with suffix '{suffix}'. No changes written."}
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Adding suffix '{suffix}' to {len(updates)} unknown channels...")
             self._bulk_update_channels(updates, ['name'], logger)
             self._trigger_frontend_refresh(settings, logger)
 
             message_parts = [f"✓ Successfully added suffix '{suffix}' to {len(updates)} unknown channels."]
+            if ignored_rows:
+                message_parts.append(
+                    f"Skipped {len(ignored_rows)} channel(s) in ignored groups.")
             if skipped_channels:
                 message_parts.append("\n**Sample Changes:**")
                 for change in skipped_channels[:5]:
@@ -1326,7 +1551,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error renaming unknown channels: {e}")
-            return {"status": "error", "message": f"Error renaming unknown channels: {e}"}
+            return {"status": "error", "error": f"Error renaming unknown channels: {e}"}
 
     def apply_logos_action(self, settings, logger):
         """Apply default logo to channels without logos."""
@@ -1336,7 +1561,7 @@ class Plugin:
             default_logo = settings.get("default_logo", "").strip()
 
             if not default_logo:
-                return {"status": "error", "message": "No default logo configured. Please set 'Default Logo' in plugin settings."}
+                return {"status": "error", "error": "No default logo configured. Please set 'Default Logo' in plugin settings."}
 
             # Get all logos from database
             logger.info(f"{PLUGIN_LOG_PREFIX} Fetching all logos from database...")
@@ -1364,23 +1589,23 @@ class Plugin:
 
                 return {
                     "status": "error",
-                    "message": f"Logo '{default_logo}' not found in logo manager.\n\nSearched through {len(all_logos)} logos. Check the Dispatcharr logs to see available logo names."
+                    "error": f"Logo '{default_logo}' not found in logo manager.\n\nSearched through {len(all_logos)} logos. Check the Dispatcharr logs to see available logo names."
                 }
 
             # Fetch FRESH channel data from database
             logger.info(f"{PLUGIN_LOG_PREFIX} Fetching current channel data from database...")
 
-            # Get groups to filter
-            selected_groups_str = settings.get("selected_groups", "").strip()
-            target_group_ids = None
-            if selected_groups_str:
-                all_groups = self._get_all_groups(logger)
-                group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
-                input_names = {name.strip() for name in selected_groups_str.split(',') if name.strip()}
-                target_group_ids = {group_name_to_id[name] for name in input_names if name in group_name_to_id}
+            # Resolve the group scope (include filter minus ignore_groups)
+            try:
+                scope = self._resolve_process_scope(settings, logger)
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
 
-            # Get all channels
-            all_channels = self._get_all_channels(logger, group_ids=target_group_ids)
+            all_channels = self._get_all_channels(
+                logger,
+                group_ids=scope.group_ids,
+                include_ungrouped=scope.include_ungrouped,
+            )
 
             # Filter channels without logos or with "Default" logo (ID 0)
             channels_without_logos = []
@@ -1397,6 +1622,11 @@ class Plugin:
 
             # Bulk update using ORM
             updates = [{'id': ch['id'], 'logo_id': int(logo_id)} for ch in channels_without_logos]
+
+            if settings.get("dry_run_mode", False):
+                return {"status": "success", "message":
+                        f"Dry Run: would apply default logo to {len(updates)} "
+                        f"channel(s). No changes written."}
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Applying logo ID {logo_id} to {len(updates)} channels...")
             self._bulk_update_channels(updates, ['logo_id'], logger)
@@ -1416,7 +1646,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error applying logos: {e}")
-            return {"status": "error", "message": f"Error applying logos: {e}"}
+            return {"status": "error", "error": f"Error applying logos: {e}"}
 
     def apply_tv_logos_action(self, settings, logger):
         """Assign per-channel logos by fuzzy-matching channel names to the
@@ -1430,17 +1660,18 @@ class Plugin:
             country_codes_str = settings.get("channel_databases", PluginConfig.DEFAULT_CHANNEL_DATABASES).strip()
             country_codes = [c.strip().upper() for c in country_codes_str.split(',') if c.strip()]
             if not country_codes:
-                return {"status": "error", "message": "No country databases selected. Set 'Channel Databases' first."}
+                return {"status": "error", "error": "No country databases selected. Set 'Channel Databases' first."}
 
-            selected_groups_str = settings.get("selected_groups", "").strip()
-            target_group_ids = None
-            if selected_groups_str:
-                all_groups = self._get_all_groups(logger)
-                group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
-                input_names = {name.strip() for name in selected_groups_str.split(',') if name.strip()}
-                target_group_ids = {group_name_to_id[name] for name in input_names if name in group_name_to_id}
+            try:
+                scope = self._resolve_process_scope(settings, logger)
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
 
-            all_channels = self._get_all_channels(logger, group_ids=target_group_ids)
+            all_channels = self._get_all_channels(
+                logger,
+                group_ids=scope.group_ids,
+                include_ungrouped=scope.include_ungrouped,
+            )
             channels_without_logos = [
                 ch for ch in all_channels
                 if ch.get('logo_id') in (None, 0, '0')
@@ -1474,11 +1705,18 @@ class Plugin:
                     country_filelists.append((cc.lower(), country_dir, files))
 
             if not country_filelists:
-                return {"status": "error", "message": "No tv-logos file lists could be fetched. Check network access or repo path."}
+                return {"status": "error", "error": "No tv-logos file lists could be fetched. Check network access or repo path."}
+
+            # Hoisted above the loop: a dry run must create NOTHING, including
+            # the Logo catalog rows the real run creates on a first-time match
+            # (previously created even under Dry Run, orphaning them in the
+            # catalog if the operator then declined the real run).
+            dry_run = settings.get("dry_run_mode", False)
 
             progress = ProgressTracker(len(channels_without_logos), "apply_tv_logos", logger)
             assigned = 0
             no_match = 0
+            would_create = 0
             channel_updates = []
 
             for ch in channels_without_logos:
@@ -1502,6 +1740,12 @@ class Plugin:
 
                 logo = existing_logos_by_url.get(matched_url)
                 if not logo:
+                    if dry_run:
+                        # No Logo.objects.create - a dry run must write nothing.
+                        would_create += 1
+                        assigned += 1
+                        progress.update()
+                        continue
                     try:
                         logo = Logo.objects.create(name=name, url=matched_url)
                         existing_logos_by_url[matched_url] = logo
@@ -1514,17 +1758,26 @@ class Plugin:
                 assigned += 1
                 progress.update()
 
+            if dry_run:
+                summary = (
+                    f"Dry Run: would apply logos to {assigned} channel(s) "
+                    f"({no_match} had no match, {would_create} would need a "
+                    f"new Logo catalog entry). No changes written."
+                )
+                progress.finish(summary=f"{summary} Scope: {scope.info}")
+                return {"status": "success", "message": summary}
+
             if channel_updates:
                 self._bulk_update_channels(channel_updates, ['logo_id'], logger)
                 self._trigger_frontend_refresh(settings, logger)
 
             summary = f"Assigned {assigned} logos, {no_match} channels had no match."
-            progress.finish(summary=summary)
+            progress.finish(summary=f"{summary} Scope: {scope.info}")
             return {"status": "success", "message": f"✓ {summary}"}
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error applying tv-logos: {e}")
-            return {"status": "error", "message": f"Error applying tv-logos: {e}"}
+            return {"status": "error", "error": f"Error applying tv-logos: {e}"}
 
     def category_groups_dry_run_action(self, settings, logger):
         """Export a CSV showing which channels would be moved to which category-based groups."""
@@ -1534,27 +1787,24 @@ class Plugin:
             # Load channel data to get categories
             channels_loaded = self._load_channel_data(settings, logger)
             if not channels_loaded:
-                return {"status": "error", "message": "Channel databases could not be loaded."}
+                return {"status": "error", "error": "Channel databases could not be loaded."}
 
             # Get all groups and channels
             all_groups = self._get_all_groups(logger)
             group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
             group_id_to_name = {g['id']: g['name'] for g in all_groups if 'name' in g and 'id' in g}
 
-            # Filter by category groups if specified
-            category_groups_str = settings.get("category_groups", "").strip()
-            if category_groups_str:
-                input_names = {name.strip() for name in category_groups_str.split(',') if name.strip()}
-                valid_names = {n for n in input_names if n in group_name_to_id}
-                target_group_ids = {group_name_to_id[name] for name in valid_names}
+            # Resolve the group scope (include filter minus ignore_groups)
+            try:
+                scope = self._resolve_category_scope(settings, logger)
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
 
-                if not target_group_ids:
-                    return {"status": "error", "message": f"None of the specified category groups could be found."}
-            else:
-                target_group_ids = set(group_name_to_id.values())
-
-            # Get all channels and filter by group
-            all_channels = self._get_all_channels(logger, group_ids=target_group_ids)
+            all_channels = self._get_all_channels(
+                logger,
+                group_ids=scope.group_ids,
+                include_ungrouped=scope.include_ungrouped,
+            )
             channels_to_process = all_channels
 
             # Build category mapping from channel databases
@@ -1604,6 +1854,10 @@ class Plugin:
 
             # Process channels and determine moves
             moves = []
+            ignored_targets = set()
+            # Parsed once, not per-channel: is_ignored_name_tokens skips the
+            # re-parse is_ignored_name would otherwise do on every iteration.
+            ignore_tokens = parse_tokens(settings.get("ignore_groups") or "")
             for channel in channels_to_process:
                 channel_name = channel.get('name', '')
                 channel_id = channel.get('id')
@@ -1653,6 +1907,12 @@ class Plugin:
                 if category:
                     new_group_name = category
 
+                    # The exclusion also forbids writing INTO a group - the
+                    # preview must match what the real run would refuse to do.
+                    if is_ignored_name_tokens(new_group_name, ignore_tokens):
+                        ignored_targets.add(new_group_name)
+                        continue
+
                     # Check if group exists
                     group_exists = new_group_name in group_name_to_id
 
@@ -1670,7 +1930,13 @@ class Plugin:
                         })
 
             if not moves:
-                return {"status": "success", "message": "No channels need to be moved to category-based groups."}
+                message = "No channels need to be moved to category-based groups."
+                if ignored_targets:
+                    message += (
+                        f" Skipped {len(ignored_targets)} ignored target group(s): "
+                        f"{_format_capped_name_list(sorted(ignored_targets))}."
+                    )
+                return {"status": "success", "message": message}
 
             # Create export directory
             export_dir = PluginConfig.EXPORT_DIR
@@ -1684,6 +1950,11 @@ class Plugin:
             with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
                 # Write settings header as comments
                 csvfile.write(self._generate_csv_settings_header(settings))
+                # `scope` is already resolved above in this same function, so
+                # this is not a re-parse: record what the ignore/include
+                # filters actually MATCHED, not just the raw setting text
+                # already echoed by the header above.
+                csvfile.write(f"# Ignore resolved to: {scope.info}\n")
 
                 fieldnames = ['Channel ID', 'Channel Name', 'Current Group', 'New Group', 'Category', 'Match Type', 'Match Value', 'Group Exists']
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -1710,14 +1981,22 @@ class Plugin:
             broadcast_count = sum(1 for m in moves if 'Broadcast' in m['match_type'])
             premium_count = sum(1 for m in moves if 'Premium' in m['match_type'])
 
-            return {
-                "status": "success",
-                "message": f"✓ Preview exported to: {csv_filename}\n\n{len(moves)} channels will be moved ({broadcast_count} broadcast, {premium_count} premium).\n{new_groups_needed} new groups will be created."
-            }
+            message = (
+                f"✓ Preview exported to: {csv_filename}\n\n{len(moves)} channels will "
+                f"be moved ({broadcast_count} broadcast, {premium_count} premium).\n"
+                f"{new_groups_needed} new groups will be created."
+            )
+            if ignored_targets:
+                message += (
+                    f"\nSkipped {len(ignored_targets)} ignored target group(s): "
+                    f"{_format_capped_name_list(sorted(ignored_targets))}."
+                )
+
+            return {"status": "success", "message": message}
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error generating category groups preview: {e}")
-            return {"status": "error", "message": f"Error generating category groups preview: {e}"}
+            return {"status": "error", "error": f"Error generating category groups preview: {e}"}
 
     def organize_by_category_action(self, settings, logger):
         """Create groups based on category names and move matching channels to those groups."""
@@ -1734,27 +2013,24 @@ class Plugin:
             # Load channel data to get categories
             channels_loaded = self._load_channel_data(settings, logger)
             if not channels_loaded:
-                return {"status": "error", "message": "Channel databases could not be loaded."}
+                return {"status": "error", "error": "Channel databases could not be loaded."}
 
             # Get all groups and channels
             all_groups = self._get_all_groups(logger)
             group_name_to_id = {g['name']: g['id'] for g in all_groups if 'name' in g and 'id' in g}
             group_id_to_name = {g['id']: g['name'] for g in all_groups if 'name' in g and 'id' in g}
 
-            # Filter by category groups if specified
-            category_groups_str = settings.get("category_groups", "").strip()
-            if category_groups_str:
-                input_names = {name.strip() for name in category_groups_str.split(',') if name.strip()}
-                valid_names = {n for n in input_names if n in group_name_to_id}
-                target_group_ids = {group_name_to_id[name] for name in valid_names}
+            # Resolve the group scope (include filter minus ignore_groups)
+            try:
+                scope = self._resolve_category_scope(settings, logger)
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
 
-                if not target_group_ids:
-                    return {"status": "error", "message": f"None of the specified category groups could be found."}
-            else:
-                target_group_ids = set(group_name_to_id.values())
-
-            # Get all channels and filter by group
-            all_channels = self._get_all_channels(logger, group_ids=target_group_ids)
+            all_channels = self._get_all_channels(
+                logger,
+                group_ids=scope.group_ids,
+                include_ungrouped=scope.include_ungrouped,
+            )
             channels_to_process = all_channels
 
             # Build category mapping from channel databases
@@ -1805,6 +2081,10 @@ class Plugin:
             # Process channels and determine moves
             moves = []
             groups_needed = set()
+            ignored_targets = set()
+            # Parsed once, not per-channel: is_ignored_name_tokens skips the
+            # re-parse is_ignored_name would otherwise do on every iteration.
+            ignore_tokens = parse_tokens(settings.get("ignore_groups") or "")
 
             for channel in channels_to_process:
                 channel_name = channel.get('name', '')
@@ -1847,6 +2127,12 @@ class Plugin:
                 if category:
                     new_group_name = category
 
+                    # The exclusion also forbids writing INTO a group - never
+                    # create or adopt a target the operator declared untouchable.
+                    if is_ignored_name_tokens(new_group_name, ignore_tokens):
+                        ignored_targets.add(new_group_name)
+                        continue
+
                     # Track groups that need to be created
                     if new_group_name not in group_name_to_id:
                         groups_needed.add(new_group_name)
@@ -1860,7 +2146,13 @@ class Plugin:
                         })
 
             if not moves:
-                return {"status": "success", "message": "No channels need to be moved to category-based groups."}
+                message = "No channels need to be moved to category-based groups."
+                if ignored_targets:
+                    message += (
+                        f" Skipped {len(ignored_targets)} ignored target group(s): "
+                        f"{_format_capped_name_list(sorted(ignored_targets))}."
+                    )
+                return {"status": "success", "message": message}
 
             # Create new groups if needed using ORM
             created_groups = []
@@ -1884,7 +2176,7 @@ class Plugin:
                     })
 
             if not updates:
-                return {"status": "error", "message": "Failed to create necessary groups. Please check logs."}
+                return {"status": "error", "error": "Failed to create necessary groups. Please check logs."}
 
             # Apply the moves using ORM
             logger.info(f"{PLUGIN_LOG_PREFIX} Moving {len(updates)} channels to category-based groups...")
@@ -1902,11 +2194,17 @@ class Plugin:
             if len(moves) > 5:
                 message_parts.append(f"...and {len(moves) - 5} more.")
 
+            if ignored_targets:
+                message_parts.append(
+                    f"\nSkipped {len(ignored_targets)} ignored target group(s): "
+                    f"{_format_capped_name_list(sorted(ignored_targets))}."
+                )
+
             return {"status": "success", "message": "\n".join(message_parts)}
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error organizing channels by category: {e}")
-            return {"status": "error", "message": f"Error organizing channels by category: {e}"}
+            return {"status": "error", "error": f"Error organizing channels by category: {e}"}
 
     # ========================================
     # M3U STREAM IMPORT METHODS
@@ -2237,6 +2535,21 @@ class Plugin:
 
         return matched_by_category, unmatched_streams
 
+    @staticmethod
+    def _check_group_destinations_not_ignored(names, ignore_value):
+        """Refuse rather than create or adopt a group the operator declared untouchable.
+
+        The scope filters channels out of a scan; this is the other direction -
+        import must not write INTO a group listed in 'Channel Groups to Ignore'.
+        """
+        blocked = sorted({name for name in names if is_ignored_name(name, ignore_value)})
+        if blocked:
+            raise GroupScopeError(
+                f"Import would create or write into group(s) listed in 'Channel "
+                f"Groups to Ignore': {_format_capped_name_list(blocked)}. Change "
+                f"the import target or remove them from the ignore list."
+            )
+
     def _ensure_category_groups_exist(self, categories, settings, logger):
         """
         Ensure all category-based channel groups exist in Dispatcharr.
@@ -2248,7 +2561,14 @@ class Plugin:
             dict: Mapping of category name to group ID
         """
         # Check if custom group name is specified
-        custom_group_name = settings.get("m3u_custom_group_name", "").strip()
+        custom_group_name = (settings.get("m3u_custom_group_name") or "").strip()
+
+        # The exclusion also forbids writing INTO a group. Refuse rather than
+        # create or adopt a group the operator declared untouchable.
+        self._check_group_destinations_not_ignored(
+            [custom_group_name] if custom_group_name else list(categories),
+            settings.get("ignore_groups"),
+        )
 
         # Fetch existing groups
         existing_groups = self._get_all_groups(logger)
@@ -2603,7 +2923,7 @@ class Plugin:
             streams = self._fetch_streams_from_m3u_sources(settings, logger)
 
             if not streams:
-                return {"status": "error", "message": "No streams found in specified M3U sources"}
+                return {"status": "error", "error": "No streams found in specified M3U sources"}
 
             # Step 2: Match streams to categories
             matched_by_category, unmatched_streams = self._match_streams_to_categories(
@@ -2613,11 +2933,22 @@ class Plugin:
             if not matched_by_category:
                 return {
                     "status": "error",
-                    "message": f"No streams matched to channel databases. {len(unmatched_streams)} unmatched streams."
+                    "error": f"No streams matched to channel databases. {len(unmatched_streams)} unmatched streams."
                 }
 
             # Step 3: Check which category groups exist
             categories = list(matched_by_category.keys())
+
+            # The preview must match what the real run would refuse to do.
+            custom_group_name = (settings.get("m3u_custom_group_name") or "").strip()
+            try:
+                self._check_group_destinations_not_ignored(
+                    [custom_group_name] if custom_group_name else categories,
+                    settings.get("ignore_groups"),
+                )
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
+
             existing_groups = self._get_all_groups(logger)
             existing_group_names = {group['name'] for group in existing_groups}
 
@@ -2652,7 +2983,7 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} M3U import dry run failed: {e}")
-            return {"status": "error", "message": f"Dry run failed: {str(e)}"}
+            return {"status": "error", "error": f"Dry run failed: {str(e)}"}
 
     def _do_import_m3u_streams(self, settings, logger):
         """Core M3U import logic."""
@@ -2662,7 +2993,7 @@ class Plugin:
         streams = self._fetch_streams_from_m3u_sources(settings, logger)
 
         if not streams:
-            return {"status": "error", "message": "No streams found in specified M3U sources"}
+            return {"status": "error", "error": "No streams found in specified M3U sources"}
 
         # Step 2: Match streams to categories
         matched_by_category, unmatched_streams = self._match_streams_to_categories(
@@ -2672,7 +3003,7 @@ class Plugin:
         if not matched_by_category:
             return {
                 "status": "error",
-                "message": f"No streams matched to channel databases. {len(unmatched_streams)} unmatched streams."
+                "error": f"No streams matched to channel databases. {len(unmatched_streams)} unmatched streams."
             }
 
         # Step 3: Ensure category groups exist
@@ -2724,14 +3055,14 @@ class Plugin:
         try:
             result = self._do_import_m3u_streams(settings, logger)
             self._last_bg_result = result
-            msg = result.get("message", "Import complete.")
+            msg = result.get("message") or result.get("error", "Import complete.")
             logger.info(f"{PLUGIN_LOG_PREFIX} IMPORT COMPLETED: {msg}")
             send_websocket_update('updates', 'update', {
                 "type": "plugin", "plugin": self.name,
                 "message": msg
             })
         except Exception as e:
-            self._last_bg_result = {"status": "error", "message": str(e)}
+            self._last_bg_result = {"status": "error", "error": str(e)}
             logger.exception(f"{PLUGIN_LOG_PREFIX} Import error: {e}")
             send_websocket_update('updates', 'update', {
                 "type": "plugin", "plugin": self.name,
@@ -2744,8 +3075,19 @@ class Plugin:
         if dry_run:
             return self.import_m3u_streams_dry_run_action(settings, logger)
 
+        # The real import runs in a background thread whose result the card
+        # never shows, so the destination must be validated BEFORE
+        # backgrounding or a refusal would be silently swallowed.
+        custom_group_name = (settings.get("m3u_custom_group_name") or "").strip()
+        if custom_group_name:
+            try:
+                self._check_group_destinations_not_ignored(
+                    [custom_group_name], settings.get("ignore_groups"))
+            except GroupScopeError as exc:
+                return self._scope_error_return(exc)
+
         if not self._try_start_thread(self._do_import_m3u_streams_bg, (copy.deepcopy(settings), logger)):
-            return {"status": "error", "message": "An operation is already running. Please wait for it to finish."}
+            return {"status": "error", "error": "An operation is already running. Please wait for it to finish."}
 
         return {
             "status": "ok",
@@ -2794,6 +3136,83 @@ class Plugin:
                     validation_results.append(f"❌ DB error")
                     error_count += 1
 
+            # 2b. Group scope (ignore_groups exclusion) - the first group
+            # validation in this action. Kept to one capped line per branch so
+            # a wildcard exclusion matching many groups cannot blow the ~280
+            # char toast budget.
+            #
+            # ignore_dupe_error is set only when 2b's failure comes from the
+            # ignore filter ITSELF (an unmatched token, or no groups exist at
+            # all) - those two GroupScopeError messages don't mention
+            # include_label, so _resolve_category_scope below would raise the
+            # BYTE-IDENTICAL text and double-print/double-count one
+            # misconfigured setting as "2 error(s)". The "excluded every
+            # group that '<include_label>' selected" message DOES depend on
+            # include_label (process vs category can differ), so that one is
+            # deliberately NOT deduped here.
+            ignore_dupe_error = None
+            try:
+                scope = self._resolve_process_scope(settings, logger)
+                # Report only the names that actually removed something from
+                # this run, never the raw ignored_names count - it is a
+                # SUPERSET of out_of_scope_names, so a wildcard matching
+                # nothing but already-out-of-scope groups would otherwise
+                # print the same name list twice in one message.
+                out_of_scope = set(scope.out_of_scope_names)
+                effective = [n for n in scope.ignored_names if n not in out_of_scope]
+                if effective:
+                    validation_results.append(
+                        f"✅ Ignore: {len(effective)} group(s): "
+                        f"{_format_capped_name_list(effective)}")
+                if scope.out_of_scope_names:
+                    # ONE warning for the whole condition, not one per name -
+                    # this is benign (an ignore entry that already had no
+                    # effect), and counting per-name made a healthy config
+                    # read as "Validation completed with 10 warning(s)".
+                    warning_count += 1
+                    # No name list here: the names are already logged by
+                    # _resolve_group_scope, and a capped list on top of the
+                    # `effective` line above (which already fired) was the
+                    # single offender that pushed a real operator's message
+                    # over Dispatcharr's ~280 char clip.
+                    validation_results.append(
+                        f"⚠️ Ignore: {len(scope.out_of_scope_names)} names had "
+                        f"no effect (already outside the selected scope)")
+            except GroupScopeError as exc:
+                # The same exception covers an unresolvable INCLUDE filter
+                # (e.g. a typo'd selected_groups) as well as an unresolvable
+                # ignore filter, and every other consumer of this exception
+                # surfaces its raw wording with no prefix - the message
+                # already names the setting it came from (e.g. "'Channel
+                # Groups to Process'"), so prepending "Ignore:" would
+                # mislabel an include-filter typo as an ignore problem.
+                validation_results.append(f"❌ {exc}")
+                error_count += 1
+                exc_text = str(exc)
+                if ("Channel Groups to Ignore" in exc_text
+                        and "excluded every group" not in exc_text):
+                    ignore_dupe_error = exc_text
+
+            # 2c. Category scope (category_groups) - without this, a
+            # category_groups typo, or an exclusion that empties the category
+            # scope, validated GREEN here and only failed RED on Organize by
+            # Category. Only resolved when the setting is non-blank, so the
+            # common case (no category filter configured) costs nothing;
+            # when configured it costs exactly one line either way, to stay
+            # inside the ~260-char regression budget alongside 2b. Skipped
+            # entirely when 2b already reported the identical ignore-filter
+            # failure (see ignore_dupe_error above) - re-resolving would just
+            # print the same complaint twice and report "2 error(s)" for one
+            # broken setting.
+            category_groups_str = (settings.get("category_groups") or "").strip()
+            if category_groups_str and ignore_dupe_error is None:
+                try:
+                    self._resolve_category_scope(settings, logger)
+                    validation_results.append("✅ Category: OK")
+                except GroupScopeError as exc:
+                    validation_results.append(f"❌ {exc}")
+                    error_count += 1
+
             # 3. M3U filters (only show count if configured)
             m3u_info = []
 
@@ -2834,10 +3253,9 @@ class Plugin:
 
             message = "\n".join(validation_results)
 
-            return {
-                "status": status,
-                "message": message
-            }
+            if status == "error":
+                return {"status": status, "error": message}
+            return {"status": status, "message": message}
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error during settings validation: {e}")
@@ -2845,7 +3263,7 @@ class Plugin:
             traceback.print_exc()
             return {
                 "status": "error",
-                "message": f"Validation error: {e}\n\nSee logs for details."
+                "error": f"Validation error: {e}\n\nSee logs for details."
             }
 
     def plugin_status_action(self, settings, logger):
@@ -2891,4 +3309,4 @@ class Plugin:
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error clearing CSV exports: {e}")
-            return {"status": "error", "message": f"Error clearing CSV exports: {e}"}
+            return {"status": "error", "error": f"Error clearing CSV exports: {e}"}

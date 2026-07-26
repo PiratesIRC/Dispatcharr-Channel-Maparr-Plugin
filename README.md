@@ -83,7 +83,8 @@ docker restart dispatcharr
 | :--- | :--- | :--- | :--- |
 | **Channel Databases** | `string` | `US` | Comma-separated country codes (AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, UK, US). |
 | **Match Sensitivity** | `select` | `normal` | Relaxed (70), Normal (80), Strict (90), Exact (95). |
-| **Channel Groups to Process** | `string` | - | Comma-separated group names for renaming operations. Empty = all groups. |
+| **Channel Groups to Process** | `string` | - | Comma-separated group names for renaming operations. Empty = all groups. Use "Channel Groups to Ignore" to exclude instead. |
+| **Channel Groups to Ignore** | `string` | - | Comma-separated, supports `*` and `?` wildcards, case-insensitive. Channels in these groups are excluded from renaming, tagging, logos and Organize by Category, regardless of "Channel Groups to Process". Organize skips a target group that is ignored; Import M3U Streams refuses to run if its destination group is ignored. Does not apply to Import's stream matching or duplicate detection. A typo that matches no group refuses the run rather than silently processing everything. |
 | **Channel Groups for Category Organization** | `string` | - | Comma-separated group names for category sorting. Empty = all groups. |
 | **M3U Source** | `select` | `All sources` | Filter streams to a specific M3U account. |
 | **M3U Group Filter** | `string` | - | Pre-match filter by M3U group-title. |
@@ -112,6 +113,8 @@ The action buttons are listed in the recommended execution order:
 10. **Clear CSV Exports** - Delete all plugin CSV files.
 
 Rename before Import ensures duplicate detection is accurate (standardized names prevent duplicates). The two logo actions are independent — use Default Logo for a fast fallback, or Per-Channel Logos for individualized artwork.
+
+"Channel Groups to Ignore" (v1.26.2071409+) is a scope setting, not a step of its own; it applies across all ten actions above wherever they read or write channel groups (it does not affect Import M3U Streams' stream matching or duplicate detection). Set it once before running Validate Settings, which reports the resolved exclusion.
 
 ## Match Pipeline
 

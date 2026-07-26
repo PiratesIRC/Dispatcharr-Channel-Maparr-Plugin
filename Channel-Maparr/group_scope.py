@@ -8,7 +8,7 @@ The contract is section 4 of
 docs/superpowers/specs/2026-07-26-ignore-groups-design.md.
 """
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 try:
     from .wildcard_match import expand_patterns
@@ -29,10 +29,18 @@ class GroupScopeError(Exception):
 
 @dataclass(frozen=True)
 class GroupScope:
-    group_ids: frozenset
+    """The resolved include/exclude outcome for one action run.
+
+    ignored_names lists every group name matched by the ignore patterns
+    ANYWHERE, which is a SUPERSET of out_of_scope_names (the subset that was
+    already outside the include scope, so removing them changed nothing).
+    A consumer that sums the two counts, or reports len(ignored_names) as
+    "groups excluded from this run", will over-count.
+    """
+    group_ids: frozenset[int]
     include_ungrouped: bool
-    ignored_names: tuple = ()
-    out_of_scope_names: tuple = ()
+    ignored_names: tuple[str, ...] = ()
+    out_of_scope_names: tuple[str, ...] = ()
     info: str = ""
 
 

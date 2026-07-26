@@ -25,6 +25,7 @@ from .group_scope import (
     GroupScopeError,
     build_name_to_ids,
     resolve_group_scope,
+    split_rows_by_ignore,
 )
 
 # Django model imports
@@ -1348,7 +1349,22 @@ class Plugin:
             all_changes = data.get('changes', [])
             channels_to_rename = [c for c in all_changes if c.get('status') == 'Renamed']
 
+            # These actions replay a persisted file and never fetch channels, so
+            # the exclusion has to be applied here too; the file may predate the
+            # current ignore_groups value.
+            channels_to_rename, ignored_rows = split_rows_by_ignore(
+                channels_to_rename, settings.get("ignore_groups"))
+            if ignored_rows:
+                logger.info(
+                    f"{PLUGIN_LOG_PREFIX} Skipped {len(ignored_rows)} channel(s) "
+                    f"in ignored groups."
+                )
+
             if not channels_to_rename:
+                if ignored_rows:
+                    return {"status": "success", "message":
+                            f"No channels renamed; all {len(ignored_rows)} "
+                            f"pending change(s) are in ignored groups."}
                 return {"status": "success", "message": "No channels need to be renamed."}
 
             # Bulk update using ORM
@@ -1359,6 +1375,9 @@ class Plugin:
             self._trigger_frontend_refresh(settings, logger)
 
             message_parts = [f"✓ Successfully renamed {len(updates)} channels."]
+            if ignored_rows:
+                message_parts.append(
+                    f"Skipped {len(ignored_rows)} channel(s) in ignored groups.")
             if channels_to_rename:
                 message_parts.append("\n**Sample Changes:**")
                 for change in channels_to_rename[:5]:
@@ -1396,7 +1415,22 @@ class Plugin:
             all_changes = data.get('changes', [])
             skipped_channels = [c for c in all_changes if c.get('status') == 'Skipped']
 
+            # These actions replay a persisted file and never fetch channels, so
+            # the exclusion has to be applied here too; the file may predate the
+            # current ignore_groups value.
+            skipped_channels, ignored_rows = split_rows_by_ignore(
+                skipped_channels, settings.get("ignore_groups"))
+            if ignored_rows:
+                logger.info(
+                    f"{PLUGIN_LOG_PREFIX} Skipped {len(ignored_rows)} channel(s) "
+                    f"in ignored groups."
+                )
+
             if not skipped_channels:
+                if ignored_rows:
+                    return {"status": "success", "message":
+                            f"No unknown channels renamed; all {len(ignored_rows)} "
+                            f"pending change(s) are in ignored groups."}
                 return {"status": "success", "message": "No unknown channels to rename."}
 
             # Bulk update using ORM
@@ -1407,6 +1441,9 @@ class Plugin:
             self._trigger_frontend_refresh(settings, logger)
 
             message_parts = [f"✓ Successfully added suffix '{suffix}' to {len(updates)} unknown channels."]
+            if ignored_rows:
+                message_parts.append(
+                    f"Skipped {len(ignored_rows)} channel(s) in ignored groups.")
             if skipped_channels:
                 message_parts.append("\n**Sample Changes:**")
                 for change in skipped_channels[:5]:

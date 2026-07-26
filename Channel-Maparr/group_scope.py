@@ -142,6 +142,33 @@ def resolve_group_scope(include_value, ignore_value, group_name_to_ids, *, inclu
     )
 
 
+def split_rows_by_ignore(rows, ignore_value, *, group_key='channel_group'):
+    """Partition persisted result rows into (kept, dropped) by group NAME.
+
+    The rename/tag actions replay a results file and never fetch channels, so
+    the exclusion has to be applied here too. Matching on the stored NAME rather
+    than an id means a stale file is still filtered after the group has been
+    renamed or deleted.
+
+    Deliberately does not refuse on an unmatched token: the results file may
+    legitimately contain no rows from a named group, and refusing a rename for
+    a group absent from *this file* would be wrong. The typo case is already
+    caught at scan time by resolve_group_scope.
+    """
+    tokens = parse_tokens(ignore_value)
+    if not tokens:
+        return list(rows), []
+
+    present = sorted({r.get(group_key) for r in rows if r.get(group_key)})
+    matched, _ = expand_patterns(tokens, present, ci_plain=True)
+    ignored = set(matched)
+
+    kept, dropped = [], []
+    for row in rows:
+        (dropped if row.get(group_key) in ignored else kept).append(row)
+    return kept, dropped
+
+
 def _describe(include_tokens, ignored_names, include_label):
     parts = []
     if include_tokens:

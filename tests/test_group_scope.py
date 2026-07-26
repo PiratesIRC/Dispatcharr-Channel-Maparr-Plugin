@@ -226,3 +226,42 @@ def test_accented_names_match_case_insensitively(gs):
         "", "télé québec", names, include_label="Channel Groups to Process")
     assert scope.ignored_names == ("TÉLÉ QUÉBEC",)
     assert scope.group_ids == frozenset({2})
+
+
+# --- results-file row filtering ------------------------------------------
+
+ROWS = [
+    {"channel_id": 1, "channel_group": "Sports"},
+    {"channel_id": 2, "channel_group": "Teamarr"},
+    {"channel_id": 3, "channel_group": "Teamarr Live"},
+    {"channel_id": 4, "channel_group": "No Group"},
+]
+
+
+def test_split_rows_by_ignore_drops_matching_rows(gs):
+    kept, dropped = gs.split_rows_by_ignore(ROWS, "Teamarr*")
+    assert [r["channel_id"] for r in kept] == [1, 4]
+    assert [r["channel_id"] for r in dropped] == [2, 3]
+
+
+def test_split_rows_by_ignore_is_case_insensitive(gs):
+    kept, _ = gs.split_rows_by_ignore(ROWS, "teamarr")
+    assert [r["channel_id"] for r in kept] == [1, 3, 4]
+
+
+def test_split_rows_with_blank_ignore_keeps_everything(gs):
+    kept, dropped = gs.split_rows_by_ignore(ROWS, " , ")
+    assert len(kept) == 4 and dropped == []
+
+
+def test_split_rows_matches_names_not_ids(gs):
+    """Matching by NAME means a stale file still filters after the group was
+    deleted - an id lookup would silently keep the row."""
+    rows = [{"channel_id": 9, "channel_group": "Teamarr"}]
+    kept, dropped = gs.split_rows_by_ignore(rows, "Teamarr")
+    assert kept == [] and len(dropped) == 1
+
+
+def test_split_rows_tolerates_a_missing_group_key(gs):
+    kept, dropped = gs.split_rows_by_ignore([{"channel_id": 9}], "Teamarr")
+    assert len(kept) == 1 and dropped == []

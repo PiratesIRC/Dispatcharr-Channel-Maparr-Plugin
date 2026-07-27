@@ -1,6 +1,6 @@
 # Channel Maparr — Changelog
 
-## Unreleased
+## v1.26.2071908 (July 26, 2026)
 
 **Validate Settings reports only what needs acting on.** It previously returned its
 entire readout, so every failure parked a wall of mostly-OK lines permanently under the

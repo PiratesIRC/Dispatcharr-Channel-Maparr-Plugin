@@ -40,7 +40,7 @@ developed and shipped in **Stream-Mapparr** (`fuzzy_matcher.py`). The workspace-
 `CLAUDE.md` drift rule requires it: *"fuzzy_matcher.py is copy-pasted across plugins
 and drifting — port matcher fixes + their regression tests to all copies until the
 shared-core refactor lands."* The canonical source of truth is
-`C:\Users\User\docker\Stream-Mapparr\Stream-Mapparr\fuzzy_matcher.py`.
+`<workspace>/Stream-Mapparr/Stream-Mapparr/fuzzy_matcher.py`.
 
 This document is a **GUIDE, not an auto-applied patch.** Channel-Maparr's
 `normalize_name` is structured differently from Stream-Mapparr's (see Applicability),
@@ -62,7 +62,7 @@ The three fixes, all inside `fuzzy_matcher.py`'s `normalize_name`:
 
 ## Applicability for Channel-Maparr
 
-Inspection of `C:\Users\User\docker\Channel-Maparr\Channel-Maparr\fuzzy_matcher.py`:
+Inspection of `<workspace>/Channel-Maparr/Channel-Maparr/fuzzy_matcher.py`:
 
 | Check | Result |
 |---|---|
@@ -357,7 +357,7 @@ out byte-identical. If an ASCII name changes, stop and investigate before shippi
 **Port the regression tests too.** Bring over the bug-048 / bug-051 / bug-055 cases from
 Stream-Mapparr's suite (e.g. small-cap/superscript decoration dropped; `SP⚽RTS` → matches
 `sports`; `1080p`/`3840P` stripped while `Channel 4` and `Volume 100 I` are preserved) into
-`C:\Users\User\docker\Channel-Maparr\tests\test_matching.py` (or a sibling). Then run the
+`<workspace>/Channel-Maparr/tests/test_matching.py` (or a sibling). Then run the
 full suite:
 
 ```
@@ -381,7 +381,7 @@ Stream-Mapparr design specs (`Stream-Mapparr/docs/specs/`):
 Shipped in **Stream-Mapparr v1.26.1650009**. Bugs: **048** (stylized-Unicode), **051**
 (emoji-as-letter), **055** (resolution markers).
 
-Canonical source: `C:\Users\User\docker\Stream-Mapparr\Stream-Mapparr\fuzzy_matcher.py`.
+Canonical source: `<workspace>/Stream-Mapparr/Stream-Mapparr/fuzzy_matcher.py`.
 
 Per workspace-root `CLAUDE.md`: port matcher fixes + their regression tests to all
 `fuzzy_matcher.py` copies until the shared-core refactor lands (DEV-WORKFLOW.md §7.1).

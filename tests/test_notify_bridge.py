@@ -118,7 +118,9 @@ def test_a_rule_naming_this_source_and_event_routes_to_smtp(bridge):
 
 
 def test_another_plugins_rule_does_not_count(bridge):
-    settings = _rules({"match": {"source": "dustarr", "event": "usage_report"},
+    """Several plugins send a usage_report, so a rule must match on the source
+    as well as the event before it counts as routing OUR report."""
+    settings = _rules({"match": {"source": "some-other-plugin", "event": "usage_report"},
                        "channels": ["smtp"]})
     assert bridge.routes_to_smtp(settings) is False
 

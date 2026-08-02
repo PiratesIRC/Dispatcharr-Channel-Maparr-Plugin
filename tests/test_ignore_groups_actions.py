@@ -576,9 +576,10 @@ def test_load_and_process_status_summary_reports_the_scope(
     file already does. Without it the action writes to the container path
     /data/channel_mapparr_loaded_channels.json, which does not exist on a Linux
     machine, so the action returns an error and the assertion below reports only
-    "error != success" with no hint why. On Windows the same path resolves to
-    C:\\data, so the test passed locally and failed on every continuous
-    integration run from 2026-07-26 onward.
+    "error != success" with no hint why. On Windows the same path resolves to a
+    directory at the current drive root, which exists on the development machine,
+    so the test passed locally and failed on every continuous integration run
+    from 2026-07-26 onward.
     """
     fake_groups(GROUPS_WITH_TEAMARR)
     monkeypatch.setattr(plugin_instance, "results_file",

@@ -1,5 +1,82 @@
 # Channel Maparr — Changelog
 
+## v1.26.2141319 (August 2, 2026)
+
+**Reports can now be emailed, using the Newsflasharr plugin as the delivery path.**
+Channel Maparr writes its CSV exports to `/data/exports`, and until now there was no way
+to get one off the box.
+
+- Three new settings. **Send notifications to Newsflasharr** is the master toggle and is
+  **off by default**, because a released plugin must not start writing into another
+  plugin's queue the moment it is upgraded. **Email A Report After** chooses between
+  `never` and every run that produces an export. **Email Report Format** chooses HTML,
+  CSV, or both; the default is HTML alone, so one run sends one email.
+- One new action, **Email Report Now**, builds a report from the last processed channels
+  and queues it. It refuses, in the persistent red area of the plugin card, when
+  Newsflasharr is absent, disabled, missing email settings, missing a routing rule for
+  this plugin, or when its collector is not running. It says *queued*, never *sent*:
+  `notify()` returning true means durably written to Newsflasharr's queue, not delivered.
+- The emailed report is a **new, purpose-built pair of files** in
+  `/data/channel_mapparr_reports`, an HTML page and a CSV. The exports in `/data/exports`
+  are unchanged and are never emailed.
+
+**The emailed report cannot carry your provider's hostname, by construction.**
+Every CSV export opens with a settings header naming the configured M3U sources, which on
+a real installation is the provider hostname, and Newsflasharr sends an attachment
+verbatim and unredacted.
+
+- `reports.py` builds its model by copying a named allow list of columns out of the rows
+  the actions already hold in memory. It never opens an export file, which is pinned by a
+  test that walks the module's syntax tree. A column added to a CSV writer later therefore
+  cannot start being emailed on its own.
+- The settings header is replaced by a fixed safe subset: plugin version, generation time
+  in UTC, dry run state, match sensitivity, the country databases actually resolved on
+  disk, and row counts.
+- Every free text cell is scrubbed of the M3U account names, case insensitively and
+  longest match first, and of IPv4 and IPv6 addresses.
+- That scrub **fails closed**. If the M3U account lookup raises, no report is built at
+  all, rather than one whose redaction was a silent no operation. These names are the
+  primary redaction input here, not a backstop.
+
+**Which runs report, and why the list is shorter than it looks.**
+
+- The channel rename preview reports. The category organization preview reports. A
+  completed M3U import reports.
+- **Organize by Category reports only in Dry Run**, because a real run of it writes no
+  export at all. This is stated in the setting's help text rather than left to surprise.
+- **The M3U import dry run does not report**, so one import produces one report rather
+  than two.
+- An audit of the syntax tree pins this list, so a fourth export writer added later cannot
+  quietly skip its report.
+
+**Size handling is a fixed row cap, not a trimming loop.** An M3U import can carry
+seventeen thousand rows, and three of the paths that build a report run inside the web
+request, where a pure Python loop performs no input or output and so never yields. Under
+the server's async model that would freeze the whole worker. The cap is applied once, and
+both renderings carry a visible line saying how many rows of how many are shown and naming
+the complete file.
+
+**The category organization export is now written atomically**, through a temporary file
+and a rename, like the other two export writers already were. A plain write left a
+truncated file at the final path when it failed part way, with no temporary file to clean
+up, and that truncated file was the one an operator would later believe was complete.
+
+**Validate Settings reports emailed-report problems**, using the warning glyph so the
+lines actually reach the operator: an unrecognised stored value in either new select, a
+Newsflasharr configuration that could not deliver, and a failing M3U account lookup.
+
+**Newsflasharr must be configured on its own settings page for any of this to arrive.**
+A routing rule keyed on source `channel-mapparr` and event `usage_report`, sending to
+email. Without it the queue write succeeds and the mail is delivered somewhere else and
+without its attachment. **Do not** set Newsflasharr's report-absence expectation for this
+plugin: that detector measures cadence, and this plugin has no schedule.
+
+**Repository hygiene, done in the same change.** Plugin export files at the repository
+root were untracked but not ignored, and each carried the provider hostname; the ignore
+rules were widened and the files removed. `.publish-audit.json` was added and every one of
+its deny rules was proved to fire against a planted test file. Developer machine paths
+were removed from the tracked notes.
+
 ## v1.26.2071908 (July 26, 2026)
 
 **Validate Settings reports only what needs acting on.** It previously returned its

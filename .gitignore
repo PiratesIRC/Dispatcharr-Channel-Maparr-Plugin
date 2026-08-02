@@ -23,6 +23,22 @@ Channel-Maparr/.serena/
 # Windows reserved-name junk file
 Channel-Maparr/nul
 
+# Agent and contributor notes. These are working notes about this installation,
+# not documentation for users of the plugin, and this repository is public.
+# They were tracked until 2026-08-02 and are therefore already in the published
+# history; ignoring them stops any further publication.
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.claude/
+.wolf/
+
+# Local planning documents: designs and implementation plans written while
+# working on a change. The finished result belongs in docs/CHANGELOG.md and
+# docs/USER-GUIDE.md, which are for users. Newsflasharr treats this directory
+# the same way.
+docs/superpowers/
+
 # Local editor / OS
 .DS_Store
 Thumbs.db

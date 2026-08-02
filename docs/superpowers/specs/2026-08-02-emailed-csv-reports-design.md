@@ -453,3 +453,25 @@ Recorded so the design and the code do not quietly disagree.
 5. **Still outstanding, deliberately not done:** `group_scope.py` and `wildcard_match.py` are
    absent from the hand-maintained compile-check list in `.github/workflows/tests.yml`. That
    predates this change and fixing it would widen the scope of this one.
+
+## 15. Correction after the first real delivery, 2026-08-02
+
+Section 5.4 said every notification should carry `url=` holding the report's path inside the
+container, "a locator, not a link", so a recipient whose gateway stripped the attachment would
+still know where the file is. Two of the four design reviewers recommended it, citing the caller
+contract's advice to pair `url` with `attachment`.
+
+**That was wrong, and the first real delivery proved it.** The operator received the email with
+`/data/channel_mapparr_reports/channel_mapparr_report_20260802_191252.html` rendered as a
+hyperlink. Newsflasharr's email template renders `url` as a link, so calling it a locator changed
+nothing about how it reached the reader: it arrived as a link to a path that exists only inside
+the container and cannot resolve from a mail client.
+
+Corrected in `1.26.2141418`: no `url` is sent at all. The same information is stated as plain
+text in the notification body, where no mail client turns it into a link. `notify_bridge.py`
+gains a named `REPORT_LOCATION` constant, and two tests pin both halves.
+
+**The general lesson, which is why this is recorded rather than quietly fixed:** a field's meaning
+is decided by what RENDERS it, not by what the caller intends. "It is a locator, not a link" was a
+statement about intent that the receiving template was never going to honour. Nothing may go in a
+`url` field unless it is reachable from wherever that field is displayed.

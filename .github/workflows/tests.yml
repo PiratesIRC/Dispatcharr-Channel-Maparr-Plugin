@@ -28,8 +28,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
+      # Every shipped module, found by pattern rather than listed by hand. The
+      # previous hand-maintained list had never included group_scope.py or
+      # wildcard_match.py, so those two shipped without ever being compile
+      # checked. A list that must be edited whenever a module is added is a list
+      # that will be forgotten.
       - name: Compile-check shipped plugin sources
-        run: python -m py_compile Channel-Maparr/plugin.py Channel-Maparr/fuzzy_matcher.py Channel-Maparr/matching_core.py Channel-Maparr/logo_matcher.py Channel-Maparr/progress_status.py Channel-Maparr/aliases.py Channel-Maparr/reports.py Channel-Maparr/notify_bridge.py Channel-Maparr/notify_client.py
+        run: |
+          shopt -s nullglob
+          files=(Channel-Maparr/*.py)
+          if [ ${#files[@]} -eq 0 ]; then echo "no plugin sources found"; exit 1; fi
+          printf 'compiling %s\n' "${files[@]}"
+          python -m py_compile "${files[@]}"
+        shell: bash
 
       # Explicit, named drift gate: freezes the pure matcher primitives against
       # tests/matcher_golden_baseline.json (Stage 0 of the matcher standardization
@@ -42,5 +53,25 @@ jobs:
       - name: Vendored-core parity gate
         run: python -m pytest tests/test_core_parity.py -q -o addopts=""
 
+      # The emailed HTML report carries a small script that sorts its table.
+      # tests/test_report_sorting.py runs that script for real and skips itself
+      # when Node is absent, so without this step the shipped JavaScript is only
+      # ever executed on a developer machine.
+      - name: Set up Node, so the report sorting tests actually run
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Run test suite
         run: python -m pytest
+
+      # Advisory only, and deliberately not a gate yet: the repository has a
+      # backlog of pre-existing findings, so failing the build on them would
+      # make this workflow permanently red and teach everyone to ignore it.
+      # Annotations still appear on the pull request. Turn continue-on-error off
+      # once the backlog is cleared.
+      - name: Lint (advisory)
+        continue-on-error: true
+        run: |
+          pip install ruff
+          ruff check --output-format=github . || true

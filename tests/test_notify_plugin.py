@@ -14,6 +14,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from conftest import REAL_CONTAINER_PATHS
+
 
 @pytest.fixture
 def plugin(plugin_instance):
@@ -223,23 +225,36 @@ def test_no_clause_is_added_when_notifications_are_switched_off(plugin):
 # The on-demand button
 # --------------------------------------------------------------------------- #
 
-def test_the_export_cleaner_cannot_reach_an_emailed_report(plugin, plugin_module):
+def test_the_export_cleaner_cannot_reach_an_emailed_report():
     """Clear CSV Exports deletes channel_mapparr_*.csv inside the export
     directory. A report file is also named channel_mapparr_*, so the ONLY thing
     keeping the cleaner away from a queued attachment is that the two live in
     different directories. That is one refactor away from deleting an attachment
-    out from under a delivery retry, so it is pinned here."""
-    reports = plugin._reports()
-    export_dir = plugin_module.PluginConfig.EXPORT_DIR.rstrip("/")
-    report_dir = reports.REPORT_DIR.rstrip("/")
+    out from under a delivery retry, so it is pinned here.
+
+    Reads the PRODUCTION paths, not the temporary ones the conftest fixture
+    redirects to. Asserting that two temporary directories differ would prove
+    nothing about what ships.
+    """
+    export_dir = REAL_CONTAINER_PATHS["EXPORT_DIR"].rstrip("/")
+    report_dir = REAL_CONTAINER_PATHS["REPORT_DIR"].rstrip("/")
     assert report_dir != export_dir
     assert not report_dir.startswith(export_dir + "/")
 
 
-def test_report_files_are_not_written_where_nginx_serves_them_unauthenticated(plugin):
+def test_report_files_are_not_written_where_nginx_serves_them_unauthenticated():
     """Dispatcharr's nginx serves /data/logos to the whole local network with no
-    authentication."""
-    assert not plugin._reports().REPORT_DIR.startswith("/data/logos")
+    authentication. Reads the production path for the reason above."""
+    assert not REAL_CONTAINER_PATHS["REPORT_DIR"].startswith("/data/logos")
+
+
+def test_the_production_paths_were_actually_captured():
+    """The two tests above are only meaningful if the captured values are the
+    real ones. Without this, a conftest change that captured the temporary paths
+    would make both of them pass while proving nothing."""
+    assert REAL_CONTAINER_PATHS["EXPORT_DIR"] == "/data/exports"
+    assert REAL_CONTAINER_PATHS["REPORT_DIR"] == "/data/channel_mapparr_reports"
+    assert REAL_CONTAINER_PATHS["RESULTS_FILE"].startswith("/data/")
 
 
 def test_the_button_refuses_when_notifications_are_off(plugin, logger):

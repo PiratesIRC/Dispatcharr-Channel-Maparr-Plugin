@@ -1,7 +1,10 @@
 # Channel Mapparr user guide
 
-This guide is task-oriented: it walks through doing things. For a field-by-field reference, see
-the **Settings Reference** table in the [README](../README.md).
+This document has two halves. The first walks through doing things. The second is the field-by-field
+reference, which used to live in the [README](../README.md) and was moved here so that the README
+could go back to being an introduction.
+
+**Walkthroughs**
 
 - [What this plugin does, and what it will not do](#what-this-plugin-does-and-what-it-will-not-do)
 - [Your first run](#your-first-run)
@@ -13,6 +16,14 @@ the **Settings Reference** table in the [README](../README.md).
 - [Reading a report](#reading-a-report)
 - [Where everything is written](#where-everything-is-written)
 - [Fixing things by symptom](#fixing-things-by-symptom)
+
+**Reference**
+
+- [Updating the plugin](#updating-the-plugin)
+- [Every setting](#settings-reference)
+- [Recommended action order](#recommended-action-order)
+- [How a name is matched](#match-pipeline)
+- [Performance](#performance)
 
 ---
 
@@ -240,6 +251,15 @@ actions replay its output rather than re-matching.
 reports what your ignore list actually resolved to. A token matching no group refuses the run on
 purpose.
 
+**"Logo not found."** Use the logo's *display name* from Dispatcharr's Logos page, not the
+filename.
+
+**Database loading errors.** The **Channel Databases** setting takes two-letter country codes, such
+as `US, UK`. Anything else is rejected.
+
+**Organize by Category times out the worker.** Make sure you are on v1.26.1001200 or later, which
+runs that action in a background thread.
+
 **Matching is slow.** Install `rapidfuzz` in your Dispatcharr container. The logs say which backend
 is in use. The difference is large.
 
@@ -257,3 +277,109 @@ file was gone when delivery was attempted. Newsflasharr records this and still s
 
 **Emailed reports stopped after an update.** The master switch defaults to off. Confirm it is
 still on.
+
+---
+
+# Reference
+
+The sections below were moved here from the README, which had grown to hold both an
+introduction and a full reference. They are unchanged.
+
+### Updating the Plugin
+
+To update Channel Mapparr from a previous version:
+
+### 1. Remove Old Version
+1. Navigate to **Plugins** in Dispatcharr.
+2. Click the trash icon next to the old Channel Mapparr plugin.
+3. Confirm deletion.
+
+### 2. Restart Dispatcharr
+```bash
+docker restart dispatcharr
+```
+
+### 3. Install New Version
+1. Log back into Dispatcharr.
+2. Navigate to **Plugins**.
+3. Click **Import Plugin** and upload the new plugin zip file.
+4. Enable the plugin after installation.
+
+### 4. Verify Installation
+1. Check that the new version number appears in the plugin list.
+2. Reconfigure your settings if needed.
+3. Run **Validate Settings** to confirm everything is working.
+
+### Settings Reference
+
+
+| Setting | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| **Channel Databases** | `string` | `US` | Comma-separated country codes (AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, UK, US). |
+| **Match Sensitivity** | `select` | `normal` | Relaxed (70), Normal (80), Strict (90), Exact (95). |
+| **Channel Groups to Process** | `string` | - | Comma-separated group names for renaming operations. Empty = all groups. Use "Channel Groups to Ignore" to exclude instead. |
+| **Channel Groups to Ignore** | `string` | - | Comma-separated, supports `*` and `?` wildcards, case-insensitive. Channels in these groups are excluded from renaming, tagging, logos and Organize by Category, regardless of "Channel Groups to Process". Organize skips a target group that is ignored; Import M3U Streams refuses to run if its destination group is ignored. Does not apply to Import's stream matching or duplicate detection. A typo that matches no group refuses the run rather than silently processing everything. |
+| **Channel Groups for Category Organization** | `string` | - | Comma-separated group names for category sorting. Empty = all groups. |
+| **M3U Source** | `select` | `All sources` | Filter streams to a specific M3U account. |
+| **M3U Group Filter** | `string` | - | Pre-match filter by M3U group-title. |
+| **Category Filter** | `string` | - | Post-match filter by database category. |
+| **Custom Import Group Name** | `string` | - | Override category-based group naming for imports. |
+| **OTA Channel Name Format** | `string` | `{NETWORK} - {STATE} {CITY} ({CALLSIGN})` | Format template for broadcast channels. |
+| **Suffix for Unknown Channels** | `string` | ` [Unk]` | Suffix to append to unmatched channels. |
+| **Ignored Tags** | `string` | `[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]` | Tags removed before matching (handles `[]` and `()`). |
+| **Default Logo** | `string` | - | Logo display name from Dispatcharr's Logos page. |
+| **Dry Run Mode** | `boolean` | `false` | Preview changes without modifying anything. |
+| **Rate Limiting** | `select` | `None` | Delay between DB writes (None/Low/Medium/High). |
+| **Send notifications to Newsflasharr** | `boolean` | `false` | Master switch for emailed reports. Requires the Newsflasharr plugin, which is what sends the mail. What routes where is configured in Newsflasharr's own routing rules, keyed on this plugin's name. |
+| **Email A Report After** | `select` | `every_run` | `never`, or every run that produces an export. Organize by Category reports only in Dry Run, because a real run of it produces no export. Does nothing unless the switch above is on. |
+| **Email Report Format** | `select` | `html` | `html`, `csv`, or `both`. A notification carries one attachment, so `both` sends two emails per run rather than one email with two files. Both files are written to `/data/channel_mapparr_reports` either way; this only decides which are emailed. |
+
+### Recommended Action Order
+
+
+The action buttons are listed in the recommended execution order:
+
+1. **Validate Settings** - Check DB connectivity and settings.
+2. **Load & Process Channels** - Scan groups and determine standardized names.
+3. **Rename Channels** - Apply names (or CSV preview in Dry Run).
+4. **Tag Unknown Channels** - Append suffix to unmatched channels.
+5. **Apply Default Logo** - Assign one default logo to all channels without one.
+6. **Apply Per-Channel Logos (tv-logos)** - Fuzzy-match each channel to the [tv-logo/tv-logos](https://github.com/tv-logo/tv-logos) repo and assign individual artwork.
+7. **Organize by Category** - Move channels into category groups (or CSV preview).
+8. **Import M3U Streams** - Create channels from M3U streams (or CSV preview).
+9. **Show Status** - Display live progress / ETA for the most recent operation (no destructive effect).
+10. **Email Report Now** - Build a report from the last processed channels and queue it for email (no destructive effect). It refuses, visibly, when Newsflasharr is absent, disabled, missing its email settings, missing a routing rule for this plugin, or when its collector is not running. Queued means written to Newsflasharr's queue, not yet in your inbox.
+11. **Clear CSV Exports** - Delete all plugin CSV files. It cannot reach the emailed reports, which live in a different directory.
+
+Rename before Import ensures duplicate detection is accurate (standardized names prevent duplicates). The two logo actions are independent — use Default Logo for a fast fallback, or Per-Channel Logos for individualized artwork.
+
+"Channel Groups to Ignore" (v1.26.2071409+) is a scope setting, not a step of its own; it applies across all eleven actions above wherever they read or write channel groups (it does not affect Import M3U Streams' stream matching or duplicate detection). Set it once before running Validate Settings, which reports the resolved exclusion.
+
+### Match Pipeline
+
+
+Each stream is run through four stages in order — the first stage that produces a confident match wins:
+
+| Stage | Method | When it fires | Why |
+|---|---|---|---|
+| **0** | **Alias** | Normalized stream name is a key in the curated alias map | O(1), highest confidence — short-circuits fuzzy entirely for known variants. |
+| **1** | **Exact / very-high similarity** (≥97%) | After normalization, stream and candidate are identical or within a few characters | Catches near-perfect matches instantly with token-overlap guard against `ABC News` vs `BBC News`. |
+| **2** | **Substring** | One string contains the other AND lengths within 75% | Handles prefixed/suffixed variants like `US: HBO HD` ↔ `HBO`. |
+| **3** | **Fuzzy token-sort** | Levenshtein after token normalization, length-scaled threshold + subset/divergent/numeric guards | Catches reordered words and minor spelling differences. |
+
+If all four miss, the stream is reported as unmatched (and tagged with the configured suffix if you run **Tag Unknown Channels**).
+
+### Performance
+
+
+Channel Mapparr uses several optimization layers for fast matching:
+
+1. **Alias index** (O(1) hash) - 200+ curated variant→canonical mappings checked before fuzzy.
+2. **Exact lookup** (O(1) hash) - catches near-identical matches instantly.
+3. **Normalized lookup** (O(1) hash) - matches after stripping tags, prefixes, and noise.
+4. **Token-indexed fuzzy matching** - inverted index reduces candidates from 31K to ~50-200 before fuzzy comparison.
+5. **`rapidfuzz` C extension** - 10-100x faster than pure-Python Levenshtein when available.
+6. **Early termination** - skips impossible matches via length pre-check and row-level abort.
+7. **tv-logos filelist cache** - per-session cache on the GitHub fetch so re-running per-channel logo assignment doesn't repeat the API call.
+
+Benchmark: 19,147 streams matched against 31,621 channels in **6 seconds**.

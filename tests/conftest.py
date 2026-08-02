@@ -65,6 +65,65 @@ def _load_plugin_package():
     return pkg
 
 
+# ---------------------------------------------------------------------------
+# Container paths
+#
+# The plugin writes to absolute paths under /data, which exist inside the
+# Dispatcharr container and nowhere else. A test that lets plugin code write to
+# one of them can still pass on Windows, where such a path resolves to a
+# directory at the current drive root that the development machine happens to
+# have, and fails on Linux, where it does not exist. That is exactly how one
+# test stayed green locally while failing every continuous integration run for a
+# week (bug-105).
+#
+# REAL_CONTAINER_PATHS holds the production values, captured before any test
+# redirects them, for the few tests that must assert on the truth: that emailed
+# reports are not written where nginx serves them unauthenticated, and that the
+# export cleaner cannot reach them.
+# ---------------------------------------------------------------------------
+
+REAL_CONTAINER_PATHS = {}
+
+
+def _capture_real_container_paths():
+    if REAL_CONTAINER_PATHS:
+        return
+    _load_plugin_package()
+    import channel_maparr.plugin as plugin_module  # noqa: E402
+    import channel_maparr.reports as reports_module  # noqa: E402
+    REAL_CONTAINER_PATHS.update({
+        "RESULTS_FILE": plugin_module.PluginConfig.RESULTS_FILE,
+        "EXPORT_DIR": plugin_module.PluginConfig.EXPORT_DIR,
+        "PROGRESS_FILE": plugin_module.PROGRESS_FILE,
+        "REPORT_DIR": reports_module.REPORT_DIR,
+    })
+
+
+@pytest.fixture(autouse=True)
+def redirect_container_paths(tmp_path, monkeypatch):
+    """Point every path the plugin writes to at a temporary directory.
+
+    Autouse on purpose. The value of this fixture is that a new test cannot
+    forget it: the failure it prevents is invisible on the machine the test is
+    written on and only appears on Linux.
+
+    A test that needs the production value reads it from REAL_CONTAINER_PATHS
+    instead, which is captured before this fixture ever runs.
+    """
+    _capture_real_container_paths()
+    import channel_maparr.plugin as plugin_module  # noqa: E402
+    import channel_maparr.reports as reports_module  # noqa: E402
+
+    monkeypatch.setattr(plugin_module.PluginConfig, "RESULTS_FILE",
+                        str(tmp_path / "loaded_channels.json"))
+    monkeypatch.setattr(plugin_module.PluginConfig, "EXPORT_DIR",
+                        str(tmp_path / "exports"))
+    monkeypatch.setattr(plugin_module, "PROGRESS_FILE",
+                        str(tmp_path / "progress.json"))
+    monkeypatch.setattr(reports_module, "REPORT_DIR",
+                        str(tmp_path / "reports"))
+
+
 @pytest.fixture(scope="session")
 def plugin_dir():
     return PLUGIN_DIR

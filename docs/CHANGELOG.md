@@ -1,5 +1,36 @@
 # Channel Maparr — Changelog
 
+## v1.26.2141433 (August 2, 2026)
+
+**The HTML report's table can now be sorted by clicking a column heading.** Requested by the
+operator. Click a heading to sort by it, click again to reverse, or move focus to it and press
+Enter. An arrow on the heading shows which column is sorted and in which direction.
+
+- **Numbers sort as numbers.** Channel Number 10 comes after 2, not before it, which is what a
+  plain text comparison would give. Text sorts ignoring letter case.
+- The comparison reads a `data-v` attribute carrying the same value the cell displays, so what is
+  sorted is always what is shown.
+- **The script is embedded in the page and requests nothing from anywhere.** The report is opened
+  from a file path or from a mail attachment, where an external request would not resolve and
+  would disclose that the report had been opened.
+- **Sorting is an addition, not a requirement.** Every row is in the page markup, so a reader
+  whose mail client strips scripts still sees the whole table and simply cannot reorder it. The
+  page says so in its own footer. In practice sorting works when the attachment is saved and
+  opened in a browser, which is the ordinary way to read an HTML attachment.
+
+**The sorting is tested by running it, not by looking at it.** A test that only checks a script
+tag is present would pass for months while proving nothing. `tests/report_sort_harness.js` builds
+a minimal document model from the real rendered page and runs the shipped script in Node, then
+checks the row order that comes out. It is skipped when Node is absent, so it is a local safety
+net rather than a build gate, and `tests/test_reports.py` still covers the markup everywhere. The
+harness carries its own control: a second test feeds it a script that does nothing and requires
+it to fail.
+
+**Note on the request.** This was asked for on the basis that Stream-Mapparr already does it.
+Measured: Stream-Mapparr's report is not sortable, and `Stream-Mapparr/tests/test_reports_render.py`
+actively asserts its report page contains no script element at all. This plugin now deliberately
+differs from that sibling.
+
 ## v1.26.2141418 (August 2, 2026)
 
 **The emailed report no longer sends a hyperlink that cannot be opened.** Reported by the

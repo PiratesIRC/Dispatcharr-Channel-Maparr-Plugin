@@ -475,3 +475,25 @@ gains a named `REPORT_LOCATION` constant, and two tests pin both halves.
 is decided by what RENDERS it, not by what the caller intends. "It is a locator, not a link" was a
 statement about intent that the receiving template was never going to honour. Nothing may go in a
 `url` field unless it is reachable from wherever that field is displayed.
+
+## 16. Addition on 2026-08-02: the HTML table sorts
+
+Requested by the operator. Section 5 said nothing about sorting; the report table is now sortable
+by clicking or keyboard-activating a column heading, with numeric columns compared as numbers.
+
+The request was made on the basis that Stream-Mapparr already did this. Measured, it does not:
+`Stream-Mapparr/Stream-Mapparr/reports.py` contains no sorting code, and
+`Stream-Mapparr/tests/test_reports_render.py` asserts its report page contains no script element
+at all. This plugin therefore deliberately differs from that sibling, and the operator was told so
+before it was built.
+
+Constraints kept: the script is embedded with no external request of any kind, so the page still
+resolves nothing when opened from a file path or a mail attachment; and every row remains in the
+markup, so a mail client that strips scripts shows the full table and only loses the ability to
+reorder it.
+
+**The sorting is verified by EXECUTING it**, not by asserting a script tag exists.
+`tests/report_sort_harness.js` builds a minimal document model from the real rendered page and
+runs the shipped script under Node. It is skipped when Node is absent, and a companion test feeds
+it a script that does nothing and requires it to fail, so the harness cannot rot into something
+that always passes.

@@ -567,10 +567,22 @@ def test_csv_header_records_the_exclusion(plugin_instance):
 
 
 def test_load_and_process_status_summary_reports_the_scope(
-        plugin_instance, logger, fake_channel, fake_groups, monkeypatch, plugin_module):
+        plugin_instance, logger, fake_channel, fake_groups, monkeypatch, plugin_module,
+        tmp_path):
     """Show Status (progress.finish's persisted summary) must say what scope
-    the completed run applied, not just how many channels were touched."""
+    the completed run applied, not just how many channels were touched.
+
+    results_file is redirected to a temporary path, as every other test in this
+    file already does. Without it the action writes to the container path
+    /data/channel_mapparr_loaded_channels.json, which does not exist on a Linux
+    machine, so the action returns an error and the assertion below reports only
+    "error != success" with no hint why. On Windows the same path resolves to
+    C:\\data, so the test passed locally and failed on every continuous
+    integration run from 2026-07-26 onward.
+    """
     fake_groups(GROUPS_WITH_TEAMARR)
+    monkeypatch.setattr(plugin_instance, "results_file",
+                        str(tmp_path / "loaded_channels.json"))
     captured = {}
     monkeypatch.setattr(
         plugin_module.ProgressTracker, "finish",
@@ -579,7 +591,7 @@ def test_load_and_process_status_summary_reports_the_scope(
     result = plugin_instance.load_and_process_channels_action(
         {"channel_databases": "US", "ignore_groups": "Teamarr"}, logger)
 
-    assert result["status"] == "success"
+    assert result["status"] == "success", result.get("error")
     assert "Teamarr" in captured["summary"]
 
 

@@ -212,6 +212,10 @@ table { border-collapse: collapse; width: 100%; font-size: 15px; }
 th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #e6e8ec;
          vertical-align: top; }
 th { background: #f2f3f6; }
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable::after { content: " \\2195"; opacity: .35; font-size: 12px; }
+th.sortable[aria-sort="ascending"]::after { content: " \\2191"; opacity: 1; }
+th.sortable[aria-sort="descending"]::after { content: " \\2193"; opacity: 1; }
 .empty { opacity: .7; font-style: italic; }
 .note { font-size: 14px; opacity: .7; margin-top: 20px; }
 dl.meta { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; }
@@ -238,15 +242,80 @@ def _fmt_ts(ts):
         return "unknown"
 
 
+# Click to sort, embedded in the page rather than loaded from anywhere. The page
+# is opened from a file path or from a mail attachment, so an external request
+# would not resolve and would disclose that the report had been opened.
+#
+# This is an ADDITION, not a requirement. Every row is present in the markup, so
+# a reader whose mail client strips scripts still sees the whole table; they
+# simply cannot reorder it. Mail clients do strip scripts, so sorting works when
+# the attachment is saved and opened in a browser, which is the ordinary way to
+# read an HTML attachment.
+#
+# The comparison reads each cell's data-v attribute, which holds the same value
+# the cell displays. Two values that both parse as numbers are compared as
+# numbers, because comparing them as text puts 10 before 2.
+_SORT_SCRIPT = """
+(function () {
+  var table = document.querySelector('table');
+  if (!table || !table.tBodies.length) { return; }
+  var headers = [].slice.call(table.querySelectorAll('th.sortable'));
+  function value(row, index) {
+    var cell = row.children[index];
+    if (!cell) { return ''; }
+    var raw = cell.getAttribute('data-v');
+    return raw === null ? cell.textContent : raw;
+  }
+  function compare(a, b, index) {
+    var x = value(a, index), y = value(b, index);
+    var nx = Number(x), ny = Number(y);
+    if (x !== '' && y !== '' && !isNaN(nx) && !isNaN(ny)) { return nx - ny; }
+    return String(x).localeCompare(String(y), undefined,
+                                   { numeric: true, sensitivity: 'base' });
+  }
+  function apply(header, index) {
+    var ascending = header.getAttribute('aria-sort') !== 'ascending';
+    headers.forEach(function (other) { other.setAttribute('aria-sort', 'none'); });
+    header.setAttribute('aria-sort', ascending ? 'ascending' : 'descending');
+    var body = table.tBodies[0];
+    var rows = [].slice.call(body.rows);
+    rows.sort(function (a, b) {
+      return ascending ? compare(a, b, index) : compare(b, a, index);
+    });
+    rows.forEach(function (row) { body.appendChild(row); });
+  }
+  headers.forEach(function (header, index) {
+    header.addEventListener('click', function () { apply(header, index); });
+    header.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        apply(header, index);
+      }
+    });
+  });
+})();
+"""
+
+
 def render_html(model):
-    """Render the model to one self contained HTML page."""
+    """Render the model to one self contained HTML page.
+
+    The table is sortable by clicking or keyboard-activating a column header.
+    See _SORT_SCRIPT for what that does and what it deliberately does not do.
+    """
     rows = []
     for entry in model.get("entries") or []:
-        rows.append("<tr>" + "".join(f"<td>{_esc(cell)}</td>" for cell in entry) + "</tr>")
-    headers = "".join(f"<th>{_esc(h)}</th>" for h in model.get("headers") or [])
+        cells = "".join(f"<td data-v=\"{_esc(cell)}\">{_esc(cell)}</td>" for cell in entry)
+        rows.append(f"<tr>{cells}</tr>")
+    headers = "".join(
+        "<th class=\"sortable\" aria-sort=\"none\" tabindex=\"0\" role=\"columnheader\" "
+        f"title=\"Sort by {_esc(h)}\">{_esc(h)}</th>"
+        for h in model.get("headers") or [])
     if rows:
-        table = ("<div class=\"scroll\"><table><tr>" + headers + "</tr>"
-                 + "".join(rows) + "</table></div>")
+        table = ("<div class=\"scroll\"><table>"
+                 "<thead><tr>" + headers + "</tr></thead>"
+                 "<tbody>" + "".join(rows) + "</tbody>"
+                 "</table></div>")
     else:
         table = "<p class=\"empty\">This run produced no rows.</p>"
 
@@ -267,10 +336,14 @@ def render_html(model):
         + notice_html +
         f"<div class=\"card\"><dl class=\"meta\">{meta}</dl></div>\n"
         f"<div class=\"card\">{table}</div>\n"
+        "<p class=\"note\">Click a column heading to sort by it, or focus it and "
+        "press Enter. Sorting needs the page open in a browser; a mail client "
+        "previewing this file shows every row but cannot reorder them.</p>\n"
         "<p class=\"note\">Names in this report are shown without their M3U source "
         "label, and the plugin settings that name your M3U sources are not "
         f"included. The complete export, which does include them, stays in "
         f"{EXPORTS_LOCATION} inside the container and is not emailed.</p>\n"
+        f"<script>{_SORT_SCRIPT}</script>\n"
         "</body>\n</html>\n"
     )
 

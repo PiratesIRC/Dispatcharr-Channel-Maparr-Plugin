@@ -212,10 +212,78 @@ def test_a_formula_shaped_cell_is_neutralised_in_the_csv(reports):
 
 
 def test_html_special_characters_are_escaped(reports):
+    """Channel names are provider-supplied text and must never become markup.
+
+    This deliberately checks for the INJECTED script rather than for any script
+    element at all: the page carries its own inline sorting script, so a blanket
+    ban would be a test of the wrong thing.
+    """
     rows = [{"channel_name": "<script>alert(1)</script>", "new_name": "x"}]
     text = reports.render_html(_model(reports, rows))
-    assert "<script>" not in text
+    assert "<script>alert(1)</script>" not in text
     assert "&lt;script&gt;" in text
+
+
+# --------------------------------------------------------------------------- #
+# Sorting the table
+# --------------------------------------------------------------------------- #
+
+def test_every_column_header_is_marked_sortable(reports):
+    model = _model(reports, [{"channel_name": "A", "new_name": "B"}])
+    text = reports.render_html(model)
+    # One marked header per declared column.
+    assert text.count('class="sortable"') == len(COLUMNS)
+    assert text.count('aria-sort="none"') == len(COLUMNS)
+
+
+def test_a_header_is_reachable_and_operable_from_the_keyboard(reports):
+    """A control that only responds to a mouse is not usable by everyone."""
+    model = _model(reports, [{"channel_name": "A", "new_name": "B"}])
+    text = reports.render_html(model)
+    assert 'tabindex="0"' in text
+
+
+def test_each_cell_carries_the_value_the_sort_compares(reports):
+    model = _model(reports, [{"channel_name": "WFLA", "new_name": "NBC"}])
+    text = reports.render_html(model)
+    assert 'data-v="WFLA"' in text
+    assert 'data-v="NBC"' in text
+
+
+def test_a_quote_in_a_cell_cannot_break_out_of_the_sort_attribute(reports):
+    """The sort value is attribute content, so an unescaped quote would let
+    provider-supplied text inject markup."""
+    rows = [{"channel_name": 'He said "hi" <b>', "new_name": "x"}]
+    text = reports.render_html(_model(reports, rows))
+    assert 'data-v="He said "hi"' not in text
+    assert "&quot;" in text
+    assert "<b>" not in text
+
+
+def test_the_sorting_script_is_inline_and_requests_nothing_externally(reports):
+    """The page is opened from a file path or from a mail attachment. An external
+    request would not resolve, and would disclose that the report was opened."""
+    text = reports.render_html(_model(reports, [{"channel_name": "A", "new_name": "B"}]))
+    assert "<script>" in text
+    for marker in ("http://", "https://", "<link ", "src=", "@import"):
+        assert marker not in text, f"the page requests something external: {marker}"
+
+
+def test_every_row_is_present_in_the_markup_without_any_scripting(reports):
+    """Sorting is an addition, not a requirement. A reader whose mail client
+    strips scripts must still see the whole table."""
+    rows = [{"channel_name": f"C{i}", "new_name": "N"} for i in range(5)]
+    text = reports.render_html(_model(reports, rows))
+    for i in range(5):
+        assert f">C{i}<" in text
+
+
+def test_the_numeric_hint_is_declared_so_ten_does_not_sort_before_two(reports):
+    """Without a numeric comparison, 10 sorts before 2 as text. The comparison
+    itself lives in the page script; what is testable here is that the script
+    contains the numeric branch rather than comparing everything as strings."""
+    text = reports.render_html(_model(reports, [{"channel_name": "A", "new_name": "B"}]))
+    assert "Number(" in text or "parseFloat(" in text
 
 
 def test_the_html_states_where_the_complete_export_lives(reports):

@@ -2,6 +2,57 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## HARD RULE - AUDIT BEFORE PUSHING OR RELEASING (user-mandated 2026-08-02)
+
+**Run the publish audit before ANY push to a GitHub repository, and again before cutting a
+release.** Also before adding a remote, flipping a repository to public, or uploading a release
+asset. Reading someone else's public repository does not count; sending anything of ours outward
+does.
+
+```sh
+python ../.claude/skills/pre-publish-audit/audit_publish.py --ref <branch> --rules .publish-audit.json
+```
+
+Use `--worktree` instead of `--ref` to audit tracked files as they stand. It exits non-zero when
+anything is flagged. The `pre-publish-audit` skill carries the full procedure.
+
+**Audit, then push, in that order.** A push cannot be reliably undone: rewriting history does not
+reach forks, cached views or pull-request references. If a real credential is found, rotate it
+first and worry about the file second.
+
+Three things the script does not do, all of which have caught something real here:
+
+- **It audits the CURRENT TREE ONLY, while a push publishes every reachable commit.** Scan history
+  separately with `git rev-list --objects <ref>` plus `git cat-file -p` per blob against the deny
+  rules. On Stream-Mapparr that found 5 matches the tree scan could not see.
+- **The `deny` list in `<repo>/.publish-audit.json` is the half that catches real leaks**, because a
+  provider brand host, an M3U account suffix and a LAN prefix all look like ordinary words to a
+  generic scanner. Without that file only the built-in patterns run. Write each pattern with a
+  character class (`strea[m]q`) so the rules file does not itself become the leak.
+- **A clean result means nothing until you have watched the rules fire.** Plant a file containing
+  each forbidden string at a path that is actually scanned, and confirm each rule reports it. A
+  gitignored canary proves nothing and looks exactly like a pass.
+
+Full wording is in the workspace [`CLAUDE.md`](../CLAUDE.md).
+
+## HARD RULE - ASK BEFORE RESTARTING A CONTAINER (user-mandated 2026-08-02)
+
+**Never `docker restart` (or stop/start/down/up) any container without asking the operator first,
+every time.** A restart drops every in-flight stream. Approval for one restart is not approval for
+the next, and a plugin deploy is not an emergency.
+
+**Immediately before the restart, write the reason and who is doing it into the container log.**
+Writing to PID 1's stdout is the only method that reaches `docker logs`; a Python logging call
+through `docker exec` does not (measured 2026-08-02).
+
+```sh
+docker exec dispatcharr sh -c 'echo "$(date "+%Y-%m-%d %H:%M:%S,000") WARNING claude-code.<project>   [<agent-or-skill>] Restarting container: <one-line reason>" > /proc/1/fd/1'
+docker restart dispatcharr
+```
+
+Full wording, including why this method and not another, is in the workspace
+[`CLAUDE.md`](../CLAUDE.md).
+
 ## FIXED 2026-07-26 - the E3 root-file trap on the live box (keep this, the cause recurs)
 
 **Resolved the same day it was found.** `chown -R dispatch:dispatch` was applied
@@ -148,8 +199,9 @@ you believe is deployed.
 
 **The fix Newsflasharr shipped, if you want the pattern** (`1.26.2071641`): write the complete
 readout to a file and return its path in `file`, keeping `message` to a short headline that fits.
-Newsflasharr writes to `/config/newsflasharr/<action>.txt` (= `O:\docker\dispatcharr\config\...`,
-browsable in Explorer). **Deliberately NOT `/data/logos/`**, which nginx serves
+Newsflasharr writes to `/config/newsflasharr/<action>.txt`, which is the container side of the
+bind-mounted Dispatcharr config directory and so is browsable from the host file manager.
+**Deliberately NOT `/data/logos/`**, which nginx serves
 **unauthenticated** to the whole LAN. Design and the measured geometry:
 `notifier/docs/superpowers/specs/2026-07-26-action-readout-files-design.md`; the operational
 record is in `notifier/CLAUDE.md`.

@@ -2,6 +2,29 @@
 
 ## v1.26.2141433 (August 2, 2026)
 
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2141433
+
+This release adds emailed reports, delivered by the Newsflasharr plugin, as an HTML page and a
+CSV built specifically for sending. It also documents the plugin properly for the first time: a
+task-oriented user guide, a disclaimer, and a screenshot of what an emailed report looks like.
+The three entries below cover the work in the order it was done.
+
+### Documentation
+
+- **New [user guide](USER-GUIDE.md)**, task-oriented rather than reference: a first run, what Dry
+  Run actually changes, how to scope which channels are touched, how broadcast station names are
+  built, what to do when a channel will not match, and a full walkthrough for setting up emailed
+  reports including the Newsflasharr routing rule that is otherwise invisible when missing.
+- **The README gained a Documentation table, a Disclaimer, and a screenshot** of an emailed report
+  built from invented data.
+- **Corrected a stale README entry**: it documented a version cache file at
+  `/data/channel_mapparr_version_check.json`. The self-update check was removed in v1.26.2071908
+  and nothing writes that file now. Any copy on your installation is left over and can be deleted.
+- The Settings Reference, action list and File Locations sections now include the emailed-report
+  settings, the **Email Report Now** action, and `/data/channel_mapparr_reports/`.
+
+### Sorting
+
 **The HTML report's table can now be sorted by clicking a column heading.** Requested by the
 operator. Click a heading to sort by it, click again to reverse, or move focus to it and press
 Enter. An arrow on the heading shows which column is sorted and in which direction.

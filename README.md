@@ -42,10 +42,20 @@ A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel
 * **Background Threading**: Long-running operations (M3U import, organize) run in background threads with progress tracking via WebSocket.
 * **Atomic File Writes**: CSV exports use temp files with atomic rename to prevent corrupt partial writes.
 * **Rate Limiting**: Configurable delay between database writes during large imports (None/Low/Medium/High).
+* **Emailed Reports** (v1.26.2141433+): Optionally email a report of each run, as an HTML page and/or a CSV, delivered by the [Newsflasharr](https://github.com/PiratesIRC/Dispatcharr-Newsflasharr-Plugin) plugin. **The emailed report is built separately from the CSV exports and never contains your M3U source names**, which the exports in `/data/exports` do carry in their settings header. Channel and stream names are additionally scrubbed of M3U account names and IP addresses, and the scrub fails closed: if the account lookup fails, no report is built rather than one sent unredacted. The HTML table sorts by clicking a column heading, with numeric columns compared as numbers. Off by default; a separate **Email Report Now** button sends one on demand and refuses, visibly, when the mail could not actually arrive.
+
+### The emailed report
+
+![An emailed Channel Mapparr rename preview: a summary card showing plugin version, generation time, databases loaded, dry-run state, match sensitivity and row count, above a sortable table of channel numbers, groups, current and new names, status and match method](docs/images/emailed-report.jpg)
+
+*Sample data. Click any column heading to sort by it; numeric columns are compared as numbers, so
+channel 18 sorts before 31 rather than after 102. The plugin settings that name your M3U sources
+are deliberately absent from this page.*
 
 ## Requirements
 * Dispatcharr v0.20.0+
 * Internet access, only for **Apply Per-Channel Logos (tv-logos)**, which fetches the logo file list from GitHub. Every other action works fully offline; the plugin no longer checks for its own updates.
+* The [Newsflasharr](https://github.com/PiratesIRC/Dispatcharr-Newsflasharr-Plugin) plugin, only if you want **emailed reports**. It is what actually sends the mail. Channel Mapparr does not require it: with Newsflasharr absent or disabled, nothing is sent and nothing fails.
 
 ## Installation
 1. Log in to Dispatcharr's web UI.
@@ -96,6 +106,9 @@ docker restart dispatcharr
 | **Default Logo** | `string` | - | Logo display name from Dispatcharr's Logos page. |
 | **Dry Run Mode** | `boolean` | `false` | Preview changes without modifying anything. |
 | **Rate Limiting** | `select` | `None` | Delay between DB writes (None/Low/Medium/High). |
+| **Send notifications to Newsflasharr** | `boolean` | `false` | Master switch for emailed reports. Requires the Newsflasharr plugin, which is what sends the mail. What routes where is configured in Newsflasharr's own routing rules, keyed on this plugin's name. |
+| **Email A Report After** | `select` | `every_run` | `never`, or every run that produces an export. Organize by Category reports only in Dry Run, because a real run of it produces no export. Does nothing unless the switch above is on. |
+| **Email Report Format** | `select` | `html` | `html`, `csv`, or `both`. A notification carries one attachment, so `both` sends two emails per run rather than one email with two files. Both files are written to `/data/channel_mapparr_reports` either way; this only decides which are emailed. |
 
 ## Recommended Action Order
 
@@ -110,11 +123,12 @@ The action buttons are listed in the recommended execution order:
 7. **Organize by Category** - Move channels into category groups (or CSV preview).
 8. **Import M3U Streams** - Create channels from M3U streams (or CSV preview).
 9. **Show Status** - Display live progress / ETA for the most recent operation (no destructive effect).
-10. **Clear CSV Exports** - Delete all plugin CSV files.
+10. **Email Report Now** - Build a report from the last processed channels and queue it for email (no destructive effect). It refuses, visibly, when Newsflasharr is absent, disabled, missing its email settings, missing a routing rule for this plugin, or when its collector is not running. Queued means written to Newsflasharr's queue, not yet in your inbox.
+11. **Clear CSV Exports** - Delete all plugin CSV files. It cannot reach the emailed reports, which live in a different directory.
 
 Rename before Import ensures duplicate detection is accurate (standardized names prevent duplicates). The two logo actions are independent — use Default Logo for a fast fallback, or Per-Channel Logos for individualized artwork.
 
-"Channel Groups to Ignore" (v1.26.2071409+) is a scope setting, not a step of its own; it applies across all ten actions above wherever they read or write channel groups (it does not affect Import M3U Streams' stream matching or duplicate detection). Set it once before running Validate Settings, which reports the resolved exclusion.
+"Channel Groups to Ignore" (v1.26.2071409+) is a scope setting, not a step of its own; it applies across all eleven actions above wherever they read or write channel groups (it does not affect Import M3U Streams' stream matching or duplicate detection). Set it once before running Validate Settings, which reports the resolved exclusion.
 
 ## Match Pipeline
 
@@ -145,10 +159,12 @@ Benchmark: 19,147 streams matched against 31,621 channels in **6 seconds**.
 
 ## File Locations
 * **Processing Cache**: `/data/channel_mapparr_loaded_channels.json`
-* **Version Cache**: `/data/channel_mapparr_version_check.json`
 * **Import Results**: `/data/channel_mapparr_m3u_import_results.json`
 * **Progress File** (v1.26.1430910+): `/data/channel_mapparr_progress.json` — read by the **Show Status** action.
-* **Exports**: `/data/exports/` (CSV previews and reports)
+* **Exports**: `/data/exports/` (CSV previews). These carry a settings header naming your configured M3U sources, and are never emailed.
+* **Emailed Reports** (v1.26.2141433+): `/data/channel_mapparr_reports/` — the HTML and CSV files built for sending. The newest 8 of each are kept, and a file younger than 40 minutes is never deleted, because a delivery retry re-reads the attachment from disk.
+
+The plugin no longer writes a version cache: the self-update check was removed in v1.26.2071908 because it ran on Dispatcharr's per-request hot path. If `/data/channel_mapparr_version_check.json` exists on your installation it is left over from an older build and can be deleted.
 
 ## Troubleshooting
 * **"Logo not found"**: Ensure you are using the logo's *display name* from the Dispatcharr Logos page, not the filename.
@@ -158,6 +174,46 @@ Benchmark: 19,147 streams matched against 31,621 channels in **6 seconds**.
 * **Worker timeout on Organize**: Ensure you're running v1.26.1001200+ which runs organize in a background thread.
 * **Per-channel logos returns "No file lists could be fetched"**: GitHub anonymous API is rate-limited to 60 req/hr/IP. If you've run other GitHub tooling recently you may need to wait an hour, or set up an authenticated proxy.
 * **Show Status reports "no operation has run yet"** even after running an action: ensure `/data/` is writable by the Dispatcharr `dispatch` user. The plugin writes `/data/channel_mapparr_progress.json` on every action tick.
+* **No report email arrives**: run **Validate Settings**, which reports the reason as a warning. The usual cause is that Newsflasharr has no routing rule sending this plugin to email, in which case the report is delivered to whatever Newsflasharr's default channel is, and without its attachment, because attachments are email-only. Add a rule matching source `channel-mapparr` and event `usage_report`. Reload Newsflasharr's settings page before editing it: a stale browser tab re-posts its old form state and silently reverts rules.
+* **The email arrives with no attachment**: the report exceeded Newsflasharr's 1 MB attachment limit, or the file was missing when delivery was attempted. Newsflasharr records this and still sends the message. Large runs are capped at 2000 rows and the report says so at the top, naming the complete export file.
+* **Sorting does nothing in the HTML report**: mail clients strip scripts, so sorting works when you save the attachment and open it in a browser. Every row is present either way; only the reordering is lost.
+* **Emailed reports stop after a plugin update**: the master switch is `Send notifications to Newsflasharr`, and it is off by default. Confirm it is still on.
+
+## Documentation
+
+| Document | What it covers |
+| :--- | :--- |
+| **[User guide](docs/USER-GUIDE.md)** | Step-by-step walkthroughs: a first run, scoping which channels are touched, how OTA names are built, and setting up emailed reports end to end. |
+| **[Changelog](docs/CHANGELOG.md)** | What changed between versions, and why. |
+| **[Development notes](docs/DEVELOPMENT.md)** | How the plugin is put together and how to run the tests. |
+| **[Open work](docs/TODO.md)** | Known gaps and planned improvements. |
+
+## Disclaimer
+
+**Channel Mapparr provides no television content of any kind.** It supplies no channels, no
+playlists, no streams, no electronic programme guide data and no provider accounts, and it
+contains no list of where to obtain any of those. It renames and organizes channel entries that
+already exist in **your** Dispatcharr installation, matching them against bundled reference data:
+curated per-country channel lists and a table of United States broadcast station callsigns
+published by the Federal Communications Commission.
+
+The plugin never contacts a media provider. It never opens, fetches, decodes, records, restreams
+or redistributes any stream. It reads stream *names* in order to match them, and never the streams
+themselves. The only outbound connection it makes is to GitHub, and only when you run **Apply
+Per-Channel Logos**, which fetches a public list of logo filenames. Emailed reports, if you enable
+them, are handed to the Newsflasharr plugin, which sends them to destinations **you** configured.
+
+**You are responsible for what you connect Dispatcharr to.** Whether a particular provider,
+subscription, playlist or stream is lawful for you to use depends on your agreement with that
+provider and on the law where you live. Use only sources you are authorised to use. Nothing in this
+project is intended to enable, encourage or assist access to content you have no right to access.
+
+All product names, channel names, network names, callsigns, trademarks and registered trademarks
+mentioned in this project or appearing in its examples or bundled reference data are the property
+of their respective owners. This project is an independent, community-built plugin. It is not
+affiliated with, endorsed by, or sponsored by any television network, broadcaster, streaming
+service or IPTV provider, and it is not affiliated with the Dispatcharr project beyond being a
+plugin written for it.
 
 ## License
 This plugin integrates with Dispatcharr's plugin system and follows its licensing terms.

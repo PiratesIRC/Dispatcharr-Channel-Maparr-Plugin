@@ -425,3 +425,31 @@ hostname must not leave the box, while the same string was one `git add -A` from
   paths. Flagged by the built-in patterns, not by a deny rule, and also already published.
 - `CLAUDE.md` is tracked in this repository, unlike several siblings where it is ignored. Whether
   it should be published at all is an open question for the operator.
+
+## 14. As built, on 2026-08-02: where the implementation differs from the design above
+
+Recorded so the design and the code do not quietly disagree.
+
+1. **The vendored client's hash is not the one this design first recorded.** Two reviewers
+   reported `c7dac8c1...` for `_shared/notify_client.py`; the measured value when the file was
+   actually copied was `605531...`, matching Stream-Mapparr's committed pin. The shared file was
+   then changed twice more during the implementation session by something outside it, and every
+   sibling plugin's vendored copy was updated in step. The pin now records
+   `97ea354b44550f5906801ab43226494143e182b03d13ed78e95bf5261b204add`. The parity test caught each
+   change, which is what it is for, but the moving target is worth knowing about: coordinate before
+   assuming a pin value from a document.
+2. **Validate Settings does surface warnings.** Section 7.5 read as though a warning would not
+   reach the operator. It does: `validate_settings_action` includes warning lines in its success
+   message. The real constraint is narrower and is what the code follows: a line must start with a
+   recognised glyph, or it is dropped from the output and trips the bookkeeping-drift warning.
+3. **The new field labels carry no icon.** An envelope and paperclip emoji were written first;
+   both are outside the Basic Multilingual Plane, which Dispatcharr's loader rejects, and
+   `tests/test_plugin_contract.py::test_plugin_action_labels_are_bmp_only` caught it. The action
+   button uses the Basic Multilingual Plane envelope instead, and the field labels are plain text,
+   which also matches every other field in this plugin.
+4. **The M3U report allow list is narrower than the export.** The "M3U Source" and "Group Exists"
+   columns are not carried into the report. The first is written as an account id rather than a
+   name and so does not leak, but an allow list is only worth having if it stays narrow.
+5. **Still outstanding, deliberately not done:** `group_scope.py` and `wildcard_match.py` are
+   absent from the hand-maintained compile-check list in `.github/workflows/tests.yml`. That
+   predates this change and fixing it would widen the scope of this one.

@@ -8,8 +8,11 @@ __pycache__/
 *.zip
 /tmp/
 
-# CSV preview/exports produced by dry-run mode
-channel_mapparr_preview*.csv
+# CSV preview/exports and result files produced by the plugin.
+# These carry a settings header naming the configured M3U sources, which on a
+# real installation is the provider hostname, so they must never be committed.
+channel_mapparr_*.csv
+channel_mapparr_*.json
 *_preview.csv
 *_preview_strict.csv
 

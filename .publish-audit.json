@@ -1,0 +1,69 @@
+{
+  "_comment": [
+    "Rules for the workspace pre-publish audit, run against whatever ref is about to be pushed:",
+    "  python ../.claude/skills/pre-publish-audit/audit_publish.py --ref main --rules .publish-audit.json",
+    "`deny` holds strings the built-in patterns cannot know about, because they look like ordinary",
+    "words to a generic scanner. Each pattern is written with a character class around one letter so",
+    "that this file does not itself contain the literal string it is looking for.",
+    "`allow` holds the expected placeholders, each with a reason. Loosening a pattern to silence a",
+    "finding is how the next real one gets through.",
+    "The audit reads the CURRENT TREE ONLY. A push publishes every reachable commit, so scan history",
+    "separately with `git rev-list --objects <ref>` plus `git cat-file -p` per blob against these rules."
+  ],
+  "deny": [
+    {
+      "pattern": "strea[m]q",
+      "why": "the real provider brand host. It reaches this repository through the m3u_sources setting, which _generate_csv_settings_header writes into the top of every CSV export"
+    },
+    {
+      "pattern": "cf[.]live",
+      "why": "the provider's real CDN host labels, in URL or prose form"
+    },
+    {
+      "pattern": "\\bb[k](15|26|29)\\b",
+      "why": "the real M3U account name suffixes. Each is three characters and means nothing to a generic scanner, which is the whole reason this list exists"
+    },
+    {
+      "pattern": "192[.]168[.]211[.]",
+      "why": "this installation's LAN prefix"
+    },
+    {
+      "pattern": "[O]:\\\\?docker",
+      "why": "this machine's Windows drive mapping of the container volumes"
+    },
+    {
+      "pattern": "/data/plugin_back[u]ps",
+      "why": "an internal backup location, not a path any user of this plugin has"
+    },
+    {
+      "pattern": "btoll[e]y",
+      "why": "the operator's personal account name, which appears in notification settings"
+    }
+  ],
+  "allow": [
+    {
+      "pattern": "provider[.]tv",
+      "reason": "the placeholder that replaces the real provider brand host. The .tv top level domain is preserved deliberately: a previous substitution to .example silently disabled a test gated on a TLD allowlist containing .tv"
+    },
+    {
+      "pattern": "provider[.\\w-]*alt\\d",
+      "reason": "the placeholder form of an M3U account name in test fixtures. The real suffixes are in the deny list"
+    },
+    {
+      "pattern": "203[.]0[.]113[.]|198[.]51[.]100[.]",
+      "reason": "the reserved documentation address ranges, used in tests proving an address is scrubbed out of an emailed report. These cannot be anyone's real network"
+    },
+    {
+      "pattern": "2001:db8:|fe80::1ff:fe23",
+      "reason": "the reserved IPv6 documentation range and a link-local example, used in the test proving IPv6 is scrubbed"
+    },
+    {
+      "pattern": "CLAUDE[.]md|AGENTS[.]md",
+      "reason": "contributor notes files. CLAUDE.md is tracked in this repository and must contain no denied string; this entry only stops the filename itself being reported"
+    },
+    {
+      "pattern": "superpowers",
+      "reason": "the local planning directory for design documents, not a published path"
+    }
+  ]
+}

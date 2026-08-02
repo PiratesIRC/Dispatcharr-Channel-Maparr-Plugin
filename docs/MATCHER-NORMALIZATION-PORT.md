@@ -36,8 +36,8 @@
 > Full local suite green: **195 passed.**
 
 **Purpose.** This is a cross-port guide for three `normalize_name` fixes that were
-developed and shipped in **Stream-Mapparr** (`fuzzy_matcher.py`). The workspace-root
-`CLAUDE.md` drift rule requires it: *"fuzzy_matcher.py is copy-pasted across plugins
+developed and shipped in **Stream-Mapparr** (`fuzzy_matcher.py`). A drift rule in the
+maintainer's working notes required it: *"fuzzy_matcher.py is copy-pasted across plugins
 and drifting — port matcher fixes + their regression tests to all copies until the
 shared-core refactor lands."* The canonical source of truth is
 `<workspace>/Stream-Mapparr/Stream-Mapparr/fuzzy_matcher.py`.
@@ -383,5 +383,5 @@ Shipped in **Stream-Mapparr v1.26.1650009**. Bugs: **048** (stylized-Unicode), *
 
 Canonical source: `<workspace>/Stream-Mapparr/Stream-Mapparr/fuzzy_matcher.py`.
 
-Per workspace-root `CLAUDE.md`: port matcher fixes + their regression tests to all
+Per the maintainer's drift rule: port matcher fixes + their regression tests to all
 `fuzzy_matcher.py` copies until the shared-core refactor lands (DEV-WORKFLOW.md §7.1).

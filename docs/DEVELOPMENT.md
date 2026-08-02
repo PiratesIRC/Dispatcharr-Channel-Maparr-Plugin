@@ -2,7 +2,8 @@
 
 How to work on Channel Maparr locally — setup, testing, the automation that
 guards the codebase, and how to cut a release. For *what the plugin does* and its
-architecture, see the repo `CLAUDE.md`; for ORM patterns, see `MIGRATION_GUIDE.md`.
+architecture, see the [README](../README.md) and the [user guide](USER-GUIDE.md);
+for ORM patterns, see [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md).
 
 ## Runtime model (read this first)
 
@@ -14,7 +15,7 @@ HTTP server, no way to execute the plugin end-to-end on a dev machine.
   and `from core.utils import ...` resolve **only** inside the Dispatcharr runtime.
   They will not import locally — that is expected, not a bug to fix.
 - All data access is the Django ORM, never HTTP. Do not reintroduce
-  `urllib`/REST calls for data access (see `MIGRATION_GUIDE.md`).
+  `urllib`/REST calls for data access (see [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)).
 - The shippable plugin is the `Channel-Maparr/` subdirectory only. The repo root
   holds docs, tests, tooling, and the OpenWolf workspace (`.wolf/`).
 - Full-system verification means: deploy into a live Dispatcharr instance and

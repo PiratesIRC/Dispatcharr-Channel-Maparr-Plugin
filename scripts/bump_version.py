@@ -6,7 +6,7 @@ truth, so they must never drift:
   - Channel-Maparr/plugin.json   ("version": "...")
   - Channel-Maparr/plugin.py     (PLUGIN_VERSION = "...")
 
-Versioning convention (see CLAUDE.md): Major.YY.DDDHHMM
+Versioning convention (see docs/DEVELOPMENT.md): Major.YY.DDDHHMM
   Major  -> kept from the current version unless --major is given
   YY     -> 2-digit year
   DDD    -> zero-padded day-of-year

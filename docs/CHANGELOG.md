@@ -492,7 +492,7 @@ Changed from semantic versioning (`0.7.0a`) to timestamp format (`Major.YY.DDDHH
 
 ## v0.7.0 (2025)
 
-- Migrated from HTTP API pattern to Django ORM (see `MIGRATION_GUIDE.md`)
+- Migrated from HTTP API pattern to Django ORM (see `docs/MIGRATION_GUIDE.md`)
 - Removed credential fields (`dispatcharr_url`, username, password)
 - Added WebSocket notifications via `send_websocket_update()`
 - Added M3U stream import with category-based organization

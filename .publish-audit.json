@@ -59,7 +59,7 @@
     },
     {
       "pattern": "CLAUDE[.]md|AGENTS[.]md",
-      "reason": "contributor notes files. CLAUDE.md is tracked in this repository and must contain no denied string; this entry only stops the filename itself being reported"
+      "reason": "contributor notes filenames. These files are gitignored and no longer tracked (2026-08-02); this entry only stops the filename itself being reported when it appears in .gitignore or in prose"
     },
     {
       "pattern": "superpowers",

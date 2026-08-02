@@ -229,12 +229,26 @@ def test_every_notification_is_informational_and_carries_no_dedup_key(bridge, wr
         assert call["event"] == bridge.EVENT
 
 
-def test_the_report_path_is_sent_as_the_url_as_well_as_the_attachment(bridge, written):
-    """So a recipient whose gateway strips the attachment still knows where the
-    file is."""
+def test_no_url_is_sent_because_the_report_path_is_not_reachable_from_an_inbox(
+        bridge, written):
+    """Measured on a real delivery 2026-08-02: Newsflasharr's email template
+    renders `url` as a hyperlink. The report path is a location INSIDE the
+    container, so a recipient clicking it gets a broken link. Nothing may go in
+    `url` unless it is genuinely reachable from a mail client."""
     notify = RecordingNotify()
     bridge.emit_reports(notify, ON, written)
-    assert notify.calls[0]["url"] == notify.calls[0]["attachment"]
+    assert notify.calls[0]["url"] is None
+
+
+def test_the_body_names_the_report_file_and_where_it_is_kept(bridge, written):
+    """The information the url used to carry is not lost, it is stated as plain
+    text in the body instead, where no mail client turns it into a link."""
+    notify = RecordingNotify()
+    bridge.emit_reports(notify, ON, written)
+    body = notify.calls[0]["body"]
+    assert "channel_mapparr_report_1.html" in body
+    assert bridge.REPORT_LOCATION in body
+    assert "container" in body.lower()
 
 
 def test_a_file_that_is_not_on_disk_is_not_sent(bridge, written, tmp_path):

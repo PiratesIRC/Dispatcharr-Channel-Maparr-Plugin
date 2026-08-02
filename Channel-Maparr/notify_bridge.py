@@ -49,6 +49,13 @@ _DEFAULT_TRIGGER = "every_run"
 _FORMATS = ("html", "csv", "both")
 _DEFAULT_FORMAT = "html"
 
+# Where the report files are kept, stated in the notification body as plain text
+# so a reader with container access can find the complete set. It is NOT sent as
+# the notification's url: measured on a real delivery on 2026-08-02, the email
+# template renders url as a hyperlink, and this is a path inside the container,
+# so the recipient got a link that could not resolve from a mail client.
+REPORT_LOCATION = "/data/channel_mapparr_reports"
+
 
 def is_enabled(settings):
     """Is the Newsflasharr master toggle on?
@@ -169,9 +176,11 @@ def emit_reports(notify_fn, settings, written):
     second attempt. A path that is missing is skipped rather than sent, because a
     green task result does not prove an artifact was published.
 
-    The report path is also sent as the url, so a recipient whose gateway strips
-    the attachment still knows where the complete file is. It is a locator inside
-    the container, not a browsable link.
+    No url is sent. An earlier version passed the report path there, reasoning
+    that it was a locator rather than a link. That distinction does not survive
+    contact with a mail client: measured on a real delivery on 2026-08-02, the
+    email arrived with the container path rendered as a hyperlink that could not
+    resolve. The same information is now stated as plain text in the body.
     """
     result = {"sent": 0, "skipped_reason": None}
     try:
@@ -193,12 +202,13 @@ def emit_reports(notify_fn, settings, written):
             sent = notify_fn(
                 source=SOURCE,
                 title=f"Channel-Maparr {label} ready",
-                body=f"Attached: {os.path.basename(path)}",
+                body=(f"Attached: {os.path.basename(path)}\n"
+                      f"Kept in {REPORT_LOCATION} inside the container."),
                 event=EVENT,
                 severity="info",
                 kind="event",
                 dedup_key=None,
-                url=path,
+                url=None,
                 attachment=path,
             )
             if sent:

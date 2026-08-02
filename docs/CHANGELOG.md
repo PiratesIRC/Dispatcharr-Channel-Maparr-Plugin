@@ -1,5 +1,30 @@
 # Channel Maparr — Changelog
 
+## v1.26.2141418 (August 2, 2026)
+
+**The emailed report no longer sends a hyperlink that cannot be opened.** Reported by the
+operator on the first real delivery: the email arrived with
+`/data/channel_mapparr_reports/channel_mapparr_report_20260802_191252.html` rendered as a
+clickable link. That path exists only inside the Dispatcharr container, so clicking it from a
+mail client does nothing.
+
+The cause was a design decision made in the previous release. The report's path was passed as
+the notification's `url` field, on the reasoning that it was a locator rather than a link.
+Newsflasharr's email template renders `url` as a hyperlink, so that distinction did not survive
+contact with a real mail client.
+
+- No `url` is sent now. Nothing goes in that field unless it is genuinely reachable from an
+  inbox.
+- The same information is stated as plain text in the notification body instead: the attachment
+  filename, then `Kept in /data/channel_mapparr_reports inside the container.` No mail client
+  turns that into a link.
+- Two tests pin the behaviour, one asserting no `url` is sent and one asserting the body still
+  names both the file and its directory. Both were checked by reintroducing the defect and
+  confirming they fail.
+
+Nothing else changed. The attachment itself, the report content and the redaction rules are
+unaffected.
+
 ## v1.26.2141319 (August 2, 2026)
 
 **Reports can now be emailed, using the Newsflasharr plugin as the delivery path.**

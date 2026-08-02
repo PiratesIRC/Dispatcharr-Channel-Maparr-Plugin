@@ -1,7 +1,7 @@
 """Static contract tests for the plugin's UI surface.
 
-CLAUDE.md: "UI surfaces are declared both in plugin.json AND in the Plugin.fields
-property + Plugin.actions class attribute — the Python class is the source of
+The loader contract: UI surfaces are declared both in plugin.json AND in the
+Plugin.fields property + Plugin.actions class attribute — the Python class is the source of
 truth at runtime, so changes to plugin.json alone won't take effect." These tests
 catch drift between the two declarations, missing button labels, version skew,
 and the silent-action-drop caused by astral-plane (non-BMP) characters.

@@ -172,7 +172,12 @@ def test_no_update_check_remains(plugin_source):
     )
 
 
-def test_version_status_field_reports_the_installed_version(plugin_source):
-    """The field stays (operators need to know what is installed) but is static."""
-    assert '"id": "version_status"' in plugin_source
-    assert 'f"Installed: v{self.version}"' in plugin_source
+def test_no_version_field_in_the_settings_form(plugin_source, manifest):
+    """The "Plugin Version" field was removed from the settings form on
+    2026-07-26. Dispatcharr's own plugin card already shows the installed
+    version, so repeating it as a field was noise. If a version display is ever
+    wanted again it must not reintroduce a network call (see
+    test_no_update_check_remains)."""
+    assert '"id": "version_status"' not in plugin_source
+    assert "version_status" not in {f["id"] for f in manifest["fields"]}
+    assert 'Installed: v' not in plugin_source

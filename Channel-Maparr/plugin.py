@@ -75,7 +75,7 @@ def _format_capped_name_list(names, limit=_MAX_NAMES_IN_MESSAGE):
 class PluginConfig:
     """Configuration constants for Channel Maparr."""
 
-    PLUGIN_VERSION = "1.26.2071908"
+    PLUGIN_VERSION = "1.26.2141319"
 
     # Channel Database Settings
     DEFAULT_CHANNEL_DATABASES = "US"
@@ -97,6 +97,18 @@ class PluginConfig:
     # File Paths
     RESULTS_FILE = "/data/channel_mapparr_loaded_channels.json"
     EXPORT_DIR = "/data/exports"
+
+    # Emailed reports, delivered by the Newsflasharr plugin.
+    # The master toggle is OFF by default on purpose: a released plugin must not
+    # begin writing into another plugin's queue the moment it is upgraded.
+    DEFAULT_NOTIFY_ENABLED = False
+    # There is no scheduler in this plugin, so "scheduled" is not an option.
+    DEFAULT_NOTIFY_REPORT_ON = "every_run"
+    # One format, so one run sends one email. A notification carries a single
+    # attachment, and an attachment bearing event bypasses Newsflasharr's hourly
+    # cap and its quiet hours, so the email count cannot be throttled from the
+    # service side.
+    DEFAULT_NOTIFY_REPORT_FORMAT = "html"
 
     # tv-logos GitHub repo for per-channel logo lookup
     TV_LOGOS_REPO = "tv-logo/tv-logos"
@@ -239,17 +251,16 @@ class Plugin:
     def fields(self):
         """Build the fields list. Reads the DB for M3U source options.
 
-        There is deliberately NO update check here. This property is on
-        Dispatcharr's per-request hot path, and it used to make a live call to
-        GitHub's releases API (plus a /data cache write) every time the settings
-        page was read. That meant plugin settings could not render without
-        outbound network access, and a slow or hung GitHub stalled the request.
-        The installed version is reported statically below.
-        `tests/test_plugin_contract.py::test_no_update_check_remains` keeps it
-        that way.
+        There is deliberately NO version display and NO update check here. This
+        property is on Dispatcharr's per-request hot path, and it used to make a
+        live call to GitHub's releases API (plus a /data cache write) every time
+        the settings page was read, so plugin settings could not render without
+        outbound network access and a slow or hung GitHub stalled the request.
+        The installed version is already shown by Dispatcharr's own plugin card,
+        so repeating it as a settings field was noise.
+        `tests/test_plugin_contract.py::test_no_update_check_remains` and
+        `::test_no_version_field_in_the_settings_form` keep it that way.
         """
-        version_message = f"Installed: v{self.version}"
-
         # Discover M3U sources from database
         m3u_source_options = [{"value": "_all", "label": "All sources (no filter)"}]
         try:
@@ -260,12 +271,6 @@ class Plugin:
 
         # Build the fields list dynamically
         return [
-            {
-                "id": "version_status",
-                "label": "Plugin Version",
-                "type": "info",
-                "help_text": version_message
-            },
             {
                 "id": "channel_databases",
                 "label": "Channel Databases",
@@ -405,6 +410,53 @@ class Plugin:
                 ],
                 "help_text": "Delay between DB writes during large imports to reduce server load.",
             },
+            {
+                "id": "notify_enabled",
+                "label": "Send notifications to Newsflasharr",
+                "type": "boolean",
+                "default": PluginConfig.DEFAULT_NOTIFY_ENABLED,
+                "help_text": "Requires the Newsflasharr plugin, which is what "
+                             "actually sends the mail. What routes where is "
+                             "configured in Newsflasharr's routing rules, keyed on "
+                             "this plugin's name. Channel Mapparr does not require "
+                             "Newsflasharr to be installed: with it absent or "
+                             "disabled, nothing is sent and nothing fails.",
+            },
+            {
+                "id": "notify_report_on",
+                "label": "Email A Report After",
+                "type": "select",
+                "default": PluginConfig.DEFAULT_NOTIFY_REPORT_ON,
+                "options": [
+                    {"value": "never", "label": "Never, do not email reports"},
+                    {"value": "every_run", "label": "Every run that produces an export"},
+                ],
+                "help_text": "Which runs email a report. The emailed report is built "
+                             "specifically for sending: it never contains your M3U "
+                             "source names, which the CSV exports in /data/exports do "
+                             "contain in their settings header. Organize by Category "
+                             "reports only in Dry Run, because a real run of it "
+                             "produces no export. This setting does nothing unless "
+                             "Send notifications to Newsflasharr is on above.",
+            },
+            {
+                "id": "notify_report_format",
+                "label": "Email Report Format",
+                "type": "select",
+                "default": PluginConfig.DEFAULT_NOTIFY_REPORT_FORMAT,
+                "options": [
+                    {"value": "html", "label": "HTML page only, one email"},
+                    {"value": "csv", "label": "CSV only, one email"},
+                    {"value": "both", "label": "Both, which arrives as two emails"},
+                ],
+                "help_text": "Which report file to email. A notification carries one "
+                             "attachment, so choosing both sends two separate emails "
+                             "per run rather than one email with two files. The HTML "
+                             "page is easier to read and the CSV is easier to sort and "
+                             "filter. Both files are written to "
+                             "/data/channel_mapparr_reports either way; this setting "
+                             "only decides which are emailed.",
+            },
         ]
 
     # Actions for Dispatcharr UI. `label` is the action title; `button_label`
@@ -487,6 +539,23 @@ class Plugin:
             "description": "Show live progress and ETA for the most recent or running operation. Reads a persistent progress file so you can check without watching container logs.",
             "button_label": "\u24d8 Status",
              "button_variant": "outline", "button_color": "blue",
+        },
+        {
+            "id": "email_report_now",
+            "label": "Email Report Now",
+            "button_label": "✉ Email Now",
+            "button_variant": "outline",
+            "button_color": "cyan",
+            "description": "Build a report from the last processed channels and "
+                           "queue it for email. Requires the Newsflasharr plugin "
+                           "installed and enabled, its email settings configured, "
+                           "and a routing rule sending this plugin to email. This "
+                           "button checks all of that first and refuses rather than "
+                           "queueing a report nobody receives. It changes nothing. "
+                           "Queued means written to Newsflasharr's queue, not yet in "
+                           "your inbox. It does NOT prove the automatic path works, "
+                           "because it runs here in the web worker using the settings "
+                           "currently on screen.",
         },
         {
             "id": "clear_csv_exports",
@@ -592,6 +661,399 @@ class Plugin:
 
         header_lines.append("#")
         return '\n'.join(header_lines) + '\n'
+
+    # ========================================
+    # EMAILED REPORTS (via the Newsflasharr plugin)
+    #
+    # Everything here is written so a failure is REPORTED rather than thrown.
+    # Reporting is not this plugin's real work, and a bug in the report path must
+    # never break the run that produced the data.
+    #
+    # The modules are imported lazily rather than at the top of this file so that
+    # a deploy which somehow missed one of them degrades to "no reports" instead
+    # of breaking the whole plugin at import time.
+    # ========================================
+
+    @staticmethod
+    def _notify_client():
+        """The vendored Newsflasharr client. Never hand-edit the vendored copy."""
+        try:
+            from . import notify_client
+        except ImportError:
+            import notify_client
+        return notify_client
+
+    @staticmethod
+    def _notify_bridge():
+        """This plugin's emit layer."""
+        try:
+            from . import notify_bridge
+        except ImportError:
+            import notify_bridge
+        return notify_bridge
+
+    @staticmethod
+    def _reports():
+        """The report model and renderers."""
+        try:
+            from . import reports
+        except ImportError:
+            import reports
+        return reports
+
+    def _report_dir(self):
+        """Where report files are written. A method so a test can redirect it."""
+        return self._reports().REPORT_DIR
+
+    def _notify_send(self, **kwargs):
+        """One seam in front of the vendored client's notify().
+
+        A seam rather than a direct call so a test can observe what would be
+        queued without needing a queue directory on disk.
+        """
+        return self._notify_client().notify(**kwargs)
+
+    def _notifier_alive(self):
+        """Is Newsflasharr's collector actually running?
+
+        notify() CREATES the queue directory it writes into, so it returns True
+        with Newsflasharr absent, disabled, or its collector dead, and the event
+        then sits in a directory nobody reads. This is the one check between
+        queueing and the inbox that an operator can act on.
+        """
+        try:
+            return bool(self._notify_client().notifier_alive())
+        except Exception:
+            return False
+
+    def _get_m3u_account_names(self, logger):
+        """Return the M3U account names, or None when the lookup FAILED.
+
+        None and [] are deliberately different. An empty list is a legitimate
+        installation with no M3U accounts. None means the lookup raised, and the
+        caller must refuse to build a report rather than send one whose scrub was
+        a silent no-op: these names are the primary redaction input for an
+        emailed report, not a backstop.
+
+        This is a separate read on purpose. The `fields` property also lists M3U
+        accounts, but it runs on Dispatcharr's per-request hot path and must not
+        be called from here.
+        """
+        try:
+            return [row["name"] for row in M3UAccount.objects.all().values("name")
+                    if row.get("name")]
+        except Exception as error:
+            logger.warning(f"{PLUGIN_LOG_PREFIX} Could not read the M3U account "
+                           f"names, so no report will be built: {error}")
+            return None
+
+    @staticmethod
+    def _read_newsflasharr_config():
+        """Read Newsflasharr's stored configuration. Returns None when absent.
+
+        Read only on another plugin's configuration row, which is allowed;
+        nothing here writes. Raises when the registry itself cannot be reached,
+        so the caller can tell "not installed" from "could not look".
+        """
+        from apps.plugins.models import PluginConfig as StoredPluginConfig
+        row = StoredPluginConfig.objects.filter(key="newsflasharr").first()
+        if row is None:
+            return None
+        settings = getattr(row, "settings", None)
+        return {"enabled": bool(getattr(row, "enabled", False)),
+                "settings": settings if isinstance(settings, dict) else {}}
+
+    def _newsflasharr_readiness(self):
+        """Everything that must be true for an emailed report to actually arrive.
+
+        Returns a list of blocking problems, empty when the path is clear.
+
+        This exists because every one of these failures is otherwise invisible
+        from this side. A missing routing rule in particular: the queue write
+        succeeds, Newsflasharr records a delivery, and the mail is simply sent
+        somewhere other than the inbox. Attachments are email only, so an
+        unrouted report also arrives with no file at all.
+
+        Never echo a settings VALUE here. smtp_password is one of the keys being
+        checked and only its presence is ever reported.
+        """
+        bridge = self._notify_bridge()
+        try:
+            config = self._read_newsflasharr_config()
+        except Exception as error:
+            return [f"Could not read Newsflasharr's configuration: {error}"]
+        if config is None:
+            return ["Newsflasharr is not installed, and it is what actually "
+                    "sends the mail."]
+
+        problems = []
+        if not config.get("enabled"):
+            problems.append("Newsflasharr is installed but not enabled.")
+        nf_settings = config.get("settings") or {}
+        missing = [key for key in bridge.SMTP_REQUIRED
+                   if not str(nf_settings.get(key) or "").strip()]
+        if missing:
+            problems.append("Newsflasharr's email settings are not complete "
+                            "(missing: " + ", ".join(missing) + ").")
+        elif not bridge.routes_to_smtp(nf_settings):
+            problems.append(
+                f"Newsflasharr has no routing rule sending {bridge.SOURCE}'s "
+                f"{bridge.EVENT} to email, and email is not among its default "
+                "channels, so the report would be delivered somewhere else and "
+                "without its attachment.")
+        return problems
+
+    def _resolved_databases(self, settings):
+        """The country codes that actually have a database file on disk.
+
+        The raw `channel_databases` setting is free text and is never echoed into
+        a report. Resolving it here means the report states what was really
+        loaded rather than what somebody typed.
+        """
+        raw = str(settings.get("channel_databases")
+                  or PluginConfig.DEFAULT_CHANNEL_DATABASES)
+        plugin_dir = os.path.dirname(__file__)
+        resolved = []
+        for code in [part.strip().upper() for part in raw.split(",") if part.strip()]:
+            if os.path.isfile(os.path.join(plugin_dir, f"{code}_channels.json")):
+                resolved.append(code)
+        return resolved
+
+    def _build_and_emit_report(self, settings, logger, *, title, columns, rows,
+                               export_filename=None, report_dir=None):
+        """Build the report files and queue one notification per file.
+
+        Returns {"sent", "skipped_reason", "blocking_error"}. Never raises.
+
+        `blocking_error` is set only when the operator has asked for reports and
+        the mail could not possibly arrive. That case has to reach the persistent
+        red area of the plugin card, because a four second green toast is not a
+        surface for it.
+
+        Nothing is built when the report would not be sent. Building costs work,
+        and there is no point paying for a report nobody will receive.
+        """
+        outcome = {"sent": 0, "skipped_reason": None, "blocking_error": None}
+        try:
+            bridge = self._notify_bridge()
+            allowed, reason = bridge.should_emit(settings)
+            if not allowed:
+                outcome["skipped_reason"] = reason
+                return outcome
+
+            problems = self._newsflasharr_readiness()
+            if problems:
+                outcome["blocking_error"] = ("Report not queued. " + " ".join(problems))
+                outcome["skipped_reason"] = outcome["blocking_error"]
+                logger.warning(f"{PLUGIN_LOG_PREFIX} {outcome['blocking_error']}")
+                return outcome
+
+            account_names = self._get_m3u_account_names(logger)
+            if account_names is None:
+                outcome["skipped_reason"] = (
+                    "the M3U account name lookup failed, so the report was not "
+                    "built rather than sent without its redaction")
+                return outcome
+
+            reports = self._reports()
+            now = time.time()
+            model = reports.build_model(
+                title, columns, rows,
+                account_names=account_names,
+                settings=settings,
+                databases=self._resolved_databases(settings),
+                version=getattr(self, "version", PluginConfig.PLUGIN_VERSION),
+                now=now,
+                export_filename=export_filename)
+            written = reports.write_report(
+                model, report_dir or self._report_dir(), now)
+            if written.get("error"):
+                logger.warning(f"{PLUGIN_LOG_PREFIX} Report not written: "
+                               f"{written['error']}")
+                outcome["skipped_reason"] = written["error"]
+                return outcome
+
+            emitted = bridge.emit_reports(self._notify_send, settings, written)
+            outcome["sent"] = emitted["sent"]
+            outcome["skipped_reason"] = emitted["skipped_reason"]
+            logger.info(f"{PLUGIN_LOG_PREFIX} Report: {emitted['sent']} "
+                        f"notification(s) queued for delivery")
+        except Exception as error:
+            logger.warning(f"{PLUGIN_LOG_PREFIX} Report emit suppressed: {error}")
+            outcome["skipped_reason"] = (
+                f"the report path raised and was contained: {error}")
+        return outcome
+
+    @staticmethod
+    def _report_outcome_clause(outcome):
+        """A very short clause to append to an action's own message.
+
+        Dispatcharr shows roughly 280 characters of a toast, clipped from the
+        middle with no ellipsis, so this must stay small. It returns an empty
+        string when the operator has not switched notifications on, so somebody
+        who never opted in never sees report chatter.
+
+        It says QUEUED, never sent. A True from notify() means durably written to
+        Newsflasharr's queue; delivery happens later on its retry ladder.
+        """
+        outcome = outcome or {}
+        if outcome.get("sent"):
+            return f"\nReport queued ({outcome['sent']})."
+        reason = outcome.get("skipped_reason") or ""
+        if not reason or "switched off" in reason:
+            return ""
+        return f"\nReport not queued: {reason}"
+
+    def email_report_now_action(self, settings, logger):
+        """Build a report from the last processed channels and queue it now.
+
+        It BUILDS a fresh report rather than re-sending the newest files on disk.
+        Re-sending races the pruner: the newest file on disk is by definition old
+        enough to be prune eligible, so a later run could delete it while its
+        mail was still being retried, and the attachment would silently vanish.
+
+        It refuses BEFORE doing any work when the mail could not arrive, because
+        a missing routing rule is otherwise invisible: the queue write succeeds
+        and the mail is simply delivered somewhere else.
+
+        It never writes any kind of "the automatic path ran" marker. Pressing a
+        button must not be able to look like the ordinary path working.
+        """
+        try:
+            bridge = self._notify_bridge()
+            if not bridge.is_enabled(settings):
+                return {"status": "error",
+                        "error": "Send notifications to Newsflasharr is switched "
+                                 "off, so there is nothing to email with."}
+
+            problems = self._newsflasharr_readiness()
+            if problems:
+                return {"status": "error",
+                        "error": "Report not queued. " + " ".join(problems)}
+
+            if not self._notifier_alive():
+                return {"status": "error",
+                        "error": "Newsflasharr's collector is not running, so a "
+                                 "queued report would sit unread. Check that the "
+                                 "Newsflasharr plugin is enabled and its collector "
+                                 "is running, then try again."}
+
+            if not os.path.exists(self.results_file):
+                return {"status": "error",
+                        "error": "No processed channels found. Run "
+                                 "'Load/Process Channels' first, then press this."}
+
+            with open(self.results_file, "r") as handle:
+                data = json.load(handle)
+            changes = data.get("changes", [])
+            if not changes:
+                return {"status": "error",
+                        "error": "The last run produced no channel changes, so "
+                                 "there is nothing to report on."}
+
+            # Pressing the button IS the request, so the "Email A Report After"
+            # setting is overridden for this one call. The master toggle above is
+            # NOT overridden: that one is the operator's opt in.
+            forced = dict(settings)
+            forced["notify_report_on"] = "every_run"
+
+            outcome = self._build_and_emit_report(
+                forced, logger,
+                title="Rename preview",
+                columns=self._RENAME_REPORT_COLUMNS,
+                rows=changes)
+
+            if outcome["blocking_error"]:
+                return {"status": "error", "error": outcome["blocking_error"]}
+            if not outcome["sent"]:
+                return {"status": "error",
+                        "error": "Report not queued: "
+                                 + (outcome["skipped_reason"] or "unknown reason")}
+            return {"status": "success",
+                    "message": f"Report queued ({outcome['sent']}). Queued means "
+                               "written to Newsflasharr's queue, not yet in your "
+                               "inbox. This does not prove the automatic path "
+                               "works."}
+        except Exception as error:
+            logger.error(f"{PLUGIN_LOG_PREFIX} Email Report Now failed: {error}")
+            return {"status": "error", "error": f"Email Report Now failed: {error}"}
+
+    # The allow lists that decide what may leave the box. A row key absent from
+    # these pairs is never copied into a report, whatever the row carries, so a
+    # column added to a CSV writer later cannot start being emailed on its own.
+    _RENAME_REPORT_COLUMNS = [
+        ("channel_id", "Channel ID"),
+        ("channel_number", "Channel Number"),
+        ("channel_group", "Group"),
+        ("current_name", "Current Name"),
+        ("new_name", "New Name"),
+        ("status", "Status"),
+        ("matcher", "Matcher"),
+        ("match_method", "Match Method"),
+        ("reason", "Reason"),
+    ]
+
+    _CATEGORY_REPORT_COLUMNS = [
+        ("channel_id", "Channel ID"),
+        ("channel_name", "Channel Name"),
+        ("current_group", "Current Group"),
+        ("new_group", "New Group"),
+        ("category", "Category"),
+        ("match_type", "Match Type"),
+        ("match_value", "Match Value"),
+        ("group_exists", "Group Exists"),
+    ]
+
+    @staticmethod
+    def _m3u_report_rows(matched_by_category, unmatched_streams):
+        """Flatten the M3U import structures into report rows.
+
+        The M3U account is deliberately NOT carried into the report. The CSV
+        export records it as "M3U-<account id>", which is harmless in itself, but
+        the report has no use for it and an allow list is only worth having if it
+        stays narrow.
+        """
+        rows = []
+        for category in sorted(matched_by_category or {}):
+            for matched in matched_by_category[category]:
+                stream = matched.get("stream", {})
+                rows.append({
+                    "stream_id": stream.get("id", ""),
+                    "stream_name": stream.get("name", ""),
+                    "priority": stream.get("priority", 0),
+                    "match_type": matched.get("match_type", ""),
+                    "match_method": matched.get("match_method", ""),
+                    "category": category,
+                    "target_group": category,
+                    "will_import": "Yes",
+                    "notes": "",
+                })
+        for unmatched in unmatched_streams or []:
+            stream = unmatched.get("stream", {})
+            rows.append({
+                "stream_id": stream.get("id", ""),
+                "stream_name": stream.get("name", ""),
+                "priority": stream.get("priority", 0),
+                "match_type": "",
+                "match_method": "No match",
+                "category": "",
+                "target_group": "",
+                "will_import": "No",
+                "notes": unmatched.get("reason", ""),
+            })
+        return rows
+
+    _M3U_REPORT_COLUMNS = [
+        ("stream_id", "Stream ID"),
+        ("stream_name", "Stream Name"),
+        ("priority", "Priority"),
+        ("match_type", "Match Type"),
+        ("match_method", "Match Method"),
+        ("category", "Category"),
+        ("target_group", "Target Group"),
+        ("will_import", "Will Import"),
+        ("notes", "Notes"),
+    ]
 
     # ========================================
     # ORM HELPER METHODS
@@ -921,6 +1383,7 @@ class Plugin:
                 "organize_by_category": self.organize_by_category_action,
                 "import_m3u_streams": self.import_m3u_streams_action,
                 "plugin_status": self.plugin_status_action,
+                "email_report_now": self.email_report_now_action,
                 "clear_csv_exports": self.clear_csv_exports_action,
             }
 
@@ -1281,10 +1744,21 @@ class Plugin:
             if ignored_rows:
                 preview_message += f"\n{len(ignored_rows)} row(s) in ignored groups were excluded."
 
-            return {
-                "status": "success",
-                "message": preview_message
-            }
+            # The export is confirmed on disk above, so a report may now be built
+            # from the same rows. It is built from the ROWS, never by re-reading
+            # the CSV, whose settings header names the configured M3U sources.
+            outcome = self._build_and_emit_report(
+                settings, logger,
+                title="Rename preview",
+                columns=self._RENAME_REPORT_COLUMNS,
+                rows=all_changes,
+                export_filename=csv_filename)
+            preview_message += self._report_outcome_clause(outcome)
+
+            result = {"status": "success", "message": preview_message}
+            if outcome["blocking_error"]:
+                result["error"] = outcome["blocking_error"]
+            return result
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error exporting preview: {e}")
@@ -1833,30 +2307,47 @@ class Plugin:
             csv_filename = f"channel_mapparr_category_groups_preview_{timestamp}.csv"
             csv_path = os.path.join(export_dir, csv_filename)
 
-            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                # Write settings header as comments
-                csvfile.write(self._generate_csv_settings_header(settings))
-                # `scope` is already resolved above in this same function, so
-                # this is not a re-parse: record what the ignore/include
-                # filters actually MATCHED, not just the raw setting text
-                # already echoed by the header above.
-                csvfile.write(f"# Ignore resolved to: {scope.info}\n")
+            # Written atomically (temporary file, then rename) like the other two
+            # CSV writers. A plain open() leaves a TRUNCATED file at the final
+            # path if the write fails part way, with no temporary file to clean
+            # up, and that truncated file is the one an operator would later
+            # believe is complete. It also means there is no single moment at
+            # which the export is confirmed written, which is what the emailed
+            # report below waits for.
+            tmp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(mode='w', newline='', encoding='utf-8',
+                                                 dir=export_dir, suffix='.csv',
+                                                 delete=False) as csvfile:
+                    tmp_path = csvfile.name
+                    # Write settings header as comments
+                    csvfile.write(self._generate_csv_settings_header(settings))
+                    # `scope` is already resolved above in this same function, so
+                    # this is not a re-parse: record what the ignore/include
+                    # filters actually MATCHED, not just the raw setting text
+                    # already echoed by the header above.
+                    csvfile.write(f"# Ignore resolved to: {scope.info}\n")
 
-                fieldnames = ['Channel ID', 'Channel Name', 'Current Group', 'New Group', 'Category', 'Match Type', 'Match Value', 'Group Exists']
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    fieldnames = ['Channel ID', 'Channel Name', 'Current Group', 'New Group', 'Category', 'Match Type', 'Match Value', 'Group Exists']
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-                writer.writeheader()
-                for move in moves:
-                    writer.writerow({
-                        'Channel ID': move['channel_id'],
-                        'Channel Name': move['channel_name'],
-                        'Current Group': move['current_group'],
-                        'New Group': move['new_group'],
-                        'Category': move['category'],
-                        'Match Type': move['match_type'],
-                        'Match Value': move['match_value'],
-                        'Group Exists': move['group_exists']
-                    })
+                    writer.writeheader()
+                    for move in moves:
+                        writer.writerow({
+                            'Channel ID': move['channel_id'],
+                            'Channel Name': move['channel_name'],
+                            'Current Group': move['current_group'],
+                            'New Group': move['new_group'],
+                            'Category': move['category'],
+                            'Match Type': move['match_type'],
+                            'Match Value': move['match_value'],
+                            'Group Exists': move['group_exists']
+                        })
+                os.replace(tmp_path, csv_path)
+            except Exception:
+                if tmp_path and os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Category groups preview CSV exported to {csv_path}")
 
@@ -1878,7 +2369,21 @@ class Plugin:
                     f"{_format_capped_name_list(sorted(ignored_targets))}."
                 )
 
-            return {"status": "success", "message": message}
+            # The export is confirmed on disk above. Only the Dry Run branch of
+            # Organize by Category produces an export at all, so only this branch
+            # can report; a real run has no rows to report on.
+            outcome = self._build_and_emit_report(
+                settings, logger,
+                title="Category organization preview",
+                columns=self._CATEGORY_REPORT_COLUMNS,
+                rows=moves,
+                export_filename=csv_filename)
+            message += self._report_outcome_clause(outcome)
+
+            result = {"status": "success", "message": message}
+            if outcome["blocking_error"]:
+                result["error"] = outcome["blocking_error"]
+            return result
 
         except Exception as e:
             logger.error(f"{PLUGIN_LOG_PREFIX} Error generating category groups preview: {e}")
@@ -2926,15 +3431,29 @@ class Plugin:
         total_success = sum(1 for imp in import_results['imports'] if imp['status'] == 'success')
         total_failed = sum(1 for imp in import_results['imports'] if imp['status'] == 'failed')
 
-        return {
-            "status": "success",
-            "message": f"✓ M3U import complete!\n\n"
-                      f"Channels created: {total_success}\n"
-                      f"Failed: {total_failed}\n"
-                      f"Unmatched streams skipped: {len(unmatched_streams)}\n"
-                      f"Categories: {len(categories)}\n\n"
-                      f"Results exported to: {csv_filename}"
-        }
+        message = (f"✓ M3U import complete!\n\n"
+                   f"Channels created: {total_success}\n"
+                   f"Failed: {total_failed}\n"
+                   f"Unmatched streams skipped: {len(unmatched_streams)}\n"
+                   f"Categories: {len(categories)}\n\n"
+                   f"Results exported to: {csv_filename}")
+
+        # Only the COMPLETED import reports, not the dry run, so one import
+        # produces one report rather than two. The title says results, because
+        # _export_m3u_import_preview hardcodes the word preview into the export
+        # filename and header for both of its callers.
+        outcome = self._build_and_emit_report(
+            settings, logger,
+            title="M3U import results",
+            columns=self._M3U_REPORT_COLUMNS,
+            rows=self._m3u_report_rows(matched_by_category, unmatched_streams),
+            export_filename=csv_filename)
+        message += self._report_outcome_clause(outcome)
+
+        result = {"status": "success", "message": message}
+        if outcome["blocking_error"]:
+            result["error"] = outcome["blocking_error"]
+        return result
 
     def _do_import_m3u_streams_bg(self, settings, logger):
         """Background wrapper for M3U import."""
@@ -3129,6 +3648,28 @@ class Plugin:
             dry_run = settings.get("dry_run_mode", False)
             if dry_run:
                 validation_results.append("ℹ️ Dry Run: ON")
+
+            # 5. Emailed reports. Reported ONLY when something is wrong, which
+            # matches the errors-and-warnings-only contract of this action. Every
+            # line here MUST start with a recognised glyph: a line starting with
+            # anything else is dropped from the operator-facing output AND trips
+            # the bookkeeping-drift warning below on every single run.
+            bridge = self._notify_bridge()
+            for problem in bridge.unknown_setting_values(settings):
+                validation_results.append(f"{_VALIDATION_WARNING_GLYPH} {problem}")
+                warning_count += 1
+            if bridge.is_enabled(settings):
+                for problem in self._newsflasharr_readiness():
+                    validation_results.append(
+                        f"{_VALIDATION_WARNING_GLYPH} Emailed reports: {problem}")
+                    warning_count += 1
+                if self._get_m3u_account_names(logger) is None:
+                    validation_results.append(
+                        f"{_VALIDATION_WARNING_GLYPH} Emailed reports: the M3U "
+                        "account name lookup is failing, so no report will be "
+                        "built. Those names are what is removed from a report "
+                        "before it is emailed.")
+                    warning_count += 1
 
             # Report ONLY what the operator has to act on.
             #

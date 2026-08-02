@@ -29,7 +29,7 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Compile-check shipped plugin sources
-        run: python -m py_compile Channel-Maparr/plugin.py Channel-Maparr/fuzzy_matcher.py Channel-Maparr/matching_core.py Channel-Maparr/logo_matcher.py Channel-Maparr/progress_status.py Channel-Maparr/aliases.py
+        run: python -m py_compile Channel-Maparr/plugin.py Channel-Maparr/fuzzy_matcher.py Channel-Maparr/matching_core.py Channel-Maparr/logo_matcher.py Channel-Maparr/progress_status.py Channel-Maparr/aliases.py Channel-Maparr/reports.py Channel-Maparr/notify_bridge.py Channel-Maparr/notify_client.py
 
       # Explicit, named drift gate: freezes the pure matcher primitives against
       # tests/matcher_golden_baseline.json (Stage 0 of the matcher standardization

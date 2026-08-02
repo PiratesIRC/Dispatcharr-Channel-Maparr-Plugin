@@ -1,6 +1,6 @@
 {
   "name": "Channel Mapparr",
-  "version": "1.26.2071908",
+  "version": "1.26.2141319",
   "description": "Standardizes broadcast (OTA) and premium/cable channel names using network data and channel lists. Supports M3U stream import, category organization, and fuzzy matching across 42K+ channels in 11 countries.",
   "author": "PiratesIRC",
   "license": "MIT",
@@ -9,11 +9,6 @@
   "min_dispatcharr_version": "v0.20.0",
   "help_url": "https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin",
   "fields": [
-    {
-      "id": "version_status",
-      "label": "Plugin Version",
-      "type": "info"
-    },
     {
       "id": "channel_databases",
       "label": "Channel Databases",
@@ -131,6 +126,36 @@
         {"value": "high", "label": "High — gentlest on database"}
       ],
       "help_text": "Throttles database writes during bulk operations. 'None' is safe for SSD/local DBs; raise if you see DB lock errors or are running on shared/slow storage."
+    },
+    {
+      "id": "notify_enabled",
+      "label": "Send notifications to Newsflasharr",
+      "type": "boolean",
+      "default": false,
+      "help_text": "Requires the Newsflasharr plugin, which is what actually sends the mail. What routes where is configured in Newsflasharr's routing rules, keyed on this plugin's name. Channel Mapparr does not require Newsflasharr to be installed: with it absent or disabled, nothing is sent and nothing fails."
+    },
+    {
+      "id": "notify_report_on",
+      "label": "Email A Report After",
+      "type": "select",
+      "default": "every_run",
+      "options": [
+        {"value": "never", "label": "Never, do not email reports"},
+        {"value": "every_run", "label": "Every run that produces an export"}
+      ],
+      "help_text": "Which runs email a report. The emailed report is built specifically for sending: it never contains your M3U source names, which the CSV exports in /data/exports do contain in their settings header. Organize by Category reports only in Dry Run, because a real run of it produces no export. This setting does nothing unless Send notifications to Newsflasharr is on above."
+    },
+    {
+      "id": "notify_report_format",
+      "label": "Email Report Format",
+      "type": "select",
+      "default": "html",
+      "options": [
+        {"value": "html", "label": "HTML page only, one email"},
+        {"value": "csv", "label": "CSV only, one email"},
+        {"value": "both", "label": "Both, which arrives as two emails"}
+      ],
+      "help_text": "Which report file to email. A notification carries one attachment, so choosing both sends two separate emails per run rather than one email with two files. The HTML page is easier to read and the CSV is easier to sort and filter. Both files are written to /data/channel_mapparr_reports either way; this setting only decides which are emailed."
     }
   ],
   "actions": [
@@ -209,6 +234,14 @@
       "label": "Show Status",
       "description": "Show live progress and ETA for the most recent or running operation. Reads a persistent progress file so you can check without watching container logs.",
       "button_label": "\u24d8 Status"
+    },
+    {
+      "id": "email_report_now",
+      "label": "Email Report Now",
+      "description": "Build a report from the last processed channels and queue it for email. Requires the Newsflasharr plugin installed and enabled, its email settings configured, and a routing rule sending this plugin to email. This button checks all of that first and refuses rather than queueing a report nobody receives. It changes nothing. Queued means written to Newsflasharr's queue, not yet in your inbox. It does NOT prove the automatic path works, because it runs here in the web worker using the settings currently on screen.",
+      "button_label": "✉ Email Now",
+      "button_variant": "outline",
+      "button_color": "cyan"
     },
     {
       "id": "clear_csv_exports",

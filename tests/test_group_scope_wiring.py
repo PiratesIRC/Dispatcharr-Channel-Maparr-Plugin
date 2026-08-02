@@ -1,7 +1,7 @@
 """AST guard: every channel fetch takes its scope from the resolver.
 
-Modelled on metricsarr/tests/test_no_mutations.py. The synthetic self-tests at
-the bottom are mandatory - an AST guard with no positive fixture is inert and
+Modelled on a sibling plugin's read-only mutation guard. The synthetic self-tests
+at the bottom are mandatory - an AST guard with no positive fixture is inert and
 returns exit 0 for months while proving nothing.
 """
 import ast

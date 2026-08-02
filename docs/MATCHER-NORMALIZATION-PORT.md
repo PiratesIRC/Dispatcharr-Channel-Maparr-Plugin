@@ -11,8 +11,8 @@
 > historical context only.
 
 > **Status — 2026-06-14: PORTED.** All three fixes are live in `fuzzy_matcher.py` for
-> Channel-Maparr (v1.26.1650854) and have been ported byte-accurate to EPG-Janitor,
-> Lineuparr, and Metadata-Trackarr. Channel-Maparr ships regression tests
+> Channel-Maparr (v1.26.1650854) and have been ported byte-accurate to the sibling
+> matcher plugins. Channel-Maparr ships regression tests
 > (`tests/test_normalization_port.py`) plus a CI-enforced corpus no-regression gate.
 > This document is retained as the reference for the port.
 

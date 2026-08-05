@@ -1,5 +1,23 @@
 # Channel Maparr — Changelog
 
+## v1.26.2170831 (August 5, 2026)
+
+**The report footer now credits Newsflasharr, the plugin that emails it.** Newsflasharr already
+wrote that credit into the body of the email; carrying it in the page as well means it survives
+the page being saved, forwarded, or opened from disk with no mail around it. The sibling Lineuparr
+plugin already did this and Channel Maparr did not.
+
+The line reads "Emailed copies of this report are delivered courtesy of Newsflasharr". The wording
+is about emailed copies rather than about the copy in front of you, on purpose: a report read
+straight from the report directory was never delivered by anything, and a page thanking a
+deliverer that had not run would be saying something untrue about itself.
+
+The footer also now names the plugin and puts the source and issue links on one line.
+
+Nothing else changed, and the page still fetches nothing from the network. The set of addresses
+the page may link to is pinned by a test, so a link cannot be added to the footer without somebody
+deciding to add it to that list as well.
+
 ## v1.26.2170811 (August 5, 2026)
 
 **The HTML report looks different. It says exactly the same things.** No column was added,

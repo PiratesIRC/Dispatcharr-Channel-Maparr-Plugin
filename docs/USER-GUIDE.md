@@ -230,6 +230,7 @@ top and name the complete export file, so the truncation is never silent.
 | `/data/channel_mapparr_progress.json` | Live progress, read by **Show Status**. |
 | `/data/exports/` | CSV previews. These contain your M3U source names and are never emailed. |
 | `/data/channel_mapparr_reports/` | The HTML and CSV files built for emailing. |
+| `/data/channel-mapparr/report_count.json` | A count of the reports this plugin has built, for Newsflasharr's **Show Status** action to display. Note the hyphen: this one directory is named after the plugin's notification source, not after its other files. |
 
 All of these must be writable by Dispatcharr's `dispatch` user. If an action reports success but
 writes nothing, that is the first thing to check.
@@ -238,6 +239,13 @@ Report files are pruned to the newest 8 of each type, except that a file younger
 never deleted, because a delivery retry re-reads the attachment from disk.
 
 **Clear CSV Exports** deletes files from `/data/exports` only. It cannot reach the emailed reports.
+
+The report count is a count of report **builds**, where one build writes one HTML file and one CSV
+file. It is not a count of emails: with the format set to Both, one build sends two emails, so the
+number will be half the number of emails you received. A report that was built but whose email
+later failed still counts, because the file was written. If you are checking this by hand, do not
+create `/data/channel-mapparr` yourself, because `docker exec` runs as root by default and a
+root-owned directory there can never be written by the plugin afterwards.
 
 ## Fixing things by symptom
 

@@ -75,7 +75,7 @@ def _format_capped_name_list(names, limit=_MAX_NAMES_IN_MESSAGE):
 class PluginConfig:
     """Configuration constants for Channel Maparr."""
 
-    PLUGIN_VERSION = "1.26.2141433"
+    PLUGIN_VERSION = "1.26.2170748"
 
     # Channel Database Settings
     DEFAULT_CHANNEL_DATABASES = "US"
@@ -701,9 +701,28 @@ class Plugin:
             import reports
         return reports
 
+    @staticmethod
+    def _report_counter():
+        """The published report counter that Newsflasharr's status readout reads.
+
+        Lazy like the other report side modules, so a fault in it cannot stop the
+        plugin loading.
+        """
+        try:
+            from . import report_counter
+        except ImportError:
+            import report_counter
+        return report_counter
+
     def _report_dir(self):
         """Where report files are written. A method so a test can redirect it."""
         return self._reports().REPORT_DIR
+
+    def _counter_dir(self):
+        """Where the published report count is written. A method so a test can
+        redirect it, and read at call time rather than bound as a default, which
+        would defeat that redirect."""
+        return self._report_counter().COUNTER_DIR
 
     def _notify_send(self, **kwargs):
         """One seam in front of the vendored client's notify().
@@ -878,6 +897,20 @@ class Plugin:
             outcome["skipped_reason"] = emitted["skipped_reason"]
             logger.info(f"{PLUGIN_LOG_PREFIX} Report: {emitted['sent']} "
                         f"notification(s) queued for delivery")
+
+            # Publish the count Newsflasharr's status readout displays. This is
+            # LAST and inside its own guard on purpose. Everything above runs
+            # inside one try whose handler reports "the report path raised", so
+            # an increment placed between the written report and the queued
+            # notification could, if it ever raised, stop the mail being sent and
+            # make a successful run report an error. Nothing about a cosmetic
+            # number may sit between a written report and its delivery. It counts
+            # BUILDS, not deliveries, so a build whose delivery fails still
+            # counts: emit_reports contains its own failures and does not raise.
+            try:
+                self._report_counter().bump(self._counter_dir(), logger)
+            except Exception:
+                pass
         except Exception as error:
             logger.warning(f"{PLUGIN_LOG_PREFIX} Report emit suppressed: {error}")
             outcome["skipped_reason"] = (

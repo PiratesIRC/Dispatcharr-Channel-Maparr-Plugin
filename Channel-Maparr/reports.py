@@ -18,6 +18,7 @@ was a second line of defence, so an empty account list degraded safely. That is
 not true here, so build_model refuses when the account name list is None, which
 is how a caller reports that the lookup failed.
 """
+import base64
 import csv
 import datetime
 import html
@@ -187,41 +188,163 @@ def truncation_notice(model):
 # --------------------------------------------------------------------------- #
 
 # Styling is inlined because the page is read from a file path or inside an email
-# client, where an external stylesheet would not resolve. Colours and layout
-# follow Stream-Mapparr's report so the two look like one family.
+# client, where an external stylesheet would not resolve. There is no CDN, no web
+# font, no external image and no url(): the page is also read on a television
+# browser with no route to the internet.
+#
+# EVERY colour is a token, and light and dark differ ONLY in token values. A
+# literal colour inside a rule is one that light mode and dark mode cannot both
+# be right about, which is how the previous version of this file ended up with
+# four "important" overrides in its dark block. Text hierarchy uses the --ink
+# ramp and never "opacity": an opacity value paints a different colour on every
+# surface it lands on, so the contrast ratio moves silently whenever a background
+# changes, and the fade applies to everything nested inside.
+#
+# Spacing picks a step off --s1 to --s5. The steps sit about a third apart
+# because a linear ramp makes small steps look identical and large ones look
+# arbitrary.
+#
+# The palette below, and the two surface colours it was measured against, were
+# validated all-pairs for colourblind safety with a validator that lives in none
+# of these repositories, so the numbers CANNOT be re-derived here. Reuse a
+# semantic slot rather than inventing a hex. tests/test_report_style.py pins
+# every one of them, and pins the ink ramp separately: --ink-dim is the weakest
+# at 5.24:1 against the light surface, clear of the 4.5:1 floor.
 _CSS = """
-:root { color-scheme: light dark; --accent: #2a78d6; }
-body { font: 15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
-       margin: 0; padding: 24px; background: #fbfbfd; color: #16181d; }
-@media (prefers-color-scheme: dark) {
-  :root { --accent: #3987e5; }
-  body { background: #14161a; color: #e8eaed; }
-  th { background: #1e2127 !important; }
-  tr:nth-child(even) td { background: #191c21; }
-  .card { background: #1a1d22 !important; border-color: #2a2e35 !important; }
-  .notice { background: #2a2410 !important; border-color: #5a4a18 !important; }
+:root {
+  color-scheme: light dark;
+  --never: #2a78d6; --watched: #1baf7a; --tuned: #e34948; --toonew: #898781;
+  --track: #e1e0d9; --ok: #0ca30c; --bad: #d03b3b;
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
+
+  --bg: #fbfbfd; --raised: #ffffff; --zebra: #f7f8fa; --head: #f2f3f6;
+  --ink: #16181d; --ink-muted: #5c616b; --ink-dim: #656a76;
+  --line: #e3e5ea; --line-soft: #e6e8ec;
+  --warn-bg: #fff4e5; --warn-line: #ffb84d; --warn-ink: #7a4b00;
+  --lift: 0 1px 2px rgba(16, 18, 29, .05), 0 4px 12px rgba(16, 18, 29, .04);
 }
-h1 { font-size: 22px; margin: 0 0 4px; }
-.sub { opacity: .7; font-size: 15px; margin-bottom: 20px; }
-.card { background: #fff; border: 1px solid #e3e5ea; border-radius: 10px;
-        padding: 14px 16px; margin-bottom: 18px; }
-.notice { background: #fff8e1; border: 1px solid #e8d9a0; border-radius: 8px;
-          padding: 10px 14px; margin-bottom: 18px; font-size: 14px; }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --never: #3987e5; --watched: #199e70; --tuned: #e66767; --toonew: #898781;
+    --track: #2c2c2a; --ok: #0ca30c; --bad: #d03b3b;
+
+    --bg: #14161a; --raised: #1a1d22; --zebra: #191c21; --head: #1e2127;
+    --ink: #e8eaed; --ink-muted: #a7adb8; --ink-dim: #9aa0ab;
+    --line: #2a2e35; --line-soft: #262a31;
+    --warn-bg: #2e2312; --warn-line: #8a6320; --warn-ink: #f2c98a;
+    --lift: 0 1px 2px rgba(0, 0, 0, .35), 0 4px 12px rgba(0, 0, 0, .25);
+  }
+}
+body { font: 15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
+       margin: 0; padding: var(--s5); background: var(--bg); color: var(--ink); }
+/* The logo sits beside the title rather than above it, so the masthead costs
+   one line of vertical space instead of three. */
+.masthead { display: flex; align-items: center; gap: var(--s3);
+            margin-bottom: var(--s5); }
+.mark { flex: none; width: 48px; height: 48px; display: block; }
+/* The type scale is 15 / 17 / 22, hand picked and deliberately sparse. A step
+   seven percent from the body size reads as an accident rather than a decision,
+   and this page is sized to be read at television distance, so nothing here
+   shrinks. Supporting text is separated by colour instead. */
+h1 { font-size: 22px; line-height: 1.2; letter-spacing: -.01em;
+     margin: 0 0 var(--s1); }
+.masthead .sub { margin-bottom: 0; }
+.sub { color: var(--ink-muted); font-size: 15px; margin-bottom: var(--s5); }
+.card { background: var(--raised); border: 1px solid var(--line);
+        border-radius: 10px; box-shadow: var(--lift);
+        padding: var(--s3) var(--s4); margin-bottom: var(--s4); }
+.banner { background: var(--warn-bg); border: 1px solid var(--warn-line);
+          border-radius: 10px; box-shadow: var(--lift);
+          padding: var(--s3) var(--s4); margin-bottom: var(--s4);
+          color: var(--warn-ink); }
 table { border-collapse: collapse; width: 100%; font-size: 15px; }
 .scroll { overflow-x: auto; }
-th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #e6e8ec;
-         vertical-align: top; }
-th { background: #f2f3f6; }
+/* Row padding is one step up from the old hand picked pair, because this page
+   is read at distance and the scale has no step between them anyway. */
+th, td { text-align: left; padding: var(--s2) var(--s3);
+         border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+th { background: var(--head); position: sticky; top: 0; }
+/* Zebra striping used to be declared in the dark block ONLY, so the two themes
+   rendered visibly different tables. One rule, one token, both modes. */
+tr:nth-child(even) td { background: var(--zebra); }
 th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
-th.sortable::after { content: " \\2195"; opacity: .35; font-size: 12px; }
-th.sortable[aria-sort="ascending"]::after { content: " \\2191"; opacity: 1; }
-th.sortable[aria-sort="descending"]::after { content: " \\2193"; opacity: 1; }
-.empty { opacity: .7; font-style: italic; }
-.note { font-size: 14px; opacity: .7; margin-top: 20px; }
-dl.meta { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; }
-dl.meta dt { opacity: .7; }
+th.sortable::after { content: " \\2195"; color: var(--ink-dim); }
+th.sortable[aria-sort="ascending"]::after { content: " \\2191"; color: var(--ink); }
+th.sortable[aria-sort="descending"]::after { content: " \\2193"; color: var(--ink); }
+.empty { color: var(--ink-muted); font-style: italic; }
+dl.meta { margin: 0; display: grid; grid-template-columns: auto 1fr;
+          gap: var(--s1) var(--s4); }
+dl.meta dt { color: var(--ink-muted); }
 dl.meta dd { margin: 0; }
+/* Sections are details and summary, so they need no JavaScript at all. A client
+   that does not implement them renders the content EXPANDED, so the failure mode
+   is everything visible, never content lost. */
+details { border-top: 1px solid var(--track); padding: var(--s1) 0 var(--s2); }
+/* Never add an outline of none here. That focus ring is how the page is driven
+   by a television remote's directional pad. */
+summary { font-size: 17px; font-weight: 600; cursor: pointer;
+          padding: var(--s2) var(--s1); list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: '\\25B8'; display: inline-block; width: 1em;
+                  color: var(--ink-dim); transition: transform .12s; }
+details[open] > summary::before { transform: rotate(90deg); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+       margin-right: var(--s2); vertical-align: baseline; }
+.dot-neutral { background: var(--track); }
+/* The heading is 600; the count staying at 400 is what separates the two, so the
+   number reads as data rather than as part of the label. */
+.count { font-weight: 400; color: var(--ink-dim);
+         font-variant-numeric: tabular-nums; }
+/* Emoji ignore the colour property, so this cannot be used to carry meaning even
+   by accident. It is spacing only. */
+.glyph { margin-right: var(--s2); }
+.hint { font-size: 15px; color: var(--ink-dim); margin: 0 0 var(--s2); }
+.colophon { margin-top: var(--s5); padding-top: var(--s4);
+            border-top: 1px solid var(--track); color: var(--ink-dim); }
+.colophon p { margin: 0 0 var(--s1); }
+.colophon a { color: var(--never); }
 """
+
+# The masthead logo, embedded as a data URI read from this plugin's own
+# directory. It is NOT linked: a relative path resolves against nothing when the
+# page is opened off disk or read as a mail attachment, a remote address is
+# blocked by default in most mail clients, and the repository is not a reliable
+# host either. A logo that cannot be read renders no img element at all and never
+# fails a build.
+#
+# This is a SEPARATE, smaller file from the plugin card's logo.png. That one is
+# 357 by 379 pixels and 216 KB, which embeds as 288 KB, which is seven times the
+# size of an entire report. This one is 192 pixels on its long edge with a
+# quantised palette, which embeds as about 16 KB.
+_LOGO_FILENAME = "logo_report.png"
+_LOGO_CACHE = []
+
+# Named in the footer so a reader who received the report by email knows where it
+# came from and where to report a fault with it.
+_REPO_URL = "https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin"
+_ISSUES_URL = _REPO_URL + "/issues"
+
+
+def _logo_data_uri():
+    """The masthead logo as a data URI, or an empty string if it cannot be read.
+
+    Cached after the first read because a report build must not pay for the file
+    twice, and because three of the four paths that build a report run inside the
+    uWSGI request.
+    """
+    if _LOGO_CACHE:
+        return _LOGO_CACHE[0]
+    try:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            _LOGO_FILENAME)
+        with open(path, "rb") as handle:
+            encoded = base64.b64encode(handle.read()).decode("ascii")
+        uri = "data:image/png;base64," + encoded
+    except Exception:
+        uri = ""
+    _LOGO_CACHE.append(uri)
+    return uri
 
 
 def _esc(value):
@@ -297,8 +420,42 @@ _SORT_SCRIPT = """
 """
 
 
+# Keyed on the section's COLOUR CLASS rather than on its title, so a glyph can
+# never disagree with the dot beside it. It is decoration on top of the dot and
+# the words, never the only thing carrying the meaning, which is why it is marked
+# as hidden from assistive technology. A client with no emoji font shows a box or
+# nothing at all and the heading still reads correctly.
+_SECTION_GLYPH = {
+    "dot-neutral": "\N{CLIPBOARD}",   # the rows this run produced
+}
+
+
+def _section(title, count, body, open_by_default, dot_class):
+    """One report section as a collapsible details element.
+
+    `count` must equal the number of rows in the table directly beneath it, in
+    every section without exception. A reader looking at a collapsed page cannot
+    see any distinction a bare heading was trying to draw; it just looks like a
+    section that forgot its number.
+    """
+    open_attr = " open" if open_by_default else ""
+    number = "" if count is None else f' <span class="count">{int(count)}</span>'
+    glyph = _SECTION_GLYPH.get(dot_class, "")
+    badge = (f'<span class="glyph" aria-hidden="true">{glyph}</span>'
+             if glyph else "")
+    return (f'<details{open_attr}><summary>'
+            f'<span class="dot {_esc(dot_class)}" aria-hidden="true"></span>'
+            f'{badge}{_esc(title)}{number}</summary>{body}</details>')
+
+
 def render_html(model):
     """Render the model to one self contained HTML page.
+
+    The rows live in a section that starts COLLAPSED, so the page opens as an
+    index rather than as a wall of table. The section carries its row count, one
+    line saying what it holds and what to do about it, and a note about
+    find-in-page, which does not reach inside a collapsed section on some
+    browsers.
 
     The table is sortable by clicking or keyboard-activating a column header.
     See _SORT_SCRIPT for what that does and what it deliberately does not do.
@@ -323,7 +480,26 @@ def render_html(model):
                    for k, v in model.get("summary") or [])
 
     notice = truncation_notice(model)
-    notice_html = f"<div class=\"notice\">{_esc(notice)}</div>\n" if notice else ""
+    notice_html = f"<div class=\"banner\">{_esc(notice)}</div>\n" if notice else ""
+
+    logo = _logo_data_uri()
+    mark = (f"<img class=\"mark\" src=\"{logo}\" alt=\"\">" if logo else "")
+
+    shown = model.get("shown_rows", 0)
+    section = _section(
+        "Results", shown,
+        "<p class=\"sub\">Every row this run produced, with only the columns "
+        "that are safe to send by email. Read them before you turn Dry Run Mode "
+        "off, because that is the point at which the plugin starts writing to "
+        "your channels.</p>\n"
+        "<p class=\"hint\">Expand this to search it. Find-in-page does not reach "
+        "inside a collapsed section on some browsers.</p>\n"
+        "<p class=\"hint\">Click a column heading to sort by it, or move focus to "
+        "it and press Enter. Sorting needs the page open in a browser; a mail "
+        "client previewing this file shows every row but cannot reorder "
+        "them.</p>\n"
+        f"<div class=\"card\">{table}</div>",
+        False, "dot-neutral")
 
     return (
         "<!doctype html>\n<html lang=\"en\">\n<head>\n"
@@ -331,18 +507,21 @@ def render_html(model):
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
         f"<title>Channel-Maparr: {_esc(model.get('title'))}</title>\n"
         f"<style>{_CSS}</style>\n</head>\n<body>\n"
+        f"<div class=\"masthead\">{mark}<div>"
         f"<h1>Channel-Maparr: {_esc(model.get('title'))}</h1>\n"
-        f"<div class=\"sub\">{_esc(model.get('shown_rows', 0))} row(s) shown</div>\n"
+        f"<div class=\"sub\">{_esc(shown)} row(s) shown</div>"
+        "</div></div>\n"
         + notice_html +
         f"<div class=\"card\"><dl class=\"meta\">{meta}</dl></div>\n"
-        f"<div class=\"card\">{table}</div>\n"
-        "<p class=\"note\">Click a column heading to sort by it, or focus it and "
-        "press Enter. Sorting needs the page open in a browser; a mail client "
-        "previewing this file shows every row but cannot reorder them.</p>\n"
-        "<p class=\"note\">Names in this report are shown without their M3U source "
-        "label, and the plugin settings that name your M3U sources are not "
-        f"included. The complete export, which does include them, stays in "
-        f"{EXPORTS_LOCATION} inside the container and is not emailed.</p>\n"
+        f"{section}\n"
+        "<div class=\"colophon\">\n"
+        "<p>Names in this report are shown without their M3U source label, and "
+        "the plugin settings that name your M3U sources are not included. The "
+        f"complete export, which does include them, stays in {EXPORTS_LOCATION} "
+        "inside the container and is not emailed.</p>\n"
+        f"<p>Channel Maparr <a href=\"{_REPO_URL}\">{_REPO_URL}</a></p>\n"
+        f"<p>Report a problem <a href=\"{_ISSUES_URL}\">{_ISSUES_URL}</a></p>\n"
+        "</div>\n"
         f"<script>{_SORT_SCRIPT}</script>\n"
         "</body>\n</html>\n"
     )

@@ -70,7 +70,10 @@ def test_building_and_rendering_never_open_a_file(reports):
     import ast
     source = pathlib.Path(reports.__file__).read_text(encoding="utf-8")
     tree = ast.parse(source)
-    allowed = {"_atomic_write"}
+    # _logo_data_uri is the one reader allowed to open anything, because the
+    # masthead logo has to come off disk. What makes that exception safe is
+    # pinned separately, in the test directly below this one.
+    allowed = {"_atomic_write", "_logo_data_uri"}
     offenders = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.FunctionDef) or node.name in allowed:
@@ -87,6 +90,30 @@ def test_building_and_rendering_never_open_a_file(reports):
              if isinstance(i, ast.Call) and isinstance(i.func, ast.Name)
              and i.func.id == "open"]
     assert found == ["build_model"], "the guard cannot detect an open() call"
+
+
+def test_the_logo_reader_can_only_open_its_own_constant_filename(reports):
+    """The single exception to the guard above is safe only while the path it
+    builds cannot be influenced by a caller. It takes no argument, and the path
+    is assembled from this module's own location and a module-level constant.
+    Given an argument it would become a way to read an export file, which is
+    precisely what the guard above exists to prevent."""
+    import ast
+    source = pathlib.Path(reports.__file__).read_text(encoding="utf-8")
+    function = next(node for node in ast.walk(ast.parse(source))
+                    if isinstance(node, ast.FunctionDef)
+                    and node.name == "_logo_data_uri")
+    assert not function.args.args, "it takes a positional argument"
+    assert not function.args.kwonlyargs, "it takes a keyword argument"
+    names = {node.id for node in ast.walk(function) if isinstance(node, ast.Name)}
+    assert "_LOGO_FILENAME" in names, "the filename is not the pinned constant"
+    assert "__file__" in names, "the directory is not this module's own"
+    for node in ast.walk(function):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "open"):
+            modes = [arg.value for arg in node.args[1:]
+                     if isinstance(arg, ast.Constant)]
+            assert modes == ["rb"], f"opened with {modes}, expected read bytes"
 
 
 def test_the_module_does_not_reference_the_export_directory_constant(reports):
@@ -260,13 +287,25 @@ def test_a_quote_in_a_cell_cannot_break_out_of_the_sort_attribute(reports):
     assert "<b>" not in text
 
 
-def test_the_sorting_script_is_inline_and_requests_nothing_externally(reports):
-    """The page is opened from a file path or from a mail attachment. An external
-    request would not resolve, and would disclose that the report was opened."""
+def test_the_page_fetches_nothing_from_the_network(reports):
+    """The page is opened from a file path or from a mail attachment. A fetched
+    external resource would not resolve, and would disclose that the report had
+    been opened.
+
+    A footer LINK is a different thing and is allowed: nothing is requested
+    until the reader chooses to click it. So every src must be an embedded data
+    URI, and every href must point at this project's own repository. An address
+    anywhere else, in either attribute, fails.
+    """
+    import re
     text = reports.render_html(_model(reports, [{"channel_name": "A", "new_name": "B"}]))
     assert "<script>" in text
-    for marker in ("http://", "https://", "<link ", "src=", "@import"):
-        assert marker not in text, f"the page requests something external: {marker}"
+    for marker in ("<link ", "@import", "url("):
+        assert marker not in text, f"the page fetches something external: {marker}"
+    for src in re.findall(r'\bsrc="([^"]*)"', text):
+        assert src.startswith("data:"), f"a src is fetched from elsewhere: {src}"
+    for href in re.findall(r'\bhref="([^"]*)"', text):
+        assert href.startswith(reports._REPO_URL), f"unexpected link: {href}"
 
 
 def test_every_row_is_present_in_the_markup_without_any_scripting(reports):

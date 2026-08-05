@@ -211,9 +211,17 @@ The HTML page opens with a summary card: plugin version, generation time in UTC,
 databases were actually loaded, whether it was a dry run, the match sensitivity, and how many rows
 are shown out of how many exist.
 
-Below it is the table. **Click any column heading to sort by it**, or move focus to it and press
-Enter. Click again to reverse. Numeric columns are compared as numbers, so channel 18 sorts before
-31 rather than after 102.
+Below it is a section headed **Results**, with a coloured dot and the row count beside it. **It
+starts collapsed, so click the heading to open it.** The page is meant to open as an index rather
+than as a wall of table. If your mail client does not support collapsing sections it shows the
+table already expanded, so nothing is ever hidden from you by accident.
+
+One thing worth knowing: in some browsers, find-in-page does not search inside a collapsed
+section. Expand the section before searching it.
+
+Inside the section is the table. **Click any column heading to sort by it**, or move focus to it
+and press Enter. Click again to reverse. Numeric columns are compared as numbers, so channel 18
+sorts before 31 rather than after 102.
 
 Sorting needs the page open in a browser. Mail clients strip scripts, so previewing the attachment
 inside your mail client shows every row but cannot reorder them. Save the file and open it to sort.

@@ -1,5 +1,33 @@
 # Channel Maparr — Changelog
 
+## v1.26.2170811 (August 5, 2026)
+
+**The HTML report looks different. It says exactly the same things.** No column was added,
+removed or renamed, and no number changed. This is presentation only.
+
+- **The rows now sit in a section that starts collapsed.** The page opens as an index: the title,
+  the run summary, then one closed section headed with a coloured dot, the word Results and the
+  row count. Click the heading to expand it. The section uses the browser's own disclosure
+  element rather than JavaScript, so a mail client that does not support it shows everything
+  expanded instead of hiding it. Because a collapsed section is invisible to find-in-page in some
+  browsers, the section says so.
+- **Every colour now comes from a named token, with a matching value for dark mode.** Four
+  consequences you may notice: the light and dark themes are now consistent with each other;
+  **zebra striping on table rows now appears in both themes**, where before it was declared for
+  dark mode only and the two themes rendered visibly different tables; text that used to be faded
+  with transparency now uses a measured grey, which keeps its contrast readable whatever it sits
+  on; and spacing comes from one scale instead of fourteen hand-picked values.
+- **The logo now appears beside the title**, embedded in the page so it still shows when the
+  report is opened from disk or read as an email attachment. **This adds one file to the plugin,
+  `logo_report.png`**, which is a smaller copy made for this purpose. The plugin card's own logo
+  is unchanged. The report grows by about 16 KB; embedding the existing card logo would have
+  added 288 KB, which is seven times the size of a whole report.
+- **A footer links to the project and its issue tracker.** Nothing is fetched from the network:
+  the page requests no stylesheet, font or image from anywhere, exactly as before.
+
+The report is still one self-contained file, still sortable by clicking a column heading, and
+still carries the same note about what is and is not included in it.
+
 ## v1.26.2170748 (August 5, 2026)
 
 **Channel Maparr now publishes a count of the reports it has built, so the Newsflasharr plugin's

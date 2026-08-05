@@ -2,6 +2,12 @@
 
 ## v1.26.2170831 (August 5, 2026)
 
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2170831
+
+This is the released version. It contains its own change plus the two entries below it,
+v1.26.2170811 and v1.26.2170748, which were developed and deployed the same day and never got
+releases of their own. Upgrading from v1.26.2141433 gets all three.
+
 **The report footer now credits Newsflasharr, the plugin that emails it.** Newsflasharr already
 wrote that credit into the body of the email; carrying it in the page as well means it survives
 the page being saved, forwarded, or opened from disk with no mail around it. The sibling Lineuparr

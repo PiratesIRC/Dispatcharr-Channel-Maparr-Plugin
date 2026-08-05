@@ -1,5 +1,31 @@
 # Channel Maparr — Changelog
 
+## v1.26.2170748 (August 5, 2026)
+
+**Channel Maparr now publishes a count of the reports it has built, so the Newsflasharr plugin's
+Show Status action can display it.** Newsflasharr already lists every plugin that sends it
+reports; until now this plugin appeared in that list with no number beside it, because it did not
+write the file the number comes from.
+
+- **New file: `/data/channel-mapparr/report_count.json`**, containing one key, `reports_built`,
+  holding one non-negative integer. It is written atomically, so a reader never sees a partial
+  file, and it is private to the account the plugin runs as.
+- **The number counts report BUILDS, not emails and not deliveries.** One increment means one HTML
+  file and one CSV file were both written to disk. Two consequences worth knowing: if the report
+  format is set to Both, one build sends two emails, so this number will be half the number of
+  emails you received; and a report that was built but whose email later failed still counts,
+  because the file was written.
+- **A build that failed to write does not increment it.** That is the point of the file. The
+  report writer reports a failure rather than raising, so without this rule a failed publish would
+  be indistinguishable from a successful one.
+- **Nothing else changes.** The counter cannot fail a report run: if it cannot be written, the
+  report is still built and the email is still queued, and the reason is written to the
+  Dispatcharr log as a warning.
+
+Note for anyone verifying this by hand: do not create `/data/channel-mapparr` yourself.
+`docker exec` runs as root by default, and a root-owned directory there can never be written by
+the plugin afterwards. Let the plugin create it.
+
 ## v1.26.2141433 (August 2, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2141433

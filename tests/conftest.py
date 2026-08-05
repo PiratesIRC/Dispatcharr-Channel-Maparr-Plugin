@@ -90,12 +90,14 @@ def _capture_real_container_paths():
         return
     _load_plugin_package()
     import channel_maparr.plugin as plugin_module  # noqa: E402
+    import channel_maparr.report_counter as counter_module  # noqa: E402
     import channel_maparr.reports as reports_module  # noqa: E402
     REAL_CONTAINER_PATHS.update({
         "RESULTS_FILE": plugin_module.PluginConfig.RESULTS_FILE,
         "EXPORT_DIR": plugin_module.PluginConfig.EXPORT_DIR,
         "PROGRESS_FILE": plugin_module.PROGRESS_FILE,
         "REPORT_DIR": reports_module.REPORT_DIR,
+        "COUNTER_DIR": counter_module.COUNTER_DIR,
     })
 
 
@@ -112,8 +114,11 @@ def redirect_container_paths(tmp_path, monkeypatch):
     """
     _capture_real_container_paths()
     import channel_maparr.plugin as plugin_module  # noqa: E402
+    import channel_maparr.report_counter as counter_module  # noqa: E402
     import channel_maparr.reports as reports_module  # noqa: E402
 
+    monkeypatch.setattr(counter_module, "COUNTER_DIR",
+                        str(tmp_path / "counter"))
     monkeypatch.setattr(plugin_module.PluginConfig, "RESULTS_FILE",
                         str(tmp_path / "loaded_channels.json"))
     monkeypatch.setattr(plugin_module.PluginConfig, "EXPORT_DIR",

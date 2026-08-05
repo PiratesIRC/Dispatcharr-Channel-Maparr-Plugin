@@ -50,15 +50,19 @@ See the **[user guide](docs/USER-GUIDE.md)** for how to use these, and for every
 
 ### The emailed report
 
-![An emailed Channel Mapparr rename preview: a summary card showing plugin version, generation time, databases loaded, dry-run state, match sensitivity and row count, above a sortable table of channel numbers, groups, current and new names, status and match method](docs/images/emailed-report.jpg)
+The page opens as an index: the logo beside the title, a summary card of the run, then one section
+headed **Results** carrying its row count, which starts collapsed.
 
-*Sample data. Click any column heading to sort by it; numeric columns are compared as numbers, so
-channel 18 sorts before 31 rather than after 102. The plugin settings that name your M3U sources
-are deliberately absent from this page.*
+![A Channel Mapparr rename preview report as it opens: the logo beside the title, a summary card listing plugin version, generation time, databases loaded, dry-run state, match sensitivity and row count, and below it a single collapsed section headed Results with a row count of 6](docs/images/emailed-report-index.png)
 
-**This screenshot predates v1.26.2170831 and shows the older layout.** The page now opens with the
-logo beside the title and the table inside a section headed **Results** that starts collapsed, so
-you click that heading to see the rows. The content of the table is unchanged.
+Click that heading and the table appears.
+
+![The same report with the Results section expanded, showing a sortable table of channel name, proposed name, match type and score for six sample channels](docs/images/emailed-report-expanded.png)
+
+*Sample data, shown here in dark mode; the page follows whichever theme your reader uses. Click any
+column heading to sort by it; numeric columns are compared as numbers, so channel 18 sorts before 31
+rather than after 102. The plugin settings that name your M3U sources are deliberately absent from
+this page.*
 
 ## Requirements
 * Dispatcharr v0.20.0+

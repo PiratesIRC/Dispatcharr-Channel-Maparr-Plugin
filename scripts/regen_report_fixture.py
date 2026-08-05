@@ -50,7 +50,11 @@ def render(reports):
     model = reports.build_model(
         "Rename preview", COLUMNS, ROWS,
         account_names=["provider.tv"],
-        settings={"dry_run_mode": True, "match_threshold": 80},
+        # match_sensitivity, not match_threshold: the report reads the former, and
+        # the wrong key left the Match sensitivity row blank in the rendered
+        # fixture. Caught by looking at a screenshot of it, which is the argument
+        # for rendering the fixture rather than only diffing its text.
+        settings={"dry_run_mode": True, "match_sensitivity": "normal"},
         databases=["US"],
         version=FIXED_VERSION,
         now=FIXED_NOW,

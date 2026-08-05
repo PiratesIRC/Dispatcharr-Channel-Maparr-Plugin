@@ -44,7 +44,7 @@ A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel
 **Seeing what happened**
 * **Dry Run Mode**: every mutating action writes a CSV of what it would have done, and changes nothing.
 * **Show Status**: live progress and estimated time for the running or most recent operation.
-* **Emailed reports**: optionally email each run as an HTML page and/or a CSV, delivered by the [Newsflasharr](https://github.com/PiratesIRC/Dispatcharr-Newsflasharr-Plugin) plugin. Off by default. **The emailed report never contains your M3U source names**, which the CSV exports do carry in their settings header, and channel names are additionally scrubbed of M3U account names and IP addresses. The HTML table sorts by clicking a column heading.
+* **Emailed reports**: optionally email each run as an HTML page and/or a CSV, delivered by the [Newsflasharr](https://github.com/PiratesIRC/Dispatcharr-Newsflasharr-Plugin) plugin. Off by default. **The emailed report never contains your M3U source names**, which the CSV exports do carry in their settings header, and channel names are additionally scrubbed of M3U account names and IP addresses. The HTML page opens as an index with its table in a collapsed section, and sorts by clicking a column heading. Newsflasharr's own Show Status action shows how many reports this plugin has built.
 
 See the **[user guide](docs/USER-GUIDE.md)** for how to use these, and for every setting.
 
@@ -55,6 +55,10 @@ See the **[user guide](docs/USER-GUIDE.md)** for how to use these, and for every
 *Sample data. Click any column heading to sort by it; numeric columns are compared as numbers, so
 channel 18 sorts before 31 rather than after 102. The plugin settings that name your M3U sources
 are deliberately absent from this page.*
+
+**This screenshot predates v1.26.2170831 and shows the older layout.** The page now opens with the
+logo beside the title and the table inside a section headed **Results** that starts collapsed, so
+you click that heading to see the rows. The content of the table is unchanged.
 
 ## Requirements
 * Dispatcharr v0.20.0+

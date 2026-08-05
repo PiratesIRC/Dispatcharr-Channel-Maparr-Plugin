@@ -60,6 +60,21 @@ What the suites cover:
 | `tests/test_plugin_contract.py` | `plugin.json` ↔ `Plugin` class parity: action-id match, every action has a `button_label`, **exact button_label parity** (catches a symbol corrupted to a literal `?`, which the BMP-only check misses), version agreement, and **BMP-only** (no astral-plane characters the loader silently drops). |
 | `tests/test_data_integrity.py` | Per-country JSON structure, **no byte-identical duplicate rows**, BMP-only data, alias-table shape. |
 | `tests/test_pure_modules.py` | `progress_status.py` and `logo_matcher.py` (both deliberately Django-free). |
+| `tests/test_report_counter.py` | The published report count, `/data/channel-mapparr/report_count.json`. Every condition Newsflasharr's reader enforces SILENTLY (integer, not a boolean, not negative, object at top level, under 4096 bytes on both sides of the boundary, no byte-order mark), the write path, and an AST guard pinning that exactly one function increments it. |
+| `tests/test_report_style.py` | The HTML report's presentation: the colour palette and ink ramp pinned to their measured values, no literal colour in any rule, spacing only from the scale, no `opacity` for text hierarchy, the section collapsed by default with a count matching its table, a self-contained page, and rendered copy free of em dashes, en dashes, double hyphens and contractions. Its comment-stripping helper is load bearing: the rules are explained in prose that quotes the values they forbid. |
+
+**This table is incomplete.** Seventeen test files existed without an entry as of
+2026-08-05, including `tests/test_reports.py`, `tests/test_notify_wiring.py` and
+`tests/test_group_scope_wiring.py`. Read `tests/` directly rather than treating
+this list as the inventory.
+
+`tests/fixtures/sample_report.html` pins the rendered HTML report. A render
+change failing that test is the point of it, not a nuisance: look at the
+difference, decide whether it is what you meant, then regenerate with
+`python scripts/regen_report_fixture.py` and commit the new fixture alongside the
+change that caused it. It pins a fixed version string rather than the plugin's
+real one, so a routine version bump cannot train you into regenerating it
+without looking.
 
 Guiding principle for matching changes (cerebrum, 2026-05-23): **"None is better
 than wrong."** A confident-but-wrong match silently routes a stream to the wrong

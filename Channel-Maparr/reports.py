@@ -325,6 +325,24 @@ _LOGO_CACHE = []
 _REPO_URL = "https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin"
 _ISSUES_URL = _REPO_URL + "/issues"
 
+# The plugin that delivers an emailed copy of this report.
+#
+# Newsflasharr already writes its own credit into the EMAIL BODY, in
+# email_render.footer_text. The line below is the same credit carried inside the
+# report page, so it survives the page being saved, forwarded or opened from disk
+# with no mail around it.
+#
+# The wording is deliberately about EMAILED COPIES rather than about this copy. A
+# report read straight from the report directory was never delivered by anything,
+# and a page that thanked a deliverer which had not run would be saying something
+# untrue in its own footer.
+_NEWSFLASHARR_URL = "https://github.com/PiratesIRC/Dispatcharr-Newsflasharr-Plugin"
+
+# Every address the page is allowed to link to. A link is not a fetch, so these
+# cost nothing until a reader clicks one, but the set is pinned so a link cannot
+# be added to the footer without somebody deciding to add it here too.
+_ALLOWED_LINKS = (_REPO_URL, _ISSUES_URL, _NEWSFLASHARR_URL)
+
 
 def _logo_data_uri():
     """The masthead logo as a data URI, or an empty string if it cannot be read.
@@ -519,8 +537,11 @@ def render_html(model):
         "the plugin settings that name your M3U sources are not included. The "
         f"complete export, which does include them, stays in {EXPORTS_LOCATION} "
         "inside the container and is not emailed.</p>\n"
-        f"<p>Channel Maparr <a href=\"{_REPO_URL}\">{_REPO_URL}</a></p>\n"
-        f"<p>Report a problem <a href=\"{_ISSUES_URL}\">{_ISSUES_URL}</a></p>\n"
+        "<p>Emailed copies of this report are delivered courtesy of "
+        f"<a href=\"{_NEWSFLASHARR_URL}\">Newsflasharr</a>.</p>\n"
+        "<p>Built by Channel Maparr, a channel matcher for Dispatcharr. "
+        f"<a href=\"{_REPO_URL}\">Source and documentation</a>, "
+        f"<a href=\"{_ISSUES_URL}\">report a problem</a>.</p>\n"
         "</div>\n"
         f"<script>{_SORT_SCRIPT}</script>\n"
         "</body>\n</html>\n"

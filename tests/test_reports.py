@@ -294,8 +294,8 @@ def test_the_page_fetches_nothing_from_the_network(reports):
 
     A footer LINK is a different thing and is allowed: nothing is requested
     until the reader chooses to click it. So every src must be an embedded data
-    URI, and every href must point at this project's own repository. An address
-    anywhere else, in either attribute, fails.
+    URI, and every href must be one of the pinned addresses. An address anywhere
+    else, in either attribute, fails.
     """
     import re
     text = reports.render_html(_model(reports, [{"channel_name": "A", "new_name": "B"}]))
@@ -305,7 +305,31 @@ def test_the_page_fetches_nothing_from_the_network(reports):
     for src in re.findall(r'\bsrc="([^"]*)"', text):
         assert src.startswith("data:"), f"a src is fetched from elsewhere: {src}"
     for href in re.findall(r'\bhref="([^"]*)"', text):
-        assert href.startswith(reports._REPO_URL), f"unexpected link: {href}"
+        assert href in reports._ALLOWED_LINKS, f"unexpected link: {href}"
+
+
+def test_the_allowed_link_list_is_pinned(reports):
+    """The list is what makes the guard above meaningful. Left free to grow, a
+    link to anywhere could be added to the footer and the guard would widen to
+    accept it in the same edit."""
+    assert reports._ALLOWED_LINKS == (
+        "https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin",
+        "https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/issues",
+        "https://github.com/PiratesIRC/Dispatcharr-Newsflasharr-Plugin")
+
+
+def test_the_page_credits_the_plugin_that_emails_it(reports):
+    """Newsflasharr writes the same credit into the email body. Carrying it in
+    the page as well means it survives the page being saved, forwarded or opened
+    from disk with no mail around it.
+
+    The wording must stay about EMAILED COPIES rather than about this copy: a
+    report read straight from the report directory was never delivered by
+    anything, and a page thanking a deliverer that had not run would be saying
+    something untrue in its own footer."""
+    text = reports.render_html(_model(reports, [{"channel_name": "A", "new_name": "B"}]))
+    assert "Emailed copies of this report are delivered courtesy of" in text
+    assert ">Newsflasharr</a>" in text
 
 
 def test_every_row_is_present_in_the_markup_without_any_scripting(reports):

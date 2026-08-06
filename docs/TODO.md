@@ -60,8 +60,13 @@
 - [x] **Adds one shipped asset, `logo_report.png`** — 192 pixels on its long edge, quantised palette,
   11.9 KB. The plugin card's `logo.png` is 216 KB and embeds as 288 KB, seven times the size of a
   whole report, on every emailed attachment. The card logo is untouched.
-- [x] **Released and submitted** — GitHub release `1.26.2170831` with its zip, and Dispatcharr/Plugins
-  PR #214 (standard mode).
+- [x] **Released and shipped everywhere** — GitHub release `1.26.2170831` with its zip, merged into
+  the Dispatcharr Plugin Hub (standard mode), and deployed on the live installation. Repository,
+  tag, container and Hub manifest all measured as agreeing.
+- [x] **Documentation structure completed** — `docs/README.md` is the index GitHub renders for the
+  `docs/` folder, organised by who is reading. The README's report screenshots were replaced with
+  current ones rendered from the committed fixture, since the previous image showed a layout the
+  plugin no longer produces.
 
 ## Future Work
 

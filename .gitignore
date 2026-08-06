@@ -42,3 +42,8 @@ docs/superpowers/
 # Local editor / OS
 .DS_Store
 Thumbs.db
+
+# The pre-prune copy of the agent notes. Ignored for the same reason CLAUDE.md is:
+# this repository is public and the notes are about this installation, not about the
+# plugin. The sibling projects TRACK their archive; this one must not.
+CLAUDE-HISTORY.md

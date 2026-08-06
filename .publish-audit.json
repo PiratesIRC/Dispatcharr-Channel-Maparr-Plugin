@@ -64,6 +64,10 @@
     {
       "pattern": "superpowers",
       "reason": "the local planning directory for design documents, not a published path"
+    },
+    {
+      "pattern": "CLAUDE-HISTOR[Y]",
+      "reason": "named in .gitignore, which is tracked and must name the file in order to ignore it. docs/CLAUDE-HISTORY.md is the pre-prune copy of the agent notes and is NOT tracked; the ignore entry is what keeps it that way, so this reference is the mechanism preventing publication rather than an instance of it. The name cannot be changed: Backup-Notes.ps1 sweeps docs/CLAUDE-*.md, so renaming it would remove its only backup."
     }
   ]
 }

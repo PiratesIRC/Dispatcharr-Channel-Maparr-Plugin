@@ -63,6 +63,12 @@ _VALIDATION_ERROR_GLYPH = "❌"      # cross mark
 _VALIDATION_WARNING_GLYPH = "⚠"    # warning sign (with or without U+FE0F)
 
 
+# Every OTA match is categorised here. The FCC station table carries no
+# category field (pinned by tests/test_station_table.py), so the import path
+# has exactly one category for broadcast stations.
+OTA_IMPORT_CATEGORY = "Broadcast"
+
+
 def _format_capped_name_list(names, limit=_MAX_NAMES_IN_MESSAGE):
     """Join up to `limit` names, then summarize the rest as a count."""
     names = list(names)
@@ -2843,7 +2849,7 @@ class Plugin:
             callsign, ota_station = self.matcher.match_broadcast_channel(stream_name)
 
             if ota_station:
-                category = ota_station.get('category', 'Broadcast')
+                category = OTA_IMPORT_CATEGORY
 
                 matched_stream = {
                     'stream': stream,

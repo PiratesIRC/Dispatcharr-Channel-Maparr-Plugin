@@ -99,3 +99,14 @@ MUST_BE_PRESENT = [
 @pytest.mark.parametrize("callsign", MUST_BE_PRESENT)
 def test_known_stations_are_present(stations, callsign):
     assert any(s["callsign"] == callsign for s in stations), callsign
+
+
+def test_the_ota_category_is_a_named_constant():
+    """Reading a key that no record has hides the real behaviour.
+
+    Every OTA match is categorised Broadcast. Saying so in a constant means the
+    next reader does not have to measure the data file to find out.
+    """
+    source = (PLUGIN_DIR / "plugin.py").read_text(encoding="utf-8")
+    assert 'OTA_IMPORT_CATEGORY = "Broadcast"' in source
+    assert "ota_station.get('category'" not in source

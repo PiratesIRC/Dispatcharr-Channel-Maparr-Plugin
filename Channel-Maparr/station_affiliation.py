@@ -16,8 +16,13 @@ _DROP_TOKENS = frozenset({"CH", "DT", "TV", "AND", "ON"})
 # Court TV" have the same shape as "Heroes & Icons" but name two networks
 # apiece, not one. This list is the only thing that can tell them apart, so
 # it must be checked against a whole comma/slash-delimited segment, never a
-# substring.
-_AMPERSAND_NETWORK_NAMES = frozenset({"HEROES & ICONS"})
+# substring. "H&I" and "H & I" are both the same network, Heroes and Icons,
+# written with and without spaces around the ampersand.
+_AMPERSAND_NETWORK_NAMES = frozenset({"HEROES & ICONS", "H&I", "H & I"})
+
+# A record whose affiliation field is this literal placeholder names no
+# network at all. It must not be split into one-letter tokens "N" and "A".
+_NOT_APPLICABLE_RE = re.compile(r"^\s*N\s*/\s*A\s*$", re.IGNORECASE)
 
 
 def station_networks(affiliation):
@@ -30,16 +35,20 @@ def station_networks(affiliation):
         return []
 
     text = str(affiliation)
+    if _NOT_APPLICABLE_RE.match(text):
+        return []
+
     # Drop parenthetical annotations such as "(9.1)" or "(main)".
     text = re.sub(r"\([^)]*\)", " ", text)
     # Drop "Ch 3.1" style subchannel markers and bare decimals.
     text = re.sub(r"\bCh\.?\s*\d+(?:\.\d+)?", " ", text, flags=re.IGNORECASE)
     text = re.sub(r"\b\d+\.\d+\b", " ", text)
 
-    # Split on comma, slash, "and" and ". " first, but never on "&" at this
-    # stage: whether "&" is a separator or part of one network's own name can
-    # only be judged per segment, against the whole segment, below.
-    raw_segments = re.split(r"[,/]|\s+\band\b\s+|\.\s+", text, flags=re.IGNORECASE)
+    # Split on comma, semicolon, slash, "and" and ". " first, but never on
+    # "&" at this stage: whether "&" is a separator or part of one network's
+    # own name can only be judged per segment, against the whole segment,
+    # below.
+    raw_segments = re.split(r"[,;/]|\s+\band\b\s+|\.\s+", text, flags=re.IGNORECASE)
 
     parts = []
     for segment in raw_segments:

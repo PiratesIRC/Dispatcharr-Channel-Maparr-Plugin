@@ -45,6 +45,29 @@ NETWORK_CASES = [
     # "Cozi" and "Court TV", not one.
     ("NBC/ANTENNA/FOX/COZI & COURT TV",
      ["NBC", "ANTENNA", "FOX", "COZI", "COURT TV"]),
+    # Verbatim from networks.json, callsign WXYZ-TV. Semicolon is a separator
+    # like comma and slash, and this record names five networks with it.
+    ("ABC; Bounce TV; Laff; Court TV; Shop LC",
+     ["ABC", "BOUNCE TV", "LAFF", "COURT TV", "SHOP LC"]),
+    # Verbatim from networks.json, callsigns KNDO and KNDU.
+    ("NBC; SWX", ["NBC", "SWX"]),
+    # Verbatim from networks.json, callsign WFXT. A semicolon-delimited
+    # segment can itself contain a real ampersand separator, not a network
+    # name, so both the semicolon split and the per-segment ampersand split
+    # must fire on the same string.
+    ("FOX (25.1); Comet TV (25.2) & Laff TV (25.3)",
+     ["FOX", "COMET TV", "LAFF TV"]),
+    # Verbatim from networks.json, callsign KTUU-TV. "H&I" (unspaced) is the
+    # network Heroes and Icons, same as the spaced "HEROES & ICONS" case
+    # above, and must not split into "H" and "I".
+    ("NBC,  H&I", ["NBC", "H&I"]),
+    # Verbatim from networks.json, callsign KNCT. The spaced form of the same
+    # network, "H & I", appears too and must also stay one token.
+    ("CW / StartTV / DABL / H & I", ["CW", "STARTTV", "DABL", "H & I"]),
+    # Verbatim from networks.json, callsign DDWDHS. "N/A" is a placeholder
+    # for "no affiliation on file", not two one-letter networks named "N"
+    # and "A".
+    ("N/A", []),
 ]
 
 
@@ -56,6 +79,12 @@ def test_station_networks(raw, expected):
 def test_primary_network_is_the_first_one_named():
     assert primary_network("ABC (9.1), Telemundo (9.2)") == "ABC"
     assert primary_network("") is None
+
+
+def test_primary_network_is_none_for_the_not_applicable_placeholder():
+    # Verbatim from networks.json, callsign DDWDHS. A station with no
+    # affiliation on file must answer None, not "N".
+    assert primary_network("N/A") is None
 
 
 def test_carries_network_finds_a_subchannel():

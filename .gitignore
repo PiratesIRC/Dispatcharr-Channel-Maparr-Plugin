@@ -47,3 +47,9 @@ Thumbs.db
 # this repository is public and the notes are about this installation, not about the
 # plugin. The sibling projects TRACK their archive; this one must not.
 CLAUDE-HISTORY.md
+
+# FCC LMS database dumps the operator downloads for station table rebuilds.
+# These are hundreds of megabytes and must never enter the repository.
+*_LMS_Dump/
+*_LMS_Dump.zip
+Current_LMS_Dump/

@@ -2206,19 +2206,18 @@ class Plugin:
             )
             channels_to_process = all_channels
 
-            # Build category mapping from channel databases
-            # For broadcast channels: map by callsign
-            category_map_callsign = {}
-            for channel_data in self.matcher.broadcast_channels:
-                callsign = channel_data.get('callsign', '').strip()
-                category = channel_data.get('category', '').strip()
-                if callsign and category:
-                    # Also store without suffix
-                    base_callsign = self.matcher.normalize_callsign(callsign)
-                    category_map_callsign[callsign] = category
-                    if base_callsign != callsign:
-                        category_map_callsign[base_callsign] = category
-
+            # Build category mapping from channel databases.
+            #
+            # There is deliberately NO callsign to category map. No record in
+            # the FCC station table carries a category field, which
+            # tests/test_station_table.py pins, so a map built from it was
+            # always empty and every over the air channel fell through to the
+            # premium path below. That dead map and its per channel lookup were
+            # removed rather than made to work: the only category value the
+            # over the air path has is the single string in
+            # OTA_IMPORT_CATEGORY, so populating it would move every over the
+            # air channel into one group named Broadcast.
+            #
             # For premium channels: map by channel name
             category_map_premium = {}
             for channel_data in self.matcher.premium_channels_full:
@@ -2267,14 +2266,9 @@ class Plugin:
                 match_type = None
                 match_value = None
 
-                # Try broadcast channel matching first (by callsign)
-                callsign, station = self.matcher.match_broadcast_channel(channel_name)
-                if callsign and callsign in category_map_callsign:
-                    category = category_map_callsign[callsign]
-                    match_type = "Broadcast (Callsign)"
-                    match_value = callsign
-
-                # If not a broadcast channel, try premium channel matching (by name)
+                # Classification is by channel name against the premium
+                # databases. See the note above the premium map for why there
+                # is no callsign branch here.
                 if not category:
                     # Try normalized match first (uses cache)
                     norm_lower, _ = self.matcher._get_cached_norm(channel_name, ignored_tags_list)
@@ -2463,19 +2457,18 @@ class Plugin:
             )
             channels_to_process = all_channels
 
-            # Build category mapping from channel databases
-            # For broadcast channels: map by callsign
-            category_map_callsign = {}
-            for channel_data in self.matcher.broadcast_channels:
-                callsign = channel_data.get('callsign', '').strip()
-                category = channel_data.get('category', '').strip()
-                if callsign and category:
-                    # Also store without suffix
-                    base_callsign = self.matcher.normalize_callsign(callsign)
-                    category_map_callsign[callsign] = category
-                    if base_callsign != callsign:
-                        category_map_callsign[base_callsign] = category
-
+            # Build category mapping from channel databases.
+            #
+            # There is deliberately NO callsign to category map. No record in
+            # the FCC station table carries a category field, which
+            # tests/test_station_table.py pins, so a map built from it was
+            # always empty and every over the air channel fell through to the
+            # premium path below. That dead map and its per channel lookup were
+            # removed rather than made to work: the only category value the
+            # over the air path has is the single string in
+            # OTA_IMPORT_CATEGORY, so populating it would move every over the
+            # air channel into one group named Broadcast.
+            #
             # For premium channels: map by channel name
             category_map_premium = {}
             for channel_data in self.matcher.premium_channels_full:
@@ -2524,12 +2517,9 @@ class Plugin:
 
                 category = None
 
-                # Try broadcast channel matching first (by callsign)
-                callsign, station = self.matcher.match_broadcast_channel(channel_name)
-                if callsign and callsign in category_map_callsign:
-                    category = category_map_callsign[callsign]
-
-                # If not a broadcast channel, try premium channel matching (by name)
+                # Classification is by channel name against the premium
+                # databases. See the note above the premium map for why there
+                # is no callsign branch here.
                 if not category:
                     # Try normalized match first (uses cache)
                     norm_lower, _ = self.matcher._get_cached_norm(channel_name, ignored_tags_list)

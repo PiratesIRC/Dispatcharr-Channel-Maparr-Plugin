@@ -158,3 +158,37 @@ def test_matcher_loads_supplemental_stations(matcher):
     callsign, station = matcher.match_broadcast_channel("US: ABC 57 (WBND) South Bend")
     assert station is not None
     assert station["community_served_city"].upper().startswith("SOUTH BEND")
+
+
+# ---------------------------------------------------------------------------
+# The absence of a category field on station records is load bearing for
+# Organize by Category. These tests pin the consequences so that a future
+# change has to face them deliberately.
+# ---------------------------------------------------------------------------
+
+
+def test_organize_by_category_has_no_callsign_branch():
+    """Organize by Category must not classify a station by callsign.
+
+    A map from callsign to category built from the station table is always
+    empty, because no record carries a category. The map and its per channel
+    lookup were removed. Reinstating them without giving stations a real
+    category would be dead code again; giving them the one category the import
+    path has would move every over the air channel into a single group.
+    """
+    source = (PLUGIN_DIR / "plugin.py").read_text(encoding="utf-8")
+    assert "category_map_callsign" not in source
+    assert "Broadcast (Callsign)" not in source
+
+
+def test_station_lookup_does_not_short_circuit_the_premium_lookup(matcher):
+    """A name that resolves to a station still gets a premium category.
+
+    get_category_for_channel returned the station's category directly, and that
+    category is always absent, so every name resolving to a station answered
+    None and never reached the premium databases.
+    """
+    callsign, station = matcher.match_broadcast_channel("US: ABC 7 (KGO) SAN FRANCISCO HD")
+    assert station is not None, "the fixture data no longer resolves this callsign"
+    assert station.get("category") is None, "a station now has a category; revisit this test"
+    assert matcher.get_category_for_channel("CNN") is not None

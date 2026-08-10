@@ -471,7 +471,7 @@ class FuzzyMatcher(FuzzyMatcherCore):
             self.logger.info(
                 f"Loaded {len(extra)} supplemental stations from {SUPPLEMENTAL_STATIONS_FILE}")
 
-        self.logger.info(f"Loaded {loaded} OTA broadcast stations from {BROADCAST_STATIONS_FILE}")
+        self.logger.info(f"Loaded {loaded} OTA broadcast stations total")
         return loaded
 
     def reload_databases(self, country_codes=None):

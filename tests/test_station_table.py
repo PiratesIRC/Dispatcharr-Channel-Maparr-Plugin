@@ -89,7 +89,9 @@ def test_every_affiliation_parses_to_at_least_one_network(stations):
       change; it is named here rather than silently fixed so the fault
       stays visible.
     """
-    expected_unparsed = {"DDWDHS", "WNEM-TV"}
+    # DDWDHS was in this set until the station table was rebuilt from the FCC
+    # dump on 2026-08-10. It was a cancelled licence and the rebuild dropped it.
+    expected_unparsed = {"WNEM-TV"}
     unparsed = {s["callsign"] for s in stations
                 if s["network_affiliation"] and not station_networks(s["network_affiliation"])}
     assert unparsed == expected_unparsed, unparsed
@@ -149,12 +151,30 @@ def test_supplemental_does_not_shadow_the_main_table(supplemental, stations):
     assert clashes == [], clashes
 
 
-def test_supplemental_covers_the_stations_known_to_be_missing(supplemental):
-    present = {s["callsign"].split("-")[0] for s in supplemental}
+def test_the_low_power_stations_are_in_the_main_table_now(stations):
+    """WBND and WBMA were in the supplemental file before the rebuild.
+
+    The rebuild of 2026-08-10 reads low power stations from the FCC dump, so
+    both are in the main table and their supplemental records were removed
+    rather than left to shadow them. The supplemental file stays in place, and
+    empty, because it remains the way to record a station or a correction the
+    FCC data does not give.
+    """
+    present = {s["callsign"].split("-")[0] for s in stations}
     assert {"WBND", "WBMA"} <= present
 
 
-def test_matcher_loads_supplemental_stations(matcher):
+def test_the_supplemental_file_is_a_list_the_loader_can_read(supplemental):
+    """An empty supplemental file must stay valid, not be deleted.
+
+    The loader in Channel-Maparr/fuzzy_matcher.py treats a missing file as
+    harmless, so a deletion would pass silently and the mechanism would be gone
+    with nothing to show it.
+    """
+    assert isinstance(supplemental, list)
+
+
+def test_a_low_power_station_resolves_by_callsign(matcher):
     callsign, station = matcher.match_broadcast_channel("US: ABC 57 (WBND) South Bend")
     assert station is not None
     assert station["community_served_city"].upper().startswith("SOUTH BEND")

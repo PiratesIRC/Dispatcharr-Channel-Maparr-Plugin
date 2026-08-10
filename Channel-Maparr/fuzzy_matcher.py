@@ -1400,11 +1400,17 @@ class FuzzyMatcher(FuzzyMatcherCore):
         if user_ignored_tags is None:
             user_ignored_tags = []
         
-        # Try broadcast channel first
+        # Try broadcast channel first. No record in the FCC station table
+        # carries a category field, so a station match yields nothing here and
+        # must NOT short circuit the premium lookup below. Returning the
+        # station's absent category directly made this function answer None for
+        # every name that resolved to a station.
         callsign, station = self.match_broadcast_channel(channel_name)
         if station:
-            return station.get('category')
-        
+            station_category = station.get('category')
+            if station_category:
+                return station_category
+
         # Try premium channel matching
         if self.premium_channels:
             matched_name, score, match_type = self.fuzzy_match(

@@ -110,3 +110,35 @@ def test_the_ota_category_is_a_named_constant():
     source = (PLUGIN_DIR / "plugin.py").read_text(encoding="utf-8")
     assert 'OTA_IMPORT_CATEGORY = "Broadcast"' in source
     assert "ota_station.get('category'" not in source
+
+
+SUPPLEMENTAL = PLUGIN_DIR / "networks_supplemental.json"
+
+
+@pytest.fixture(scope="module")
+def supplemental():
+    return json.loads(SUPPLEMENTAL.read_text(encoding="utf-8"))
+
+
+def test_supplemental_records_have_the_same_shape(supplemental, stations):
+    for station in supplemental:
+        missing = REQUIRED_KEYS - set(station)
+        assert not missing, "%s is missing %s" % (station.get("callsign"), missing)
+        assert station.get("source"), "every supplemental record must say where it came from"
+
+
+def test_supplemental_does_not_shadow_the_main_table(supplemental, stations):
+    main = {s["callsign"] for s in stations}
+    clashes = [s["callsign"] for s in supplemental if s["callsign"] in main]
+    assert clashes == [], clashes
+
+
+def test_supplemental_covers_the_stations_known_to_be_missing(supplemental):
+    present = {s["callsign"].split("-")[0] for s in supplemental}
+    assert {"WBND", "WBMA"} <= present
+
+
+def test_matcher_loads_supplemental_stations(matcher):
+    callsign, station = matcher.match_broadcast_channel("US: ABC 57 (WBND) South Bend")
+    assert station is not None
+    assert station["community_served_city"].upper().startswith("SOUTH BEND")

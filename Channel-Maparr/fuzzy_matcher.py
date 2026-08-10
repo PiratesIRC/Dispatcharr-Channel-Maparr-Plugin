@@ -26,6 +26,10 @@ __version__ = "26.100.1200"
 # database is selected. US-only; absent for non-US deployments.
 BROADCAST_STATIONS_FILE = "networks.json"
 
+# Stations the FCC full power export does not carry (licensed as low power).
+# Hand maintained and merged after the main table loads.
+SUPPLEMENTAL_STATIONS_FILE = "networks_supplemental.json"
+
 # Setup logging
 LOGGER = logging.getLogger("plugins.fuzzy_matcher")
 
@@ -443,6 +447,29 @@ class FuzzyMatcher(FuzzyMatcherCore):
             if base_callsign != callsign:
                 self.channel_lookup.setdefault(base_callsign, station)
             loaded += 1
+
+        # Stations the FCC full power export does not carry. Loaded second and
+        # indexed with setdefault, so a main table record always wins.
+        supplemental_path = os.path.join(self.plugin_dir, SUPPLEMENTAL_STATIONS_FILE)
+        if os.path.exists(supplemental_path):
+            try:
+                with open(supplemental_path, 'r', encoding='utf-8') as handle:
+                    extra = json.load(handle)
+            except Exception as exc:
+                self.logger.error(f"Error loading {SUPPLEMENTAL_STATIONS_FILE}: {exc}")
+                extra = []
+            for station in extra:
+                callsign = (station.get('callsign') or '').strip().upper()
+                if not callsign:
+                    continue
+                self.broadcast_channels.append(station)
+                self.channel_lookup.setdefault(callsign, station)
+                base_callsign = re.sub(r'-(?:TV|CD|LP|DT|LD)$', '', callsign)
+                if base_callsign != callsign:
+                    self.channel_lookup.setdefault(base_callsign, station)
+                loaded += 1
+            self.logger.info(
+                f"Loaded {len(extra)} supplemental stations from {SUPPLEMENTAL_STATIONS_FILE}")
 
         self.logger.info(f"Loaded {loaded} OTA broadcast stations from {BROADCAST_STATIONS_FILE}")
         return loaded

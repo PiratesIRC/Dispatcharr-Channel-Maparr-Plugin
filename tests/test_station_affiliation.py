@@ -34,6 +34,17 @@ NETWORK_CASES = [
     ("CBS & FOX", ["CBS", "FOX"]),
     ("", []),
     (None, []),
+    # Verbatim from networks.json line 8206. "&" separates two networks
+    # ("This TV" and "Start") here, even though the record also uses "/" as
+    # a separator elsewhere in the same string, unlike "Heroes & Icons"
+    # above, which is one network's own name.
+    ("CBS 5.1/The 365 5.2/This TV & Start 5.3/Quest 5.4/The Outlaw5.5",
+     ["CBS", "THE 365", "THIS TV", "START", "QUEST", "THE OUTLAW5.5"]),
+    # Verbatim from networks.json line 10654. Same shape as "Heroes & Icons"
+    # ("WORD & WORD" inside a "/"-delimited record) but names two networks,
+    # "Cozi" and "Court TV", not one.
+    ("NBC/ANTENNA/FOX/COZI & COURT TV",
+     ["NBC", "ANTENNA", "FOX", "COZI", "COURT TV"]),
 ]
 
 

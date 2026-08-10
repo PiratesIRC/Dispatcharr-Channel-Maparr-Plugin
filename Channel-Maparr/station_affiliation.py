@@ -10,6 +10,15 @@ import re
 # Tokens that are structure, not networks.
 _DROP_TOKENS = frozenset({"CH", "DT", "TV", "AND", "ON"})
 
+# Real network names that use an ampersand as part of the name itself, rather
+# than as a separator between two networks. Whether "&" separates or belongs
+# is not decidable from punctuation alone: "This TV & Start" and "Cozi &
+# Court TV" have the same shape as "Heroes & Icons" but name two networks
+# apiece, not one. This list is the only thing that can tell them apart, so
+# it must be checked against a whole comma/slash-delimited segment, never a
+# substring.
+_AMPERSAND_NETWORK_NAMES = frozenset({"HEROES & ICONS"})
+
 
 def station_networks(affiliation):
     """Return the networks named in an affiliation field, in order.
@@ -27,16 +36,18 @@ def station_networks(affiliation):
     text = re.sub(r"\bCh\.?\s*\d+(?:\.\d+)?", " ", text, flags=re.IGNORECASE)
     text = re.sub(r"\b\d+\.\d+\b", " ", text)
 
-    # "&" is ambiguous: in "CBS & FOX" it joins two networks, but in
-    # "HEROES & ICONS" it is part of one network's own name. Treat it as a
-    # delimiter only when it is the sole separator in the string; once a
-    # slash is already doing the joining, "&" belongs to the name it sits
-    # inside.
-    if "/" in text:
-        delimiter = r"[,/]|\s+\band\b\s+|\.\s+"
-    else:
-        delimiter = r"[,/&]|\s+\band\b\s+|\.\s+"
-    parts = re.split(delimiter, text, flags=re.IGNORECASE)
+    # Split on comma, slash, "and" and ". " first, but never on "&" at this
+    # stage: whether "&" is a separator or part of one network's own name can
+    # only be judged per segment, against the whole segment, below.
+    raw_segments = re.split(r"[,/]|\s+\band\b\s+|\.\s+", text, flags=re.IGNORECASE)
+
+    parts = []
+    for segment in raw_segments:
+        cleaned = re.sub(r"\s+", " ", segment.strip().strip(".")).upper()
+        if "&" in cleaned and cleaned not in _AMPERSAND_NETWORK_NAMES:
+            parts.extend(re.split(r"\s*&\s*", segment))
+        else:
+            parts.append(segment)
 
     networks = []
     for index, part in enumerate(parts):

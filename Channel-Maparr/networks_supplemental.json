@@ -1,1 +1,13 @@
-[]
+[
+ {
+  "callsign": "WGCL",
+  "community_served_city": "ATLANTA",
+  "community_served_state": "GA",
+  "active_ind": "Y",
+  "network_affiliation": "CBS",
+  "tv_virtual_channel": "46",
+  "facility_id": "72120",
+  "station_class": "DTV",
+  "source": "The station changed its callsign to WANF, and the FCC LMS dump of 2026-08-10 no longer lists WGCL anywhere. Providers still label the stream with the old callsign, so this record keeps it matching. Same facility_id and virtual channel as the WANF record in networks.json. Added 2026-08-10."
+ }
+]

@@ -1,5 +1,36 @@
 # Channel Maparr — TODO
 
+## Open (added 2026-08-10)
+
+- [ ] **Match a station by market city and channel number** - a stream naming a market with no callsign, such as
+  `US: ABC 33/40 HD [BIRMINGHAM]` or `US: FOX 13 HD [SEATTLE]`, still resolves to nothing. Measured on the live
+  provider feed: this affects roughly 30 names across the ABC, CBS, FOX and NBC groups. A written plan exists at
+  `docs/superpowers/plans/2026-08-10-ota-market-matching.md` (gitignored): parse the market and channel number,
+  look them up against the station table, accept only when exactly one station fits, and keep a table of market
+  names that are not FCC community cities (Hampton Roads to Hampton, Seattle to Tacoma, Las Vegas to Henderson).
+
+- [ ] **An action that creates channels for streams that have none** - the work of creating 270 channels on
+  2026-08-10 was done with throwaway scripts, not through the plugin. `Import M3U Streams` cannot do it: it
+  creates one channel per stream, so a provider serving each station once per M3U account produces four suffixed
+  channels per station, where the established layout is one channel holding the four streams. Plan at
+  `docs/superpowers/plans/2026-08-10-create-channels-from-streams.md` (gitignored).
+
+- [ ] **`_extract_stream_network` ignores a four letter prefix** - it strips a two or three letter geo prefix
+  before the colon, so the provider group whose names begin `CITY: PBS KETC ...` is treated as stating no
+  network at all. KETC then takes the FCC affiliation `ETV` rather than the `PBS` the stream states. Affects
+  every stream in that provider group, not only St Louis.
+
+- [ ] **The supplemental station file can add but not correct** - `networks_supplemental.json` is loaded after
+  `networks.json` with `setdefault`, so the main table always wins. A wrong record in the main table, such as
+  WBMA-LD having no virtual channel, cannot be corrected without either a corrections file applied by
+  `scripts/build_networks_json.py` or a precedence change.
+
+- [ ] **The FCC affiliation field is not maintained to a standard** - measured on the 2026-08-10 dump: KTVU is
+  recorded as `Independent` although it is a Fox owned station, WANF as `Independent` although it carries CBS,
+  one record holds a web address, 26 records separate networks with semicolons, and `H&I` appears in 8. The
+  rebuild script keeps a previous specific affiliation rather than accepting a vague one, which covered 15
+  stations, but the underlying data stays unreliable and each new dump needs the report read.
+
 ## Completed (v1.26.1001200)
 
 - [x] **Token-based candidate pre-filter** — Inverted index reduces fuzzy matching from O(streams * channels) to O(streams * ~200). M3U import: 32 hours -> 6 seconds.
@@ -72,7 +103,11 @@
 
 - [ ] **Premium HD-tag idempotency (NBC Sports RSNs)** — a few channels (`NBC Sports California (D)` ⇄ `NBC Sports California HD (D)`, `… Bay Area HD` ⇄ `… (with Warriors)`) flip a cosmetic tag on re-run because the premium exact-match canonical differs from the post-rename name. Pre-existing; ~7 channels on US: NBC.
 
-- [ ] **OTA station-table coverage** — low-power/translator callsigns (`-LD`/`-CD2`) and a few full-power stations (WGCL, KXJB, WSHM) are absent from `networks.json`, so those affiliates skip with "Callsign … not in channel databases". Refresh/expand the FCC table to raise coverage.
+- [x] **OTA station-table coverage** (v1.26.2221915) - `networks.json` is rebuilt from the FCC Licensing
+  and Management System by `scripts/build_networks_json.py` and grows from 1,915 to 6,839 stations,
+  including the low power classes. Measured: 12 of 14 provider stream names that could not be matched
+  before now resolve. WGCL is handled by `networks_supplemental.json` because the station renamed itself
+  to WANF and the FCC no longer lists the old callsign. KXJB and WSHM resolve from the rebuilt table.
 
 - [ ] **Non-parenthesized callsign affiliates** — formats like `SEATTLE, WA KING NBC 5` (callsign not in parens, denylisted word) still skip, since loosening the unparenthesized denylist would mis-read prose. Would need a market/city-aware heuristic.
 

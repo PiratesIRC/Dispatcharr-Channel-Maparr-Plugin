@@ -1,5 +1,66 @@
 # Channel Maparr — Changelog
 
+## v1.26.2221915 (August 10, 2026)
+
+Not released. Developed and deployed the same day.
+
+**The FCC station table is rebuilt from the source the FCC actually maintains, and grows from
+1,915 stations to 6,839.** `Channel-Maparr/networks.json` is the only source of over the air
+station matches, and the copy that shipped until now carried full power stations only. Every low
+power station a provider carries was therefore unmatchable: a stream named `US: CBS 23 (WIFR-LD)
+ROCKFORD HD` produced nothing at all. Measured against real provider stream names that failed
+before this change, 12 of 14 now resolve, including WBND-LD South Bend, KSWL-LD Lake Charles,
+WECP-LD Panama City, WIFR-LD Rockford, KBNZ-LD Bend, WYFX-LD Youngstown, WZAW-LD Wausau, KQFX-LD
+Columbia, WSVF-CD Harrisonburg and KJNB-CD Jonesboro.
+
+The table is now built by `scripts/build_networks_json.py` from the FACILITY table of the FCC
+Licensing and Management System, which the operator downloads by hand. Five rules decide what goes
+in, and each exists because of something measured in the data rather than assumed:
+
+- Licensed television services only. The FCC republishes a cancelled licence with a `D` prepended
+  to its callsign, and 43 such dead records were in the previous file.
+- Every licensed record that names a network, 2,137 of them.
+- Licensed records that name no network, 4,673 of them, unless the base callsign already belongs
+  to a station that does name one. Only 2,232 of the 180,831 records name a network at all, so a
+  network-only rule silently excludes the low power stations providers carry. A stream that states
+  its own network still names such a station correctly. The collision guard skips 34 records that
+  would otherwise shadow a real affiliate, such as an unaffiliated `KAAS-LP` displacing `KAAS-TV`,
+  which carries FOX.
+- No station the previous file had is dropped unless its licence is cancelled. 29 are carried over
+  and marked with a field saying why.
+- A specific network is never replaced by a vague one. The FCC record calls KTVU `Independent`
+  although it is a Fox owned and operated station, and WANF `Independent` although it carries CBS.
+  15 affiliations were kept from the previous file for that reason.
+
+**A parser for the network affiliation field.** `Channel-Maparr/station_affiliation.py` turns that
+free text field into an ordered list of networks. It exists because the field is not one network:
+it can read `ABC (9.1), Telemundo (9.2), GetTV (9.3). Comet (9.4)`, and code that asks whether a
+station is Telemundo with a substring test gets the wrong answer for six ABC, CBS and FOX stations
+that merely carry it on a subchannel. The parser handles semicolons, which affect 26 records, and
+keeps network names containing an ampersand whole, which affects 9.
+
+**Organize by Category no longer builds a lookup that could never match.** Both of its paths built
+a map from callsign to category out of the station table. No record in that table carries a
+category, so the map was always empty and every over the air channel fell through to matching by
+name against the premium databases. The map, its per channel lookup and the station match that fed
+it are removed. Behaviour is unchanged. The branch is deliberately not made to work: the only
+category value the over the air path has is the single word Broadcast, so populating it would move
+every over the air channel into one group with that name.
+
+**The station table has structural tests.** `tests/test_station_table.py` checks required keys,
+unique uppercase callsigns, valid state codes and channel numbers, that every affiliation parses to
+at least one network, and that a named set of stations is present.
+
+**A supplemental station file.** `Channel-Maparr/networks_supplemental.json` records what the FCC
+data does not give. It currently holds one record: the Atlanta CBS station changed its callsign
+from WGCL to WANF and the FCC no longer lists WGCL anywhere, but providers still label the stream
+with the old callsign.
+
+Known and not fixed: a provider stream naming a market with no callsign, such as
+`US: ABC 33/40 HD [BIRMINGHAM]`, still does not resolve. Nothing in the name can be matched against
+until matching by market city and channel number is built.
+
+
 ## v1.26.2170831 (August 5, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2170831

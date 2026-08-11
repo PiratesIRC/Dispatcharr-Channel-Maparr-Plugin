@@ -58,6 +58,8 @@ What the suites cover:
 | `tests/test_ota_network.py` | OTA network resolution: `_parse_network_affiliation` on messy FCC strings, `_extract_stream_network` (stream-stated network), and the parenthesized-callsign override (`(KING)` accepted, `King of the Hill` not). |
 | `tests/test_normalization_port.py` | The three `normalize_name` input-cleaning fixes ported from Stream-Mapparr (helper, regex, full-pipeline) + a corpus no-regression gate (0 ASCII-name changes). |
 | `tests/test_plugin_contract.py` | `plugin.json` ↔ `Plugin` class parity: action-id match, every action has a `button_label`, **exact button_label parity** (catches a symbol corrupted to a literal `?`, which the BMP-only check misses), version agreement, and **BMP-only** (no astral-plane characters the loader silently drops). |
+| `tests/test_station_table.py` | Structure of `networks.json`, the FCC station table: required keys, unique uppercase callsigns, valid state codes and virtual channels, every affiliation parses to at least one network, no record carries a `category` field, and a named set of stations is present. Also pins that Organize by Category has no callsign branch. |
+| `tests/test_station_affiliation.py` | `station_affiliation.py`: turning the free-text `network_affiliation` field into a network list. Cases are quoted verbatim from `networks.json`, including the semicolon, ampersand and `N/A` shapes. |
 | `tests/test_data_integrity.py` | Per-country JSON structure, **no byte-identical duplicate rows**, BMP-only data, alias-table shape. |
 | `tests/test_pure_modules.py` | `progress_status.py` and `logo_matcher.py` (both deliberately Django-free). |
 | `tests/test_report_counter.py` | The published report count, `/data/channel-mapparr/report_count.json`. Every condition Newsflasharr's reader enforces SILENTLY (integer, not a boolean, not negative, object at top level, under 4096 bytes on both sides of the boundary, no byte-order mark), the write path, and an AST guard pinning that exactly one function increments it. |
@@ -109,6 +111,10 @@ object where every channel is `{channel_name, category, type}`.
   Add an alias whenever a canonical DB name has a parenthesized abbreviation that
   normalization strips (e.g. `Réseau des Sports (RDS) HD` ← `RDS`). Entries whose
   key matches no DB name are simply unused — harmless.
+- `scripts/build_networks_json.py` rebuilds `Channel-Maparr/networks.json` from the FACILITY table of an
+  FCC Licensing and Management System dump that the operator downloads by hand. Read its docstring before
+  running it: the selection rules exist because of specific defects measured in the FCC data, and the
+  removed list must be read before accepting a rebuild.
 - `Channel-Maparr/networks.json` is a **separate** US-only FCC station table
   (`callsign → network_affiliation / community_served_city / community_served_state`,
   1,915 rows) — the *only* source of OTA/broadcast matches (the `*_channels.json`

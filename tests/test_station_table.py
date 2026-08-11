@@ -164,6 +164,19 @@ def test_the_low_power_stations_are_in_the_main_table_now(stations):
     assert {"WBND", "WBMA"} <= present
 
 
+def test_the_renamed_atlanta_station_still_matches(matcher):
+    """Providers label the Atlanta CBS stream with a callsign the FCC dropped.
+
+    The station changed its callsign from WGCL to WANF, and the FCC LMS dump of
+    2026-08-10 does not list WGCL at all, so the supplemental file keeps the old
+    callsign resolvable.
+    """
+    callsign, station = matcher.match_broadcast_channel("US: CBS 46 (WGCL) ATLANTA HD")
+    assert station is not None
+    assert station["community_served_city"].upper() == "ATLANTA"
+    assert station["network_affiliation"].upper().startswith("CBS")
+
+
 def test_the_supplemental_file_is_a_list_the_loader_can_read(supplemental):
     """An empty supplemental file must stay valid, not be deleted.
 

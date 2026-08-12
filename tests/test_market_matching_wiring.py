@@ -88,6 +88,9 @@ MARKET_CASES = [
     ("US: FOX 46 HD [CHARLOTTE]", "FOX", "WJZY"),
     ("US: ABC 11 HD [RALEIGH]", "ABC", "WTVD"),
     ("US: FOX 8 HD [GREENSBORO]", "FOX", "WGHP"),
+    # Reached only because scripts/networks_corrections.json gives WBMA-LD the
+    # affiliation and channel number the FCC dump leaves empty.
+    ("US: ABC 33/40 HD [BIRMINGHAM]", "ABC", "WBMA"),
     # Reached only through the alias table.
     ("US: ABC 13 HD [HAMPTON ROADS]", "ABC", "WVEC"),
     ("US: FOX NET [CHARLES LA]", "FOX", "KVHP"),

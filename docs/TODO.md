@@ -43,10 +43,28 @@
   `_STREAM_NETWORKS` may exceed the 12 letter token pattern, since a longer one would silently stop being
   recognized as a prefix.
 
-- [ ] **The supplemental station file can add but not correct** - `networks_supplemental.json` is loaded after
-  `networks.json` with `setdefault`, so the main table always wins. A wrong record in the main table, such as
-  WBMA-LD having no virtual channel, cannot be corrected without either a corrections file applied by
-  `scripts/build_networks_json.py` or a precedence change.
+- [x] **The supplemental station file can add but not correct** (done 2026-08-12) - resolved with a corrections
+  file applied at build time rather than by flipping the runtime precedence. `scripts/networks_corrections.json`
+  is read by `scripts/build_networks_json.py`, which overwrites the named fields on an existing record and
+  stamps that record with a `corrected` field saying what changed and why, so the shipped `networks.json`
+  carries the corrected value and explains itself. The runtime loader in `Channel-Maparr/fuzzy_matcher.py` is
+  unchanged, and `networks_supplemental.json` keeps its single job of ADDING a station the FCC no longer lists.
+
+  Flipping the precedence was rejected: the loader appends every supplemental record to `broadcast_channels`
+  regardless of the lookup, so an overriding record would sit in the station list twice and be counted twice by
+  the market index.
+
+  Each correction names the value it believes it is replacing, and is skipped and reported when that no longer
+  matches, so a correction the FCC has since made unnecessary cannot silently overwrite newer data. The check
+  is all or nothing, so a record is never left in a state that neither the FCC data nor the correction
+  describes. The rebuild prints how many corrections applied, how many were skipped, and how many named a
+  station that is not in the table.
+
+  The file holds one entry, WBMA-LD, the ABC station for Birmingham, Alabama, which the FCC dump records with
+  no affiliation and no virtual channel. `tests/test_station_corrections.py` pins the behaviour, including a
+  guard that fails when the corrections file has changed but the table has not been rebuilt. Verified: the
+  table was rebuilt from the same FCC dump and the diff is that one record; `US: ABC 33/40 HD [BIRMINGHAM]`
+  resolves to WBMA-LD where it previously resolved to nothing, taking market matching from 61 names to 62.
 
 - [ ] **The FCC affiliation field is not maintained to a standard** - measured on the 2026-08-10 dump: KTVU is
   recorded as `Independent` although it is a Fox owned station, WANF as `Independent` although it carries CBS,

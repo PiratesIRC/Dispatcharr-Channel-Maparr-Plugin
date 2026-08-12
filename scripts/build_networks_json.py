@@ -46,6 +46,18 @@ the 2026-08-10 dump.
    field naming the date and the reason. A rebuild that silently removes
    working stations is a regression, not an upgrade.
 
+5. Apply the corrections in networks_corrections.json, beside this script.
+   The FCC affiliation and virtual channel fields are not maintained to a
+   standard, and a low power record almost never carries either, so some real
+   affiliates are recorded with both fields empty. networks_supplemental.json
+   cannot fix that: the loader reads it after the main table and indexes it
+   with setdefault, so a main table record always wins, which means it can ADD
+   a station but never CORRECT one. A correction names the value it believes
+   it is replacing and is skipped and reported when that no longer matches, so
+   a correction that the FCC has since made unnecessary cannot silently
+   overwrite newer data. Each corrected record carries a corrected field
+   saying what was changed and why.
+
 The output is sorted by callsign and written with LF line endings, because
 .gitattributes pins the data files to LF and a CRLF rewrite breaks hash pinned
 tests on Linux while looking correct on Windows.
@@ -138,7 +150,62 @@ def field(record, name):
     return (record.get(name) or "").strip()
 
 
-def build_records(facility_rows, previous, today):
+# Corrections applied while the table is rebuilt. See apply_corrections.
+CORRECTIONS_FILE = "networks_corrections.json"
+
+
+def apply_corrections(records, corrections):
+    """Overwrite named fields on stations the FCC data records wrongly.
+
+    ``records`` maps a callsign to a station dict and is changed in place.
+    ``corrections`` is the parsed contents of networks_corrections.json.
+
+    This exists because networks_supplemental.json cannot do it: the loader
+    reads that file after the main table and indexes it with setdefault, so a
+    main table record always wins. The supplemental file can therefore ADD a
+    station but never CORRECT one.
+
+    Each correction names the value it believes it is replacing, in
+    ``expects``. Every one of those must still match before anything is
+    written. When the FCC fills a field in or changes it, the correction is
+    skipped and reported rather than applied, because a stale correction that
+    silently overwrites newly correct data is worse than no correction. The
+    check is all or nothing, so a record is never left in a state that neither
+    the FCC data nor the correction describes.
+
+    Returns ``(applied, skipped, unmatched)``, where ``applied`` is a list of
+    callsigns, ``skipped`` a list of
+    ``(callsign, field, expected, actual)`` tuples, and ``unmatched`` a list of
+    callsigns the table does not contain.
+    """
+    applied = []
+    skipped = []
+    unmatched = []
+    for entry in corrections:
+        callsign = (entry.get("callsign") or "").strip().upper()
+        station = records.get(callsign)
+        if station is None:
+            # A correction is not a way to add a station. That is what
+            # networks_supplemental.json is for.
+            unmatched.append(callsign)
+            continue
+        mismatched = [
+            (callsign, key, expected, station.get(key, ""))
+            for key, expected in entry.get("expects", {}).items()
+            if station.get(key, "") != expected
+        ]
+        if mismatched:
+            skipped.extend(mismatched)
+            continue
+        changed = sorted(entry.get("fields", {}))
+        station.update(entry["fields"])
+        station["corrected"] = "%s corrected (%s). %s" % (
+            callsign, ", ".join(changed), entry.get("reason", ""))
+        applied.append(callsign)
+    return applied, skipped, unmatched
+
+
+def build_records(facility_rows, previous, today, corrections=()):
     """Return (records, report) after applying the selection rules.
 
     ``previous`` is the list of station dicts from the file being replaced, and
@@ -222,7 +289,14 @@ def build_records(facility_rows, previous, today):
         records[callsign] = carried_record
         carried.append(callsign)
 
+    # Applied last, so a correction reaches a carried over record too.
+    corrected, correction_skipped, correction_unmatched = apply_corrections(
+        records, corrections)
+
     report = {
+        "corrections_applied": corrected,
+        "corrections_skipped": correction_skipped,
+        "corrections_unmatched": correction_unmatched,
         "licensed_tv_records": len(licensed),
         "with_affiliation": len(affiliated),
         "without_affiliation": len(unaffiliated),
@@ -260,7 +334,16 @@ def main(argv=None):
         previous = json.loads(out_path.read_text(encoding="utf-8"))
 
     header, rows, malformed = read_facility_dat(args.facility)
-    records, report = build_records(rows, previous, args.date)
+    # Corrections for stations the FCC data records wrongly. The file lives
+    # beside this script rather than in the plugin, because it is a build
+    # input: the shipped table carries the corrected value, so the runtime
+    # loader needs to know nothing about it.
+    corrections_path = pathlib.Path(__file__).resolve().parent / CORRECTIONS_FILE
+    corrections = []
+    if corrections_path.exists():
+        corrections = json.loads(corrections_path.read_text(encoding="utf-8"))
+
+    records, report = build_records(rows, previous, args.date, corrections)
 
     before = {station["callsign"].strip().upper() for station in previous}
     after = {station["callsign"] for station in records}
@@ -277,6 +360,9 @@ def main(argv=None):
     print(f"carried over from the old file:     {len(report["carried_over"]):6d}")
     print(f"dropped, licence cancelled:         {len(report["dropped_as_cancelled"]):6d}")
     print(f"affiliation kept from the old file: {len(report["kept_affiliation"]):6d}")
+    print(f"corrections applied:                {len(report["corrections_applied"]):6d}")
+    print(f"corrections skipped, value moved:   {len(report["corrections_skipped"]):6d}")
+    print(f"corrections naming no station:      {len(report["corrections_unmatched"]):6d}")
     print(f"records written:                    {len(records):6d}")
     print(f"stations added:                     {len(added):6d}")
     print(f"stations removed:                   {len(removed):6d}")

@@ -25,11 +25,36 @@
   returns a station in a third city. That was a real wrong match, `US: ABC 4 HD [CHARLESTON]` resolving to
   WOAY-TV in Oak Hill, found by running the module over the live corpus and fixed before it shipped.
 
-- [ ] **An action that creates channels for streams that have none** - the work of creating 270 channels on
-  2026-08-10 was done with throwaway scripts, not through the plugin. `Import M3U Streams` cannot do it: it
-  creates one channel per stream, so a provider serving each station once per M3U account produces four suffixed
-  channels per station, where the established layout is one channel holding the four streams. Plan at
-  `docs/superpowers/plans/2026-08-10-create-channels-from-streams.md` (gitignored).
+- [x] **An action that creates channels for streams that have none** (done 2026-08-12) - the work of creating
+  270 channels on 2026-08-10 was done with throwaway scripts, because `Import M3U Streams` creates one channel
+  per STREAM and this provider serves each station once per M3U account, giving four suffixed channels per
+  station where the established layout is one channel holding the four streams.
+
+  `Create Channels From Streams` does the job properly. `Channel-Maparr/channel_seeder.py` is a Django-free
+  module holding all the planning: `build_seed_plan` groups the streams by the channel name each resolves to,
+  so one station is one item however many accounts carry it, and classifies each as create, skip because the
+  name is already used, or unresolved. `allocate_channel_numbers` returns free numbers, skipping any already in
+  use, because channel numbers are unique across the installation and there is not always a free block.
+
+  The action itself is thin. It refuses before doing anything when the source groups or the target group are
+  unset, when the target group does not exist, when more than one channel group carries that name, or when the
+  target is in `Channel Groups to Ignore`. Dry Run writes a CSV preview naming every proposed channel, its
+  source stream names and the accounts they came from, and creates nothing.
+
+  **It attaches no streams**, deliberately: a channel created here is a target for a stream matcher to fill in,
+  and writing those links here would take that decision away from the operator. That is pinned twice, by a test
+  asserting no `ChannelStream` row is written during a creation run and by a syntax tree guard over the three
+  seeding functions. Both were proven to fire by adding a stream attachment and watching them fail.
+
+  A name a channel already uses is skipped, so a second run does nothing rather than duplicating its own work.
+  `tests/test_channel_seeder.py` and `tests/test_seed_action.py` cover the planner, the number allocator, every
+  refusal and the declaration. Two new entries were added to the allowlist in
+  `tests/test_group_scope_wiring.py`, each with its reason: reading channel names for the duplicate check and
+  reading channel numbers for the allocator both have to see the whole installation rather than the configured
+  scope.
+
+  **Not yet run against the live system.** It is untested outside the unit tests, and the plan's step of
+  confirming the action is served by the container's own normaliser needs a deployment first.
 
 - [x] **`_extract_stream_network` ignored a prefix longer than three letters** (fixed 2026-08-12) - the
   pattern that strips a leading provider or country prefix before the colon accepted only two or three

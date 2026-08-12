@@ -80,6 +80,30 @@
       "help_text": "Optional group name to assign to channels created by M3U import. Leave blank to use category-based naming."
     },
     {
+      "id": "seed_source_groups",
+      "label": "Stream Groups to Seed From",
+      "type": "string",
+      "default": "",
+      "placeholder": "US| ABC, US| CBS",
+      "help_text": "Used by Create Channels From Streams. Comma-separated names of the stream groups to scan. Only streams in these groups that are not attached to any channel are considered. Leave empty to do nothing."
+    },
+    {
+      "id": "seed_target_group",
+      "label": "Channel Group to Create In",
+      "type": "string",
+      "default": "",
+      "placeholder": "US: ABC",
+      "help_text": "Used by Create Channels From Streams. The existing channel group the new channels are created in. The group must already exist. A group listed in Channel Groups to Ignore is refused."
+    },
+    {
+      "id": "seed_start_number",
+      "label": "First Channel Number to Use",
+      "type": "string",
+      "default": "",
+      "placeholder": "5110",
+      "help_text": "Used by Create Channels From Streams. The first channel number to assign. Numbers already in use are skipped, so the run does not need a free block. Leave empty to start above the highest channel number on the system."
+    },
+    {
       "id": "ota_format",
       "label": "OTA Name Format",
       "type": "string",
@@ -235,6 +259,16 @@
       "button_variant": "filled",
       "button_color": "violet",
       "confirm": {"message": "This will create new channels from M3U streams and organize them into groups. Duplicates get suffixes. Continue?"}
+    },
+    {
+      "id": "create_channels_from_streams",
+      "label": "Create Channels From Streams",
+      "description": "Create one channel per broadcast station for streams that are not attached to any channel yet. Unlike Import M3U Streams this creates one channel per station rather than one per stream, and it attaches no streams. Runs in background. Dry Run exports a CSV preview.",
+      "button_label": "✚ Create Channels",
+      "button_variant": "filled",
+      "button_color": "blue",
+      "confirm": {"message": "This will create new channels in the target group. No streams are attached. Continue?"},
+      "background": true
     },
     {
       "id": "plugin_status",

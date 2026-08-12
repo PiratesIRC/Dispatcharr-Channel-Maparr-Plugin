@@ -1,5 +1,38 @@
 # Channel Maparr — Changelog
 
+## v1.26.2241315 (August 12, 2026)
+
+Not released yet.
+
+**A quality tag in the middle of a channel name no longer glues its neighbours together.** Every
+pattern in the quality-tag list also consumes the whitespace flanking the tag, and the tag was
+replaced with an empty string, so the whitespace went with it. At the start or end of a name that is
+harmless, because the leftover edge space is stripped later. In the middle it joined two words that
+were never one: `SKY NEWS FHD rec` became `SKY NEWSrec`, `CNN [HD] USA` became `CNNUSA`, and
+`CNBC HD Canadian Feed` became `CNBCCanadian Feed`. A glued name matches nothing.
+
+It also made a user's own escape hatch useless. A custom ignore tag is applied with a word boundary,
+and there is no boundary inside `NEWSrec`, so someone who added `rec` to Ignored Tags saw it do
+nothing on exactly the names this had damaged.
+
+**Every released version up to and including v1.26.2241232 contains this defect**, including the
+ones published to the Dispatcharr Plugin Hub.
+
+The shared matcher component has substituted a space since it was fixed there, but this plugin is a
+partial subclass that overrides `normalize_name` outright, so the shared version never ran here and
+re-vendoring the component could not deliver it. Neither existing gate could catch that: the
+component parity gate pins the vendored file, which was correct, and the matcher drift gate pins
+this plugin's own output, which did not change. The fix is therefore duplicated here deliberately,
+with a comment saying so.
+
+Measured across the 42,246 channel names in the shipped databases: 128 normalise differently, 0.30%.
+Two of the 284 frozen golden entries move, both `TNT UHD RAW`, from `TNTRAW` to `TNT RAW`. Ten of
+the 128 changes do more than insert a space, because spacing lets the existing end-of-name
+`TV`/`Channel` stripping reach a word the glue had hidden: `RBW HD TV` now gives `RBW` rather than
+`RBWTV`. Two names, `4K TV` and `Slow TV`, now normalise to nothing at all; both previously gave
+`TV`, so they already collided with each other, and a name that normalises to nothing matches
+nothing in either direction, which is pinned by a test.
+
 ## v1.26.2241232 (August 12, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2241232

@@ -773,8 +773,23 @@ class FuzzyMatcher(FuzzyMatcherCore):
             # "SPoRTS" to "3840P" and break the word-boundary anchor.
             for pattern in RESOLUTION_PATTERNS:
                 name = re.sub(pattern, '', name, flags=re.IGNORECASE)
+            # Replace with a SPACE, not an empty string. Every QUALITY_PATTERN
+            # also consumes the whitespace flanking the tag, so deleting the
+            # match glues the tag's neighbours together whenever a token follows
+            # it: "SKY NEWS FHD rec" became "SKY NEWSrec" and "CNN [HD] USA"
+            # became "CNNUSA". A glued name matches nothing, and it is also
+            # unreachable by a user ignore tag, which is applied with a word
+            # boundary and finds none inside "NEWSrec", so that escape hatch
+            # silently did nothing on exactly the names this had damaged. A tag
+            # at the start or end just leaves an edge space, which the
+            # whitespace cleanup later in this method strips.
+            #
+            # This duplicates the fix in matching_core.py rather than inheriting
+            # it, and that is deliberate: this class is a PARTIAL subclass which
+            # overrides normalize_name outright, so the shared version never
+            # runs here. Do not "simplify" this back to an empty string.
             for pattern in QUALITY_PATTERNS:
-                name = re.sub(pattern, '', name, flags=re.IGNORECASE)
+                name = re.sub(pattern, ' ', name, flags=re.IGNORECASE)
 
         # Normalize spacing around numbers (AFTER quality patterns are removed)
         # This ensures "ITV1" and "ITV 1" are treated identically during matching

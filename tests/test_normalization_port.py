@@ -289,3 +289,95 @@ def test_corpus_ascii_names_unaffected_by_fixes(fuzzy_module, plugin_dir):
         "ASCII DB names contain a glued resolution marker the strip would remove "
         f"(review before shipping): {res_hits[:5]}"
     )
+
+
+# --------------------------------------------------------------------------- #
+# A quality tag in the MIDDLE of a name must not glue its neighbours together
+#
+# Every entry in QUALITY_PATTERNS also consumes the whitespace flanking the tag,
+# so substituting an empty string deletes that whitespace too. At the start or
+# end of a name that is harmless, because the leftover edge space is stripped
+# later. In the middle it joins two words that were never one, and a glued name
+# matches nothing.
+#
+# The shared component matching_core.py has substituted a space since bug-126,
+# but Channel-Maparr is a PARTIAL subclass that overrides normalize_name
+# outright, so the shared version never runs here and re-vendoring the component
+# could not deliver the fix. Neither existing gate could catch it: the component
+# parity gate pins the vendored file, which is correct, and the matcher drift
+# gate pins this plugin's own output, which did not change.
+# --------------------------------------------------------------------------- #
+
+GLUING_CASES = [
+    # (input, expected)
+    ("SKY NEWS FHD rec", "SKY NEWS rec"),
+    ("CNN [HD] USA", "CNN USA"),
+    ("TNT UHD RAW", "TNT RAW"),
+    ("CNBC HD Canadian Feed", "CNBC Canadian Feed"),
+    # Number words fold to digits later in the pipeline, so the expected value
+    # here is "BBC 1", not "BBC ONE". That is existing intended behaviour.
+    ("BBC ONE (UHD) Scotland", "BBC 1 Scotland"),
+]
+
+
+@pytest.mark.parametrize("raw,expected", GLUING_CASES)
+def test_a_mid_name_quality_tag_leaves_a_space(matcher, raw, expected):
+    assert matcher.normalize_name(raw) == expected
+
+
+# A naive fix that replaces the tag with a space everywhere would leave a
+# leading or trailing space behind. These pin that the edges still collapse.
+EDGE_CASES = [
+    ("ESPN HD", "ESPN"),
+    ("HD ESPN", "ESPN"),
+    ("[HD] ESPN", "ESPN"),
+    ("ESPN [HD]", "ESPN"),
+]
+
+
+@pytest.mark.parametrize("raw,expected", EDGE_CASES)
+def test_a_quality_tag_at_either_edge_leaves_no_stray_space(matcher, raw, expected):
+    assert matcher.normalize_name(raw) == expected
+
+
+def test_a_custom_ignore_tag_can_reach_the_word_after_a_quality_tag(matcher):
+    """The gluing made the user's own escape hatch silently useless.
+
+    A custom ignore tag is applied with a word boundary, and there is no
+    boundary inside "NEWSrec", so a user who added "rec" to Ignored Tags saw it
+    do nothing on exactly the names the gluing had damaged.
+    """
+    assert matcher.normalize_name("SKY NEWS FHD rec", user_ignored_tags=["rec"]) == "SKY NEWS"
+
+
+@pytest.mark.parametrize("raw", [case[0] for case in GLUING_CASES])
+def test_the_plugin_agrees_with_the_shared_component_on_these_inputs(
+        fuzzy_module, matcher, raw):
+    """Pins the divergence being removed, not a claim that the two agree everywhere.
+
+    They still differ deliberately elsewhere: the shared component repeats the
+    strip until the name stops changing, so chained tags such as "4K HDR" are
+    removed in successive passes, while this plugin makes a single pass. That is
+    a separate behaviour change and is not taken here.
+    """
+    from channel_maparr.matching_core import FuzzyMatcherCore  # noqa: E402
+    core = FuzzyMatcherCore.__new__(FuzzyMatcherCore)
+    assert matcher.normalize_name(raw) == core.normalize_name(raw)
+
+
+def test_a_name_that_normalises_to_nothing_matches_nothing(matcher):
+    """Spacing the tags makes two shipped names normalise to an empty string.
+
+    Measured across the 38,641 distinct names in the shipped databases: none
+    normalised to an empty string before, and two do now, "4K TV" and
+    "Slow TV". Both previously normalised to "TV", so they already collided
+    with each other; what changed is the shared form.
+
+    An empty key would be dangerous if it matched broadly, so this pins that it
+    matches nothing in either direction. That is the safe outcome and, if
+    anything, safer than the single common token "TV" they produced before.
+    """
+    assert matcher.normalize_name("4K TV") == ""
+    assert matcher.normalize_name("Slow TV") == ""
+    assert matcher.fuzzy_match("4K TV", ["ESPN", "BBC One", "TV Land"])[0] is None
+    assert matcher.fuzzy_match("ESPN", ["4K TV", "Slow TV"])[0] is None

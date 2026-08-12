@@ -17,7 +17,7 @@ from datetime import datetime
 # Import the fuzzy matcher module
 from .fuzzy_matcher import FuzzyMatcher
 from .channel_seeder import allocate_channel_numbers, build_seed_plan
-from .station_affiliation import station_networks
+from .station_affiliation import primary_network
 from .progress_status import (
     build_status_message, load_progress, save_progress_atomic,
 )
@@ -3941,8 +3941,14 @@ class Plugin:
             if not skip_networks:
                 return False
             station = _lookup(stream_name)[1]
-            on_record = set(station_networks(
-                (station or {}).get("network_affiliation", "")))
+            # The station's PRIMARY network, which is what the station IS, not
+            # every network it merely carries. Most large stations run a second
+            # network on a subchannel, so reading the whole field excludes the
+            # station itself: measured on this installation, filtering on
+            # Telemundo that way removed 21 stations of which 6 were ABC, CBS
+            # or FOX affiliates carrying Telemundo on a subchannel.
+            primary = primary_network((station or {}).get("network_affiliation", ""))
+            on_record = {primary} if primary else set()
             # The station record is the better signal, but a low power record
             # often names no network at all, so the stream name is read too.
             in_name = {word for word in re.split(r"[^A-Za-z]+", stream_name.upper())

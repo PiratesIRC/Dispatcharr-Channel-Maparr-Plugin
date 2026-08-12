@@ -298,3 +298,76 @@ def test_no_function_in_the_creation_path_writes_a_channelstream_row():
                 raise AssertionError(
                     "%s creates a ChannelStream row at line %d; this action must "
                     "attach no streams" % (node.name, inner.lineno))
+
+
+# --- The network filter reads what a station IS, not what it carries --------
+
+def _fake_matcher(callsign, station):
+    """A matcher stub returning one station, with the methods the name
+    formatter calls. Kept minimal on purpose: a fuller double would hide which
+    methods the code under test actually depends on."""
+    return type("FakeMatcher", (), {
+        "match_broadcast_channel": lambda self, name, network=None,
+        allow_market_fallback=False: (callsign, station),
+        "normalize_callsign": lambda self, cs: cs,
+    })()
+
+
+
+# Real affiliation strings from the shipped station table, measured 2026-08-12.
+# Most large stations carry a second network on a subchannel, so a filter that
+# reads every network in the field excludes the station itself.
+SUBCHANNEL_CARRIERS = [
+    ("WSOC", "ABC (9.1), Telemundo (9.2), GetTV (9.3). Comet (9.4)", "ABC"),
+    ("KZTV", "CBS, Telemundo", "CBS"),
+    ("KWTX", "CBS / Telemundo / MeTV", "CBS"),
+    ("KIRO", "CBS (7.1), COZITV (7.2), LAFF (7.3), TELEMUNDO (7.4)", "CBS"),
+    ("WFOX", "FOX/ME-TV/HEROES & ICONS/TELEMUNDO", "FOX"),
+    ("KMVU", "Fox, Telemundo, MeTV", "FOX"),
+]
+
+
+@pytest.mark.parametrize("callsign,affiliation,primary", SUBCHANNEL_CARRIERS)
+def test_a_station_carrying_a_skipped_network_on_a_subchannel_is_not_excluded(
+        plugin_module, callsign, affiliation, primary):
+    """Excluding on "carries" rather than "is" removes real affiliates.
+
+    Measured on the live installation before this was fixed: filtering on
+    Telemundo excluded 21 stations, of which 6 were ABC, CBS or FOX affiliates
+    that merely carry Telemundo on a subchannel.
+    """
+    plugin = plugin_module.Plugin()
+    station = {"callsign": callsign, "network_affiliation": affiliation,
+               "community_served_city": "SOMEWHERE", "community_served_state": "XX",
+               "tv_virtual_channel": "9", "active_ind": "Y"}
+    plugin.matcher = _fake_matcher(callsign, station)
+    _resolve, exclude = plugin._seed_resolver(
+        {"seed_exclude_networks": "Telemundo",
+         "ota_format": "{NETWORK} ({CALLSIGN})"}, None)
+    assert exclude("US: %s 9 (%s) SOMEWHERE HD" % (primary, callsign)) is False
+
+
+def test_a_station_whose_primary_network_is_skipped_is_excluded(plugin_module):
+    plugin = plugin_module.Plugin()
+    station = {"callsign": "KVEA", "network_affiliation": "Telemundo",
+               "community_served_city": "CORONA", "community_served_state": "CA",
+               "tv_virtual_channel": "52", "active_ind": "Y"}
+    plugin.matcher = _fake_matcher("KVEA", station)
+    _resolve, exclude = plugin._seed_resolver(
+        {"seed_exclude_networks": "Telemundo",
+         "ota_format": "{NETWORK} ({CALLSIGN})"}, None)
+    assert exclude("US: NBC (KVEA) SOMEWHERE") is True
+
+
+def test_a_station_with_an_empty_affiliation_is_excluded_from_its_stream_name(
+        plugin_module):
+    """KUAN carries no affiliation at all and is only identifiable by name."""
+    plugin = plugin_module.Plugin()
+    station = {"callsign": "KUAN", "network_affiliation": "",
+               "community_served_city": "POWAY", "community_served_state": "CA",
+               "tv_virtual_channel": "48", "active_ind": "Y"}
+    plugin.matcher = _fake_matcher("KUAN", station)
+    _resolve, exclude = plugin._seed_resolver(
+        {"seed_exclude_networks": "Telemundo",
+         "ota_format": "{NETWORK} ({CALLSIGN})"}, None)
+    assert exclude("US: NBC (KUAN) TELEMUNDO (D)") is True

@@ -68,7 +68,8 @@ def test_the_action_is_declared_in_both_the_class_and_the_manifest():
     assert "create_channels_from_streams" in {a["id"] for a in _manifest()["actions"]}
 
 
-SEED_SETTINGS = ("seed_source_groups", "seed_target_group", "seed_start_number")
+SEED_SETTINGS = ("seed_source_groups", "seed_target_group", "seed_start_number",
+                 "seed_exclude_networks")
 
 
 @pytest.mark.parametrize("field_id", SEED_SETTINGS)

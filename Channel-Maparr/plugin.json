@@ -1,6 +1,6 @@
 {
   "name": "Channel Mapparr",
-  "version": "1.26.2241126",
+  "version": "1.26.2241232",
   "description": "Standardizes broadcast (OTA) and premium/cable channel names using network data and channel lists. Supports M3U stream import, category organization, and fuzzy matching across 42K+ channels in 11 countries.",
   "author": "PiratesIRC",
   "license": "MIT",
@@ -102,6 +102,14 @@
       "default": "",
       "placeholder": "5110",
       "help_text": "Used by Create Channels From Streams. The first channel number to assign. Numbers already in use are skipped, so the run does not need a free block. Leave empty to start above the highest channel number on the system."
+    },
+    {
+      "id": "seed_exclude_networks",
+      "label": "Networks to Skip When Creating Channels",
+      "type": "string",
+      "default": "",
+      "placeholder": "Telemundo, Univision",
+      "help_text": "Used by Create Channels From Streams. Comma-separated network names. A station carrying one of them is reported and skipped rather than created. The network is read from the station record and from the stream name, because a low power record often names no network at all. Leave empty to create every station that matches."
     },
     {
       "id": "ota_format",

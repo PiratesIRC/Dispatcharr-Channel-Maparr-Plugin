@@ -128,3 +128,78 @@ def test_allocation_never_repeats_a_number():
 def test_allocation_ignores_a_null_in_the_used_list():
     """A channel row may carry no number, and that is not a number in use."""
     assert allocate_channel_numbers(used=[None, 4.0], count=1) == [5.0]
+
+
+# --- Network exclusion ------------------------------------------------------
+
+EXCLUDE_STREAMS = [
+    _stream(1, "US: ABC (WABC)", 6),
+    _stream(2, "US: NBC (KVEA) TELEMUNDO", 6),
+    _stream(3, "US: NBC (KUAN) TELEMUNDO", 7),
+]
+
+EXCLUDE_RESOLVED = {
+    "US: ABC (WABC)": "ABC - NY New York (WABC)",
+    "US: NBC (KVEA) TELEMUNDO": "NBC - CA Corona (KVEA)",
+    "US: NBC (KUAN) TELEMUNDO": "NBC - CA Poway (KUAN)",
+}
+
+
+def _exclude_resolve(name):
+    return EXCLUDE_RESOLVED.get(name)
+
+
+def test_an_excluded_station_is_reported_rather_than_created():
+    plan = build_seed_plan(
+        EXCLUDE_STREAMS, existing_names=[], resolve=_exclude_resolve,
+        exclude=lambda n: "TELEMUNDO" in n.upper())
+    assert [i.proposed_name for i in plan.create] == ["ABC - NY New York (WABC)"]
+    assert sorted(i.proposed_name for i in plan.excluded) == [
+        "NBC - CA Corona (KVEA)", "NBC - CA Poway (KUAN)"]
+
+
+def test_an_excluded_station_does_not_land_in_unresolved():
+    """Excluded and unresolved are different facts and must stay apart.
+
+    A station that resolved perfectly well and was filtered out by choice is
+    not the same as a name nothing could make sense of. Folding them together
+    would hide a filter matching more than its author intended.
+    """
+    plan = build_seed_plan(
+        EXCLUDE_STREAMS, existing_names=[], resolve=_exclude_resolve,
+        exclude=lambda n: "TELEMUNDO" in n.upper())
+    assert plan.unresolved == []
+
+
+def test_no_exclude_callable_means_nothing_is_excluded():
+    plan = build_seed_plan(EXCLUDE_STREAMS, existing_names=[],
+                           resolve=_exclude_resolve)
+    assert plan.excluded == []
+    assert len(plan.create) == 3
+
+
+def test_a_plan_built_without_the_excluded_field_still_reads():
+    """The field carries a default so a caller predating it keeps working."""
+    from channel_seeder import SeedPlan
+    plan = SeedPlan(create=[], skip=[], unresolved=[])
+    assert plan.excluded == ()
+
+
+def test_an_exclusion_that_matches_nothing_changes_nothing():
+    plan = build_seed_plan(EXCLUDE_STREAMS, existing_names=[],
+                           resolve=_exclude_resolve, exclude=lambda n: False)
+    assert plan.excluded == []
+    assert len(plan.create) == 3
+
+
+def test_an_unresolved_name_is_never_excluded():
+    """exclude is only consulted for a name that resolved to a station."""
+    seen = []
+
+    def spy(name):
+        seen.append(name)
+        return False
+
+    build_seed_plan([_stream(9, "US: ABC NEWS LIVE", 6)], existing_names=[],
+                    resolve=lambda n: None, exclude=spy)
+    assert seen == [], "exclude must not be asked about a name that resolved to nothing"

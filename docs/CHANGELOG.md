@@ -1,5 +1,25 @@
 # Channel Maparr — Changelog
 
+## v1.26.2241232 (August 12, 2026)
+
+Not released yet. Developed and deployed the same day.
+
+**Create Channels From Streams can be told to skip whole networks.** A new setting, **Networks to
+Skip When Creating Channels**, takes a comma-separated list. A station carrying one of those
+networks is reported and skipped rather than created, and the preview export lists it under
+`skip, network excluded` so it is visible rather than silently missing.
+
+Two signals decide it, because neither is enough on its own. Measured on one installation: of the
+14 Telemundo stations reachable from the provider stream names, 13 carry a Telemundo affiliation on
+their FCC record while KUAN carries an empty one and is identifiable only from the word in its
+stream name. The affiliation is read through `station_affiliation.py`, which parses that free text
+properly, rather than a substring test, because the FCC field is not maintained to a standard.
+This is the first thing in the plugin to call that module.
+
+Excluded stations are kept separate from unresolved ones. A station that resolved and was filtered
+out by choice is a different fact from a name nothing could make sense of, and folding the two
+together would hide a filter matching more than its author intended.
+
 ## v1.26.2241126 (August 12, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2241126

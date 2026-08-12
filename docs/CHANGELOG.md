@@ -1,8 +1,82 @@
 # Channel Maparr — Changelog
 
+## v1.26.2241126 (August 12, 2026)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2241126
+
+**Broadcast channels that state a market instead of a callsign now match, and streams that have no
+channel can be turned into channels.** This release also carries v1.26.2221915, which was developed
+and deployed on August 10 but never released, so the station table rebuild described under that
+heading below reaches the public for the first time here.
+
+### New
+
+- **Match a station by market city and channel number.** A provider name such as
+  `US: FOX 13 HD [SEATTLE]` or `US: FOX NET [ABILENE TX]` states a market and a channel number but
+  no callsign, and matched nothing. `Channel-Maparr/market_index.py` reads the market out of the
+  name and resolves it against the station table in two stages: first among the stations licensed
+  to that community, then, when that community has no station carrying the network, among the
+  stations of that state on that channel number. A station is returned only when exactly one fits.
+
+  This is off by default. Turn on **Match by Market When No Callsign** to use it. Measured against
+  1,190 real provider names in the nine network stream groups on one installation: 997 already
+  matched by callsign, 193 did not, and this resolves 62 of those 193, with none wrong on
+  inspection. Eight come from the second stage, where the station serves the market from a
+  neighbouring town, so Seattle resolves to KCPQ in Tacoma, San Francisco to KTVU in Oakland, Las
+  Vegas to KVVU in Henderson, Charlotte to WJZY in Belmont and Raleigh to WTVD in Durham.
+
+  Two refusals are deliberate. An ambiguous market is left alone rather than guessed at, so
+  `FOX 43 HD [HARRISBURG]`, where three states have a Harrisburg, resolves to nothing. A name
+  carrying `PLUS` or `XTRA` is left alone too, because those name a sister station rather than the
+  market's main one: `FOX 9 PLUS` in Minneapolis is WFTC, not KMSP.
+
+- **Create Channels From Streams**, a new action. It finds streams in chosen stream groups that are
+  not attached to any channel, resolves each to a broadcast station, and creates one channel per
+  STATION in a chosen existing channel group. This is a different job from Import M3U Streams,
+  which creates one channel per STREAM and tells duplicates apart with a suffix; a provider that
+  carries each station once per M3U account gives four channels for one station that way, where the
+  usual layout is one channel holding the four streams.
+
+  It attaches no streams, leaving each new channel as a target for a stream matcher to fill in. It
+  refuses before doing anything when the source groups or the target group are unset, when the
+  target group does not exist, when more than one channel group carries that name, or when the
+  target is in Channel Groups to Ignore. A name a channel already uses is skipped, so running it
+  twice does not duplicate anything. Dry Run exports a CSV preview and creates nothing.
+
+### Fixed
+
+- **The network was read wrongly when a provider prefix is a word rather than a country code.** The
+  pattern that strips a leading prefix before the colon accepted two or three letters only, so a
+  name beginning `CITY: PBS KETC ST. LOUIS` read as stating no network, and the station took the
+  affiliation on its FCC record rather than the network the name states. Four provider groups use a
+  word as the prefix. Measured on one installation: 1,257 stream names carry one of them directly
+  ahead of a network name.
+
+- **A station record the FCC gets wrong can now be corrected.** `networks_supplemental.json` loads
+  after the main station table and cannot override it, so it can add a station but never correct
+  one. `scripts/networks_corrections.json` is read while the table is rebuilt and overwrites named
+  fields on an existing record, stamping that record with a note saying what changed and why. Each
+  correction names the value it believes it is replacing and is skipped and reported when that no
+  longer matches, so a correction the FCC has since made unnecessary cannot silently overwrite
+  newer data. The first entry gives WBMA-LD, the ABC station for Birmingham, Alabama, the
+  affiliation and channel number the FCC dump leaves empty, so `US: ABC 33/40 HD [BIRMINGHAM]`
+  resolves where it previously resolved to nothing.
+
+### Tooling
+
+- `scripts/build_networks_json.py`, the station table rebuild script, could not be parsed by Python
+  3.11. Ten of its print calls reused the outer double quote inside an f-string, which only became
+  legal in Python 3.12. Nothing imported the script before, so nothing had ever parsed it on 3.11.
+
+- `tests/test_package_inventory.py` pins every file the plugin ships, because this plugin is a
+  standard Plugin Hub listing whose source is copied file by file, so a module added here and not
+  copied there is absent from every Hub install. Two files added recently are imported at module
+  level, so their absence stopped the plugin loading at all.
+
 ## v1.26.2221915 (August 10, 2026)
 
-Not released. Developed and deployed the same day.
+Developed and deployed on August 10 and not released separately. It reaches the public in
+v1.26.2241126 above.
 
 **The FCC station table is rebuilt from the source the FCC actually maintains, and grows from
 1,915 stations to 6,839.** `Channel-Maparr/networks.json` is the only source of over the air

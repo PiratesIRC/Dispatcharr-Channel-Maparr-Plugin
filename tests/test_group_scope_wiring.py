@@ -21,6 +21,18 @@ CHANNEL_OBJECTS_ALLOWLIST = {
     "_get_next_channel_number",
     "_import_matched_streams",
     "validate_settings_action",
+    # Reads every channel NAME so Create Channels From Streams can tell which
+    # names are already used. It must see channels in ignored groups too:
+    # narrowing it to the scope would let the action create a second channel
+    # with a name an ignored group already carries, which is the duplicate the
+    # check exists to prevent. It reads names only and writes nothing.
+    "_existing_channel_names",
+    # Reads every channel NUMBER, which is unique across the whole
+    # installation rather than per group, so a scoped read would hand out a
+    # number already in use. Its one write creates a channel in the target
+    # group, and that group is checked against the ignore list by
+    # _check_group_destinations_not_ignored before the action starts.
+    "_create_seed_channels",
 }
 
 

@@ -1,0 +1,14 @@
+[
+  {
+    "callsign": "WBMA-LD",
+    "expects": {
+      "network_affiliation": "",
+      "tv_virtual_channel": ""
+    },
+    "fields": {
+      "network_affiliation": "ABC",
+      "tv_virtual_channel": "33"
+    },
+    "reason": "WBMA-LD is the ABC station for the Birmingham, Alabama market and has been since 1996, but the FCC LMS dump of 2026-08-10 records it as a low power digital facility with no affiliation and no virtual channel, which is how the dump treats most low power records. Without this the provider name 'US: ABC 33/40 HD [BIRMINGHAM]' resolves to nothing, because no station licensed to Birmingham carries ABC. The channel number is 33, which is the first of the two the provider prints; 40 is the paired WCFT-TV transmitter for the Tuscaloosa half of the market."
+  }
+]

@@ -2,6 +2,15 @@
 
 ## Open (added 2026-08-12)
 
+- [ ] **EPG Janitor's workspace matcher baseline is stale.** `<workspace>/tools/baselines/epg-janitor.json`,
+  which the cross-plugin harness `<workspace>/tools/matcher_parity_check.py` compares against, does not match
+  what that plugin now produces; it was not regenerated when its quality-tag fix landed. Found on 2026-08-12
+  while regenerating this plugin's own baseline: running the harness with `--write` rewrote two files rather
+  than one. This plugin restored the sibling's file byte for byte rather than committing another project's
+  baseline, so the staleness remains. A hand-off note is at
+  `docs/prompts/epg-janitor-stale-workspace-baseline.md`. Nothing fails while it is stale, which is why it
+  can sit unnoticed: the golden gate reads each plugin's own copy and all four report OK.
+
 - [ ] **The FCC record for KCOY names Telemundo as its primary network**, so Create Channels From Streams
   skips it when Telemundo is in "Networks to Skip When Creating Channels". The provider stream calls it
   `US: CBS 12 (KCOY) SANTA MARIA HD` and KCOY appears to be the CBS station for that market, so the FCC

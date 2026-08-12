@@ -364,13 +364,22 @@ The action buttons are listed in the recommended execution order:
 6. **Apply Per-Channel Logos (tv-logos)** - Fuzzy-match each channel to the [tv-logo/tv-logos](https://github.com/tv-logo/tv-logos) repo and assign individual artwork.
 7. **Organize by Category** - Move channels into category groups (or CSV preview).
 8. **Import M3U Streams** - Create channels from M3U streams (or CSV preview).
-9. **Show Status** - Display live progress / ETA for the most recent operation (no destructive effect).
-10. **Email Report Now** - Build a report from the last processed channels and queue it for email (no destructive effect). It refuses, visibly, when Newsflasharr is absent, disabled, missing its email settings, missing a routing rule for this plugin, or when its collector is not running. Queued means written to Newsflasharr's queue, not yet in your inbox.
-11. **Clear CSV Exports** - Delete all plugin CSV files. It cannot reach the emailed reports, which live in a different directory.
+9. **Create Channels From Streams** - Create one channel per broadcast station for streams in the chosen
+   stream groups that are not attached to any channel yet. This is not the same job as Import M3U Streams:
+   that creates one channel per STREAM and tells duplicates apart with a suffix, so a provider carrying each
+   station once per M3U account gives four channels for one station. This creates one channel per STATION and
+   attaches no streams, leaving the channel as a target for a stream matcher to fill in. It needs "Stream
+   Groups to Seed From" and an existing "Channel Group to Create In"; it refuses when either is unset, when
+   the target group does not exist, when more than one group carries that name, or when the target is in
+   "Channel Groups to Ignore". A name that a channel already uses is skipped, so running it twice does not
+   duplicate anything. Dry Run exports a CSV preview and creates nothing.
+10. **Show Status** - Display live progress / ETA for the most recent operation (no destructive effect).
+11. **Email Report Now** - Build a report from the last processed channels and queue it for email (no destructive effect). It refuses, visibly, when Newsflasharr is absent, disabled, missing its email settings, missing a routing rule for this plugin, or when its collector is not running. Queued means written to Newsflasharr's queue, not yet in your inbox.
+12. **Clear CSV Exports** - Delete all plugin CSV files. It cannot reach the emailed reports, which live in a different directory.
 
 Rename before Import ensures duplicate detection is accurate (standardized names prevent duplicates). The two logo actions are independent — use Default Logo for a fast fallback, or Per-Channel Logos for individualized artwork.
 
-"Channel Groups to Ignore" (v1.26.2071409+) is a scope setting, not a step of its own; it applies across all eleven actions above wherever they read or write channel groups (it does not affect Import M3U Streams' stream matching or duplicate detection). Set it once before running Validate Settings, which reports the resolved exclusion.
+"Channel Groups to Ignore" (v1.26.2071409+) is a scope setting, not a step of its own; it applies across all twelve actions above wherever they read or write channel groups (it does not affect Import M3U Streams' stream matching or duplicate detection). Set it once before running Validate Settings, which reports the resolved exclusion.
 
 ### Match Pipeline
 

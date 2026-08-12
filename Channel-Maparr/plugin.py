@@ -16,6 +16,7 @@ from datetime import datetime
 
 # Import the fuzzy matcher module
 from .fuzzy_matcher import FuzzyMatcher
+from .channel_seeder import allocate_channel_numbers, build_seed_plan
 from .progress_status import (
     build_status_message, load_progress, save_progress_atomic,
 )
@@ -365,6 +366,44 @@ class Plugin:
                 "help_text": "Place all imports into this single group instead of auto-organizing by category.",
             },
             {
+                "id": "seed_source_groups",
+                "label": "Stream Groups to Seed From",
+                "type": "string",
+                "default": "",
+                "placeholder": "US| ABC, US| CBS",
+                "help_text": (
+                    "Used by Create Channels From Streams. Comma-separated names of "
+                    "the stream groups to scan. Only streams in these groups that are "
+                    "not attached to any channel are considered. Leave empty to do "
+                    "nothing."
+                ),
+            },
+            {
+                "id": "seed_target_group",
+                "label": "Channel Group to Create In",
+                "type": "string",
+                "default": "",
+                "placeholder": "US: ABC",
+                "help_text": (
+                    "Used by Create Channels From Streams. The existing channel group "
+                    "the new channels are created in. The group must already exist. A "
+                    "group listed in Channel Groups to Ignore is refused."
+                ),
+            },
+            {
+                "id": "seed_start_number",
+                "label": "First Channel Number to Use",
+                "type": "string",
+                "default": "",
+                "placeholder": "5110",
+                "help_text": (
+                    "Used by Create Channels From Streams. The first channel number to "
+                    "assign. Numbers already in use are skipped, so the run does not "
+                    "need a free block. Leave empty to start above the highest channel "
+                    "number on the system."
+                ),
+            },
+            {
                 "id": "ota_format",
                 "label": "OTA Name Format",
                 "type": "string",
@@ -550,6 +589,16 @@ class Plugin:
             "button_variant": "filled",
             "button_color": "violet",
             "confirm": {"message": "This will create new channels from M3U streams and organize them into groups. Duplicates get suffixes. Continue?"},
+        },
+        {
+            "id": "create_channels_from_streams",
+            "label": "Create Channels From Streams",
+            "description": "Create one channel per broadcast station for streams that are not attached to any channel yet. Unlike Import M3U Streams this creates one channel per station rather than one per stream, and it attaches no streams. Runs in background. Dry Run exports a CSV preview.",
+            "button_label": "✚ Create Channels",
+            "button_variant": "filled",
+            "button_color": "blue",
+            "confirm": {"message": "This will create new channels in the target group. No streams are attached. Continue?"},
+            "background": True,
         },
         {
             "id": "plugin_status",
@@ -1440,6 +1489,7 @@ class Plugin:
                 "apply_tv_logos": self.apply_tv_logos_action,
                 "organize_by_category": self.organize_by_category_action,
                 "import_m3u_streams": self.import_m3u_streams_action,
+                "create_channels_from_streams": self.create_channels_from_streams_action,
                 "plugin_status": self.plugin_status_action,
                 "email_report_now": self.email_report_now_action,
                 "clear_csv_exports": self.clear_csv_exports_action,
@@ -3781,6 +3831,236 @@ class Plugin:
                 "status": "error",
                 "error": f"Validation error: {e}\n\nSee logs for details."
             }
+
+    # ------------------------------------------------------------------
+    # Create Channels From Streams
+    #
+    # One channel per STATION, for streams no channel uses yet. This is not
+    # what Import M3U Streams does: that creates one channel per STREAM and
+    # tells them apart with a suffix, so a provider carrying each station once
+    # per M3U account produces four channels for one station, where the layout
+    # here is one channel holding the four streams.
+    #
+    # No stream is attached. A channel created here is a target for a stream
+    # matcher to fill in afterwards, and writing those links here would take
+    # that decision away from the operator.
+    # ------------------------------------------------------------------
+
+    def _existing_channel_names(self):
+        """Return every channel name in the database.
+
+        Split out so a test can replace it without standing up a fake manager,
+        and so the query is made once rather than per planned item.
+        """
+        return [row['name'] for row in Channel.objects.all().values('name')]
+
+    def _collect_unattached_streams(self, source_group_names, logger):
+        """Return stream rows in the named groups that no channel uses.
+
+        A stream is unattached when no ChannelStream row references it. That is
+        the same definition the interface shows, and it is what makes a second
+        run of this action do nothing rather than duplicate its own work.
+        """
+        wanted = {name.strip() for name in source_group_names if name.strip()}
+        group_ids = [g['id'] for g in self._get_all_groups(logger)
+                     if g['name'] in wanted]
+        if not group_ids:
+            logger.warning(f"{PLUGIN_LOG_PREFIX} None of the named stream groups exist: "
+                           f"{sorted(wanted)}")
+            return []
+        rows = list(Stream.objects.filter(channel_group_id__in=group_ids)
+                    .values('id', 'name', 'm3u_account_id'))
+        linked = set(ChannelStream.objects
+                     .filter(stream_id__in=[r['id'] for r in rows])
+                     .values_list('stream_id', flat=True))
+        unattached = [r for r in rows if r['id'] not in linked]
+        logger.info(f"{PLUGIN_LOG_PREFIX} {len(unattached)} of {len(rows)} streams in "
+                    f"{len(group_ids)} group(s) are not attached to a channel")
+        return unattached
+
+    def _seed_resolver(self, settings, logger):
+        """Return a callable mapping a stream name to a proposed channel name.
+
+        It renders the same OTA name format the rename action uses, so a
+        channel created here carries the name a rename would have given it.
+        """
+        fmt = settings.get("ota_format") or PluginConfig.DEFAULT_OTA_FORMAT
+        fallback = bool(settings.get("ota_market_fallback", False))
+
+        def resolve(stream_name):
+            network = self._extract_stream_network(stream_name)
+            callsign, station = self.matcher.match_broadcast_channel(
+                stream_name, network=network, allow_market_fallback=fallback)
+            if not station:
+                return None
+            return self._format_ota_name(station, fmt, callsign,
+                                         network_override=network)
+
+        return resolve
+
+    def create_channels_from_streams_action(self, settings, logger):
+        """Create one channel per station for streams that have no channel."""
+        source_names = [n.strip() for n
+                        in (settings.get("seed_source_groups") or "").split(",")
+                        if n.strip()]
+        target_name = (settings.get("seed_target_group") or "").strip()
+
+        if not source_names:
+            return {"status": "error",
+                    "error": "Set Stream Groups to Seed From before running this action."}
+        if not target_name:
+            return {"status": "error",
+                    "error": "Set Channel Group to Create In before running this action."}
+
+        try:
+            self._check_group_destinations_not_ignored(
+                [target_name], settings.get("ignore_groups"))
+        except GroupScopeError as exc:
+            return self._scope_error_return(exc)
+
+        groups = self._get_all_groups(logger)
+        target_ids = [g['id'] for g in groups if g['name'] == target_name]
+        if not target_ids:
+            return {"status": "error",
+                    "error": f"Channel group '{target_name}' does not exist. "
+                             f"Create it first, then run this action."}
+        if len(target_ids) > 1:
+            # Dispatcharr permits duplicate group names, so this is reachable.
+            return {"status": "error",
+                    "error": f"More than one channel group is named '{target_name}'. "
+                             f"Rename one of them so the target is unambiguous."}
+
+        if not self._load_channel_data(settings, logger):
+            return {"status": "error", "error": "Could not load the channel databases."}
+
+        streams = self._collect_unattached_streams(source_names, logger)
+        if not streams:
+            return {"status": "success",
+                    "message": "No unattached streams found in those groups."}
+
+        plan = build_seed_plan(streams, self._existing_channel_names(),
+                              self._seed_resolver(settings, logger))
+
+        if settings.get("dry_run_mode", False):
+            csv_path, csv_filename = self._export_seed_preview(plan, settings, logger)
+            return {
+                "status": "success",
+                "message": (f"Preview only. Would create {len(plan.create)}, "
+                            f"skip {len(plan.skip)} already named, "
+                            f"leave {len(plan.unresolved)} unresolved."),
+                "file": csv_path,
+            }
+
+        # Everything that can refuse has refused by now. The card never shows a
+        # background thread's return value, so nothing below this line can tell
+        # the operator it went wrong except through Show Status and the log.
+        if not self._try_start_thread(
+                self._create_channels_from_streams_bg,
+                (copy.deepcopy(settings), logger, plan, target_ids[0])):
+            return {"status": "error",
+                    "error": "An operation is already running. Please wait for it to finish."}
+        return {"status": "ok",
+                "message": f"Creating {len(plan.create)} channels in background.",
+                "background": True}
+
+    def _export_seed_preview(self, plan, settings, logger):
+        """Write the plan to a CSV and return (path, filename)."""
+        export_dir = PluginConfig.EXPORT_DIR
+        os.makedirs(export_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        csv_filename = f"channel_mapparr_seed_preview_{timestamp}.csv"
+        csv_path = os.path.join(export_dir, csv_filename)
+
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', newline='', encoding='utf-8',
+                                             dir=export_dir, suffix='.csv',
+                                             delete=False) as csvfile:
+                tmp_path = csvfile.name
+                csvfile.write(self._generate_csv_settings_header(settings))
+                csvfile.write("#\n# Create Channels From Streams Preview\n#\n")
+                writer = csv.DictWriter(csvfile, fieldnames=[
+                    'Action', 'Proposed Channel Name', 'Source Stream Names',
+                    'Stream Count', 'M3U Accounts'])
+                writer.writeheader()
+                for label, items in (("create", plan.create),
+                                     ("skip, name already used", plan.skip),
+                                     ("unresolved", plan.unresolved)):
+                    for item in items:
+                        writer.writerow({
+                            'Action': label,
+                            'Proposed Channel Name': item.proposed_name or '',
+                            'Source Stream Names': ' | '.join(item.source_names),
+                            'Stream Count': len(item.stream_ids),
+                            'M3U Accounts': ' '.join(str(a) for a in sorted(
+                                {a for a in item.accounts if a is not None})),
+                        })
+            os.replace(tmp_path, csv_path)
+            tmp_path = None
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+        logger.info(f"{PLUGIN_LOG_PREFIX} Seed preview written to {csv_path}")
+        return csv_path, csv_filename
+
+    def _create_seed_channels(self, plan, target_group_id, settings, logger):
+        """Create one channel per planned item. Attaches no streams."""
+        used = {float(n) for n
+                in Channel.objects.values_list('channel_number', flat=True)
+                if n is not None}
+        raw_start = (settings.get("seed_start_number") or "").strip()
+        try:
+            start = float(raw_start) if raw_start else None
+        except ValueError:
+            logger.warning(f"{PLUGIN_LOG_PREFIX} First Channel Number to Use is not a "
+                           f"number ({raw_start!r}); allocating above the highest in use")
+            start = None
+
+        numbers = allocate_channel_numbers(used, len(plan.create), start)
+        progress = ProgressTracker(len(plan.create), "seed_channels", logger)
+
+        records = []
+        for item, number in zip(plan.create, numbers):
+            if self._stop_event.is_set():
+                logger.info(f"{PLUGIN_LOG_PREFIX} Channel creation cancelled by user.")
+                break
+            try:
+                with transaction.atomic():
+                    channel = Channel.objects.create(
+                        name=item.proposed_name,
+                        channel_number=number,
+                        channel_group_id=target_group_id,
+                    )
+                records.append({'id': channel.id, 'number': number,
+                                'name': item.proposed_name,
+                                'source_names': list(item.source_names)})
+            except Exception as exc:
+                logger.error(f"{PLUGIN_LOG_PREFIX} Could not create channel "
+                             f"{item.proposed_name!r}: {exc}")
+            progress.update()
+
+        logger.info(f"{PLUGIN_LOG_PREFIX} Created {len(records)} channels in group "
+                    f"{target_group_id}")
+        return records
+
+    def _create_channels_from_streams_bg(self, settings, logger, plan, target_group_id):
+        """Background wrapper: create the channels, then export the result."""
+        try:
+            records = self._create_seed_channels(plan, target_group_id, settings, logger)
+            csv_path, csv_filename = self._export_seed_preview(plan, settings, logger)
+            message = (f"Created {len(records)} channels. No streams attached. "
+                       f"Details in {csv_filename}")
+            self._last_bg_result = {"status": "success", "message": message,
+                                    "file": csv_path}
+            logger.info(f"{PLUGIN_LOG_PREFIX} SEED COMPLETED: {message}")
+            send_websocket_update('updates', 'update', {
+                "type": "plugin", "plugin": self.name, "message": message})
+        except Exception as exc:
+            self._last_bg_result = {"status": "error", "error": str(exc)}
+            logger.exception(f"{PLUGIN_LOG_PREFIX} Channel creation error: {exc}")
+            send_websocket_update('updates', 'update', {
+                "type": "plugin", "plugin": self.name,
+                "message": f"Channel creation error: {exc}"})
 
     def plugin_status_action(self, settings, logger):
         """Read the persistent progress file and return a user-facing summary."""

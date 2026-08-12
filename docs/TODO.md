@@ -1,5 +1,27 @@
 # Channel Maparr — TODO
 
+## Open (added 2026-08-12)
+
+- [ ] **The FCC record for KCOY names Telemundo as its primary network**, so Create Channels From Streams
+  skips it when Telemundo is in "Networks to Skip When Creating Channels". The provider stream calls it
+  `US: CBS 12 (KCOY) SANTA MARIA HD` and KCOY appears to be the CBS station for that market, so the FCC
+  record looks wrong rather than the filter. Fixing it means an entry in `scripts/networks_corrections.json`,
+  the corrections file applied while the station table is rebuilt, and that needs a source for the correct
+  affiliation before one is written. Measured 2026-08-12 on the shipped station table.
+
+- [ ] **Create Channels From Streams has never been run for real.** Every run so far has been a Dry Run.
+  A real run needs a database backup first and a decision about which channel group the new channels land in;
+  the previews used `US: ABC` purely to satisfy validation. Measured 2026-08-12 against the four network
+  stream groups with Telemundo excluded: it would create 36 channels, skip 590 whose names are already used,
+  skip 15 by network, and leave 131 unresolved.
+
+- [ ] **Five station records still carry a callsign beginning with `D` followed by K or W**
+  (`DK24NS-D`, `DK27OW-D`, `DKJDN-LD`, `DW35DZ-D`, `DWPYM-LD`), which is the shape the FCC uses when it
+  republishes a cancelled licence. `scripts/build_networks_json.py` filters on `facility_status == "LICEN"`
+  and these pass that filter. All five have an empty affiliation so nothing can reach them by network, which
+  is why this is recorded rather than fixed.
+
+
 ## Open (added 2026-08-10)
 
 - [x] **Match a station by market city and channel number** (done 2026-08-12) - a name stating a market with no

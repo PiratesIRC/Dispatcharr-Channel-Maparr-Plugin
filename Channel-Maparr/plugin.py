@@ -17,6 +17,7 @@ from datetime import datetime
 # Import the fuzzy matcher module
 from .fuzzy_matcher import FuzzyMatcher
 from .channel_seeder import allocate_channel_numbers, build_seed_plan
+from .station_affiliation import station_networks
 from .progress_status import (
     build_status_message, load_progress, save_progress_atomic,
 )
@@ -82,7 +83,7 @@ def _format_capped_name_list(names, limit=_MAX_NAMES_IN_MESSAGE):
 class PluginConfig:
     """Configuration constants for Channel Maparr."""
 
-    PLUGIN_VERSION = "1.26.2241126"
+    PLUGIN_VERSION = "1.26.2241232"
 
     # Channel Database Settings
     DEFAULT_CHANNEL_DATABASES = "US"
@@ -401,6 +402,21 @@ class Plugin:
                     "assign. Numbers already in use are skipped, so the run does not "
                     "need a free block. Leave empty to start above the highest channel "
                     "number on the system."
+                ),
+            },
+            {
+                "id": "seed_exclude_networks",
+                "label": "Networks to Skip When Creating Channels",
+                "type": "string",
+                "default": "",
+                "placeholder": "Telemundo, Univision",
+                "help_text": (
+                    "Used by Create Channels From Streams. Comma-separated network "
+                    "names. A station carrying one of them is reported and skipped "
+                    "rather than created. The network is read from the station "
+                    "record and from the stream name, because a low power record "
+                    "often names no network at all. Leave empty to create every "
+                    "station that matches."
                 ),
             },
             {
@@ -3879,24 +3895,61 @@ class Plugin:
         return unattached
 
     def _seed_resolver(self, settings, logger):
-        """Return a callable mapping a stream name to a proposed channel name.
+        """Return (resolve, exclude), both taking a stream name.
 
-        It renders the same OTA name format the rename action uses, so a
-        channel created here carries the name a rename would have given it.
+        ``resolve`` renders the same OTA name format the rename action uses, so
+        a channel created here carries the name a rename would have given it.
+        ``exclude`` reports whether the station belongs to a network the
+        operator listed in Networks to Skip.
+
+        Both read one memo of stream name to (name, station), so the station is
+        looked up once per name rather than once per callable.
+
+        Two signals decide the exclusion, and neither is enough alone. Measured
+        on this installation: of 14 Telemundo stations reachable from the
+        provider stream names, 13 carry a Telemundo affiliation on their FCC
+        record while KUAN carries an empty one and is identifiable only from
+        the word in its stream name. The affiliation field is read through
+        station_affiliation.station_networks rather than a substring test,
+        because that field is not maintained to a standard.
         """
         fmt = settings.get("ota_format") or PluginConfig.DEFAULT_OTA_FORMAT
         fallback = bool(settings.get("ota_market_fallback", False))
+        skip_networks = {
+            token.strip().upper()
+            for token in (settings.get("seed_exclude_networks") or "").split(",")
+            if token.strip()
+        }
+        memo = {}
+
+        def _lookup(stream_name):
+            if stream_name not in memo:
+                network = self._extract_stream_network(stream_name)
+                callsign, station = self.matcher.match_broadcast_channel(
+                    stream_name, network=network, allow_market_fallback=fallback)
+                name = None
+                if station:
+                    name = self._format_ota_name(station, fmt, callsign,
+                                                 network_override=network)
+                memo[stream_name] = (name, station)
+            return memo[stream_name]
 
         def resolve(stream_name):
-            network = self._extract_stream_network(stream_name)
-            callsign, station = self.matcher.match_broadcast_channel(
-                stream_name, network=network, allow_market_fallback=fallback)
-            if not station:
-                return None
-            return self._format_ota_name(station, fmt, callsign,
-                                         network_override=network)
+            return _lookup(stream_name)[0]
 
-        return resolve
+        def exclude(stream_name):
+            if not skip_networks:
+                return False
+            station = _lookup(stream_name)[1]
+            on_record = set(station_networks(
+                (station or {}).get("network_affiliation", "")))
+            # The station record is the better signal, but a low power record
+            # often names no network at all, so the stream name is read too.
+            in_name = {word for word in re.split(r"[^A-Za-z]+", stream_name.upper())
+                       if word}
+            return bool(skip_networks & (on_record | in_name))
+
+        return resolve, exclude
 
     def create_channels_from_streams_action(self, settings, logger):
         """Create one channel per station for streams that have no channel."""
@@ -3938,8 +3991,9 @@ class Plugin:
             return {"status": "success",
                     "message": "No unattached streams found in those groups."}
 
+        resolve, exclude = self._seed_resolver(settings, logger)
         plan = build_seed_plan(streams, self._existing_channel_names(),
-                              self._seed_resolver(settings, logger))
+                               resolve, exclude)
 
         if settings.get("dry_run_mode", False):
             csv_path, csv_filename = self._export_seed_preview(plan, settings, logger)
@@ -3947,6 +4001,7 @@ class Plugin:
                 "status": "success",
                 "message": (f"Preview only. Would create {len(plan.create)}, "
                             f"skip {len(plan.skip)} already named, "
+                            f"skip {len(plan.excluded)} by network, "
                             f"leave {len(plan.unresolved)} unresolved."),
                 "file": csv_path,
             }
@@ -3985,6 +4040,7 @@ class Plugin:
                 writer.writeheader()
                 for label, items in (("create", plan.create),
                                      ("skip, name already used", plan.skip),
+                                     ("skip, network excluded", plan.excluded),
                                      ("unresolved", plan.unresolved)):
                     for item in items:
                         writer.writerow({

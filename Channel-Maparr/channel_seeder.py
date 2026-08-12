@@ -19,22 +19,32 @@ import collections
 
 SeedItem = collections.namedtuple(
     "SeedItem", "proposed_name source_names stream_ids accounts")
-SeedPlan = collections.namedtuple("SeedPlan", "create skip unresolved")
+# ``excluded`` defaults to an empty tuple so a caller that predates the network
+# filter keeps working and reads the same as before.
+SeedPlan = collections.namedtuple(
+    "SeedPlan", "create skip unresolved excluded", defaults=((),))
 
 
-def build_seed_plan(streams, existing_names, resolve):
+def build_seed_plan(streams, existing_names, resolve, exclude=None):
     """Group streams by the channel name they resolve to and classify each group.
 
     ``streams`` is a list of dicts carrying ``id``, ``name`` and
     ``m3u_account_id``. ``existing_names`` is the channel names already in the
     database, compared without regard to case or surrounding space.
     ``resolve`` takes a stream name and returns a proposed channel name or None.
+    ``exclude``, when given, takes a stream name and returns True for a station
+    the operator does not want as a channel at all.
 
     Returns a SeedPlan whose ``create`` list holds names not already in use,
-    ``skip`` holds names a channel already carries, and ``unresolved`` holds one
-    item per stream name that resolved to nothing. Nothing is dropped silently:
-    a name that resolves to nothing is reported so the operator can see what was
-    not understood.
+    ``skip`` holds names a channel already carries, ``unresolved`` holds one
+    item per stream name that resolved to nothing, and ``excluded`` holds the
+    ones ``exclude`` rejected. Nothing is dropped silently: a name that resolves
+    to nothing, or that is excluded, is reported so the operator can see it.
+
+    Exclusion is kept apart from resolution on purpose. A station that resolved
+    perfectly well and was then filtered out by choice is a different fact from
+    a name nothing could make sense of, and folding the two together would hide
+    a filter that is matching more than its author intended.
 
     Ordering is by proposed name, so two runs over the same data plan the same
     work in the same order regardless of the order the database returned rows.
@@ -43,14 +53,19 @@ def build_seed_plan(streams, existing_names, resolve):
 
     by_name = collections.OrderedDict()
     unresolved = collections.OrderedDict()
+    excluded = collections.OrderedDict()
     for stream in sorted(streams or [],
                          key=lambda s: ((s.get("name") or ""), s.get("id") or 0)):
         source_name = (stream.get("name") or "").strip()
         if not source_name:
             continue
         proposed = resolve(source_name)
-        bucket = by_name if proposed else unresolved
-        key = proposed if proposed else source_name
+        if proposed and exclude is not None and exclude(source_name):
+            bucket, key = excluded, proposed
+        elif proposed:
+            bucket, key = by_name, proposed
+        else:
+            bucket, key = unresolved, source_name
         entry = bucket.setdefault(
             key, {"source_names": [], "stream_ids": [], "accounts": []})
         if source_name not in entry["source_names"]:
@@ -74,7 +89,15 @@ def build_seed_plan(streams, existing_names, resolve):
                  accounts=unresolved[name]["accounts"])
         for name in sorted(unresolved)
     ]
-    return SeedPlan(create=create, skip=skip, unresolved=unresolved_items)
+    excluded_items = [
+        SeedItem(proposed_name=name,
+                 source_names=excluded[name]["source_names"],
+                 stream_ids=excluded[name]["stream_ids"],
+                 accounts=excluded[name]["accounts"])
+        for name in sorted(excluded)
+    ]
+    return SeedPlan(create=create, skip=skip, unresolved=unresolved_items,
+                    excluded=excluded_items)
 
 
 def allocate_channel_numbers(used, count, start=None):

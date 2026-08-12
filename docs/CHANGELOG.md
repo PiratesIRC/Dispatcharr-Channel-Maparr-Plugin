@@ -2,7 +2,7 @@
 
 ## v1.26.2241315 (August 12, 2026)
 
-Not released yet.
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2241315
 
 **A quality tag in the middle of a channel name no longer glues its neighbours together.** Every
 pattern in the quality-tag list also consumes the whitespace flanking the tag, and the tag was

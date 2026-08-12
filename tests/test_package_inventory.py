@@ -22,7 +22,6 @@ Hub listing is updated in the same breath. Update SHIPPED_FILES below and copy
 the file to the Hub listing in the same change.
 """
 import ast
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -68,20 +67,27 @@ SHIPPED_FILES = {
 }
 
 
-def _tracked_package_files():
-    """The files git would put in the release archive.
+def _package_files():
+    """The files present in the deployable package directory.
 
-    Read from the index rather than the working tree, because the archive is
-    built from the index and an untracked file never ships.
+    Read from the filesystem rather than by running git. The obvious version of
+    this shells out to "git ls-tree", which is closer to what the release
+    archive contains, but git is not installed everywhere the suite runs: it is
+    absent from the python:3.11-slim image used to reproduce continuous
+    integration failures locally, where the test then fails with
+    FileNotFoundError rather than telling anyone anything useful.
+
+    Compiled bytecode and dot-files are skipped because neither is source. A
+    stray untracked file here does fail this test, which is wanted: the
+    deployable folder is copied wholesale by some deploy paths, so anything
+    sitting in it is a hazard whether or not it ships.
     """
-    out = subprocess.run(
-        ["git", "ls-tree", "--name-only", "HEAD:Channel-Maparr"],
-        cwd=REPO_ROOT, capture_output=True, text=True, check=True)
-    return {line.strip() for line in out.stdout.splitlines() if line.strip()}
+    return {entry.name for entry in PACKAGE_DIR.iterdir()
+            if entry.is_file() and not entry.name.startswith(".")}
 
 
 def test_the_shipped_file_list_is_exactly_what_is_pinned():
-    tracked = _tracked_package_files()
+    tracked = _package_files()
     added = sorted(tracked - SHIPPED_FILES)
     removed = sorted(SHIPPED_FILES - tracked)
     assert not added, (

@@ -1355,11 +1355,18 @@ class Plugin:
         ("US: CBS 7 ..." -> "CBS"). Only recognized broadcast networks count, so a
         callsign-led name ("WABC-TV") returns None. A network used *as* the prefix
         ("CBS: ...") is not mistaken for a geo code and stripped.
+
+        The prefix is not always a two or three letter country code. Providers
+        also label a group with a whole word, such as "CITY: PBS KETC ST. LOUIS"
+        or "PRIME: NBC ST. LOUIS NEWS (KSDK)", so the prefix pattern accepts up
+        to 12 letters, matching the token pattern used for the network itself.
+        Every name in ``_STREAM_NETWORKS`` is 11 letters or fewer, so a network
+        used as the prefix is still recognized and left in place.
         """
         if not channel_name:
             return None
         s = channel_name.strip()
-        m_geo = re.match(r'^\s*[\[(]?([A-Za-z]{2,3})[\])]?\s*[:|]\s*(.*)$', s)
+        m_geo = re.match(r'^\s*[\[(]?([A-Za-z]{2,12})[\])]?\s*[:|]\s*(.*)$', s)
         if m_geo and m_geo.group(1).upper() not in self._STREAM_NETWORKS:
             s = m_geo.group(2)
         m = re.match(r'([A-Za-z]{2,12})', s)

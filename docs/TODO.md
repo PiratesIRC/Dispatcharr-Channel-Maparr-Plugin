@@ -15,10 +15,17 @@
   channels per station, where the established layout is one channel holding the four streams. Plan at
   `docs/superpowers/plans/2026-08-10-create-channels-from-streams.md` (gitignored).
 
-- [ ] **`_extract_stream_network` ignores a four letter prefix** - it strips a two or three letter geo prefix
-  before the colon, so the provider group whose names begin `CITY: PBS KETC ...` is treated as stating no
-  network at all. KETC then takes the FCC affiliation `ETV` rather than the `PBS` the stream states. Affects
-  every stream in that provider group, not only St Louis.
+- [x] **`_extract_stream_network` ignored a prefix longer than three letters** (fixed 2026-08-12) - the
+  pattern that strips a leading provider or country prefix before the colon accepted only two or three
+  letters, so a name beginning `CITY: PBS KETC ST. LOUIS` read as stating no network and KETC took the FCC
+  affiliation `ETV` rather than the `PBS` the stream states. The prefix pattern now accepts up to 12 letters,
+  matching the pattern already used to read the network token itself. Measured on the live installation
+  2026-08-12: four provider groups use a word as the prefix (`CITY` 820 streams, `PRIME` 3,033, `TUBI` 608,
+  `NEXT` 26), and 1,257 stream names carry one of them directly ahead of a network name. Only 3 CHANNELS are
+  affected today, because the rest were already renamed and no longer carry the prefix; the value of the fix
+  is on future imports. `tests/test_ota_network.py` adds 11 name cases plus a guard that no entry in
+  `_STREAM_NETWORKS` may exceed the 12 letter token pattern, since a longer one would silently stop being
+  recognized as a prefix.
 
 - [ ] **The supplemental station file can add but not correct** - `networks_supplemental.json` is loaded after
   `networks.json` with `setdefault`, so the main table always wins. A wrong record in the main table, such as

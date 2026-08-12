@@ -2,28 +2,94 @@
 
 ## Open (added 2026-08-10)
 
-- [ ] **Match a station by market city and channel number** - a stream naming a market with no callsign, such as
-  `US: ABC 33/40 HD [BIRMINGHAM]` or `US: FOX 13 HD [SEATTLE]`, still resolves to nothing. Measured on the live
-  provider feed: this affects roughly 30 names across the ABC, CBS, FOX and NBC groups. A written plan exists at
-  `docs/superpowers/plans/2026-08-10-ota-market-matching.md` (gitignored): parse the market and channel number,
-  look them up against the station table, accept only when exactly one station fits, and keep a table of market
-  names that are not FCC community cities (Hampton Roads to Hampton, Seattle to Tacoma, Las Vegas to Henderson).
+- [x] **Match a station by market city and channel number** (done 2026-08-12) - a name stating a market with no
+  callsign, such as `US: FOX 13 HD [SEATTLE]`, resolved to nothing. `Channel-Maparr/market_index.py` now parses
+  the market and channel number out of the name and resolves it against the station table in two stages: first
+  among the stations licensed to that community, then, when that community has no station carrying the network,
+  among the stations of that state on that channel number. A station is returned only when exactly one fits.
+  The behaviour is behind the `ota_market_fallback` setting, "Match by Market When No Callsign", which defaults
+  to OFF, and both OTA call sites in `plugin.py` pass it explicitly; an AST guard fails if a call site omits it.
 
-- [ ] **An action that creates channels for streams that have none** - the work of creating 270 channels on
-  2026-08-10 was done with throwaway scripts, not through the plugin. `Import M3U Streams` cannot do it: it
-  creates one channel per stream, so a provider serving each station once per M3U account produces four suffixed
-  channels per station, where the established layout is one channel holding the four streams. Plan at
-  `docs/superpowers/plans/2026-08-10-create-channels-from-streams.md` (gitignored).
+  Measured on the live provider feed 2026-08-12, over the 1,190 distinct names in the nine network stream
+  groups: 997 already matched by callsign, 193 did not, and the market stage resolves **61** of those 193 with
+  none wrong on inspection. Stage one accounts for 53, stage two for the remaining 8 (Seattle to KCPQ in
+  Tacoma, San Francisco to KTVU in Oakland, Las Vegas to KVVU in Henderson, Charlotte to WJZY in Belmont,
+  Raleigh to WTVD in Durham, Palm Beach to WFLX, Gainesville to WOGX in Ocala, Greensboro to WGHP in High
+  Point). Only three alias entries were needed, not the dozen first sketched, because stage two covers most
+  neighbouring-community cases without one.
 
-- [ ] **`_extract_stream_network` ignores a four letter prefix** - it strips a two or three letter geo prefix
-  before the colon, so the provider group whose names begin `CITY: PBS KETC ...` is treated as stating no
-  network at all. KETC then takes the FCC affiliation `ETV` rather than the `PBS` the stream states. Affects
-  every stream in that provider group, not only St Louis.
+  Two refusals are deliberate and pinned by tests. A name carrying `PLUS` or `XTRA` is refused, because
+  "FOX 9 PLUS" in Minneapolis is WFTC and not KMSP, so folding it into the main station would give two
+  channels claiming to be the same one. And stage two runs only when the market city has no station carrying
+  the network at all: when it has some that cannot be told apart, widening the search to the whole state
+  returns a station in a third city. That was a real wrong match, `US: ABC 4 HD [CHARLESTON]` resolving to
+  WOAY-TV in Oak Hill, found by running the module over the live corpus and fixed before it shipped.
 
-- [ ] **The supplemental station file can add but not correct** - `networks_supplemental.json` is loaded after
-  `networks.json` with `setdefault`, so the main table always wins. A wrong record in the main table, such as
-  WBMA-LD having no virtual channel, cannot be corrected without either a corrections file applied by
-  `scripts/build_networks_json.py` or a precedence change.
+- [x] **An action that creates channels for streams that have none** (done 2026-08-12) - the work of creating
+  270 channels on 2026-08-10 was done with throwaway scripts, because `Import M3U Streams` creates one channel
+  per STREAM and this provider serves each station once per M3U account, giving four suffixed channels per
+  station where the established layout is one channel holding the four streams.
+
+  `Create Channels From Streams` does the job properly. `Channel-Maparr/channel_seeder.py` is a Django-free
+  module holding all the planning: `build_seed_plan` groups the streams by the channel name each resolves to,
+  so one station is one item however many accounts carry it, and classifies each as create, skip because the
+  name is already used, or unresolved. `allocate_channel_numbers` returns free numbers, skipping any already in
+  use, because channel numbers are unique across the installation and there is not always a free block.
+
+  The action itself is thin. It refuses before doing anything when the source groups or the target group are
+  unset, when the target group does not exist, when more than one channel group carries that name, or when the
+  target is in `Channel Groups to Ignore`. Dry Run writes a CSV preview naming every proposed channel, its
+  source stream names and the accounts they came from, and creates nothing.
+
+  **It attaches no streams**, deliberately: a channel created here is a target for a stream matcher to fill in,
+  and writing those links here would take that decision away from the operator. That is pinned twice, by a test
+  asserting no `ChannelStream` row is written during a creation run and by a syntax tree guard over the three
+  seeding functions. Both were proven to fire by adding a stream attachment and watching them fail.
+
+  A name a channel already uses is skipped, so a second run does nothing rather than duplicating its own work.
+  `tests/test_channel_seeder.py` and `tests/test_seed_action.py` cover the planner, the number allocator, every
+  refusal and the declaration. Two new entries were added to the allowlist in
+  `tests/test_group_scope_wiring.py`, each with its reason: reading channel names for the duplicate check and
+  reading channel numbers for the allocator both have to see the whole installation rather than the configured
+  scope.
+
+  **Not yet run against the live system.** It is untested outside the unit tests, and the plan's step of
+  confirming the action is served by the container's own normaliser needs a deployment first.
+
+- [x] **`_extract_stream_network` ignored a prefix longer than three letters** (fixed 2026-08-12) - the
+  pattern that strips a leading provider or country prefix before the colon accepted only two or three
+  letters, so a name beginning `CITY: PBS KETC ST. LOUIS` read as stating no network and KETC took the FCC
+  affiliation `ETV` rather than the `PBS` the stream states. The prefix pattern now accepts up to 12 letters,
+  matching the pattern already used to read the network token itself. Measured on the live installation
+  2026-08-12: four provider groups use a word as the prefix (`CITY` 820 streams, `PRIME` 3,033, `TUBI` 608,
+  `NEXT` 26), and 1,257 stream names carry one of them directly ahead of a network name. Only 3 CHANNELS are
+  affected today, because the rest were already renamed and no longer carry the prefix; the value of the fix
+  is on future imports. `tests/test_ota_network.py` adds 11 name cases plus a guard that no entry in
+  `_STREAM_NETWORKS` may exceed the 12 letter token pattern, since a longer one would silently stop being
+  recognized as a prefix.
+
+- [x] **The supplemental station file can add but not correct** (done 2026-08-12) - resolved with a corrections
+  file applied at build time rather than by flipping the runtime precedence. `scripts/networks_corrections.json`
+  is read by `scripts/build_networks_json.py`, which overwrites the named fields on an existing record and
+  stamps that record with a `corrected` field saying what changed and why, so the shipped `networks.json`
+  carries the corrected value and explains itself. The runtime loader in `Channel-Maparr/fuzzy_matcher.py` is
+  unchanged, and `networks_supplemental.json` keeps its single job of ADDING a station the FCC no longer lists.
+
+  Flipping the precedence was rejected: the loader appends every supplemental record to `broadcast_channels`
+  regardless of the lookup, so an overriding record would sit in the station list twice and be counted twice by
+  the market index.
+
+  Each correction names the value it believes it is replacing, and is skipped and reported when that no longer
+  matches, so a correction the FCC has since made unnecessary cannot silently overwrite newer data. The check
+  is all or nothing, so a record is never left in a state that neither the FCC data nor the correction
+  describes. The rebuild prints how many corrections applied, how many were skipped, and how many named a
+  station that is not in the table.
+
+  The file holds one entry, WBMA-LD, the ABC station for Birmingham, Alabama, which the FCC dump records with
+  no affiliation and no virtual channel. `tests/test_station_corrections.py` pins the behaviour, including a
+  guard that fails when the corrections file has changed but the table has not been rebuilt. Verified: the
+  table was rebuilt from the same FCC dump and the diff is that one record; `US: ABC 33/40 HD [BIRMINGHAM]`
+  resolves to WBMA-LD where it previously resolved to nothing, taking market matching from 61 names to 62.
 
 - [ ] **The FCC affiliation field is not maintained to a standard** - measured on the 2026-08-10 dump: KTVU is
   recorded as `Independent` although it is a Fox owned station, WANF as `Independent` although it carries CBS,

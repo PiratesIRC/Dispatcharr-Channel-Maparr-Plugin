@@ -56,12 +56,52 @@ STREAM_NET_CASES = [
     ("CBS: Something", "CBS"),       # network prefix must not be eaten as geo
     ("WABC-TV", None),              # callsign, not a network
     ("Some Random Channel", None),
+    # A provider prefix is not always a two or three letter country code. This
+    # provider labels four groups with a word: CITY, PRIME, TUBI and NEXT.
+    # Measured on the live feed 2026-08-12: 1,257 streams carry one of them
+    # ahead of a network name, and every one of those read as stating no
+    # network at all.
+    ("CITY: PBS KETC ST. LOUIS", "PBS"),
+    ("CITY: CBS KMOV COLUMBUS", "CBS"),
+    ("CITY: FOX KTVI COLUMBUS", "FOX"),
+    ("PRIME: NBC ST. LOUIS NEWS (KSDK)", "NBC"),
+    ("TUBI: ION PLUS", "ION"),
+    ("CITY: UNIVISION WXTV NEW YORK", "UNIVISION"),
+    # The longest recognized network is MYNETWORKTV at 11 characters, so a
+    # prefix of that length must still be read as a prefix.
+    ("BROADCAST: CW WWLP", "CW"),
+    # A network used as the prefix stays protected now that the prefix pattern
+    # is long enough to reach the longer network names.
+    ("TELEMUNDO: Noticias", "TELEMUNDO"),
+    ("UNIVISION: Deportes", "UNIVISION"),
+    # A leading word that is not a prefix at all must still return nothing.
+    ("Bloomberg: Markets", None),
+    ("PRIME: Some Random Channel", None),
 ]
 
 
 @pytest.mark.parametrize("stream,expected", STREAM_NET_CASES)
 def test_extract_stream_network(plugin, stream, expected):
     assert plugin._extract_stream_network(stream) == expected
+
+
+def test_every_network_name_fits_the_token_pattern(plugin_module):
+    """No recognized network may be longer than the 12 letter token pattern.
+
+    Both the provider prefix and the network itself are read with a
+    ``[A-Za-z]{2,12}`` pattern. A network name of 13 letters or more would be
+    captured only in part, would therefore not be found in ``_STREAM_NETWORKS``,
+    and a stream using that network as its prefix would silently return nothing.
+    This pins the limit so adding a longer network fails here rather than in the
+    field.
+    """
+    too_long = sorted(
+        n for n in plugin_module.Plugin._STREAM_NETWORKS if not 2 <= len(n) <= 12
+    )
+    assert too_long == [], (
+        "these network names do not fit the [A-Za-z]{2,12} token pattern used by "
+        "_extract_stream_network: %s" % too_long
+    )
 
 
 # --- Parenthesized-callsign override --------------------------------------

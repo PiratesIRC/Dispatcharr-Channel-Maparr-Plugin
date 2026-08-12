@@ -341,6 +341,7 @@ docker restart dispatcharr
 | **Category Filter** | `string` | - | Post-match filter by database category. |
 | **Custom Import Group Name** | `string` | - | Override category-based group naming for imports. |
 | **OTA Channel Name Format** | `string` | `{NETWORK} - {STATE} {CITY} ({CALLSIGN})` | Format template for broadcast channels. |
+| **Match by Market When No Callsign** | `boolean` | `false` | Off by default. Broadcast channels normally match on a callsign printed in the name. With this on, a name that states a market and a channel number instead, such as `ABC 9 HD [SYRACUSE]` or `FOX NET [ABILENE TX]`, is looked up by market: first among the stations licensed to that community, then, when none carries the network, among the stations of that state on that channel number. A station is accepted only when exactly one fits, so an ambiguous market such as `FOX 43 HD [HARRISBURG]`, where three states have a Harrisburg, is left alone rather than guessed at. A callsign printed in the name always wins. Names carrying `PLUS` or `XTRA` are left alone too, because those denote a sister station rather than the market's main one. |
 | **Suffix for Unknown Channels** | `string` | ` [Unk]` | Suffix to append to unmatched channels. |
 | **Ignored Tags** | `string` | `[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]` | Tags removed before matching (handles `[]` and `()`). |
 | **Default Logo** | `string` | - | Logo display name from Dispatcharr's Logos page. |
@@ -363,13 +364,22 @@ The action buttons are listed in the recommended execution order:
 6. **Apply Per-Channel Logos (tv-logos)** - Fuzzy-match each channel to the [tv-logo/tv-logos](https://github.com/tv-logo/tv-logos) repo and assign individual artwork.
 7. **Organize by Category** - Move channels into category groups (or CSV preview).
 8. **Import M3U Streams** - Create channels from M3U streams (or CSV preview).
-9. **Show Status** - Display live progress / ETA for the most recent operation (no destructive effect).
-10. **Email Report Now** - Build a report from the last processed channels and queue it for email (no destructive effect). It refuses, visibly, when Newsflasharr is absent, disabled, missing its email settings, missing a routing rule for this plugin, or when its collector is not running. Queued means written to Newsflasharr's queue, not yet in your inbox.
-11. **Clear CSV Exports** - Delete all plugin CSV files. It cannot reach the emailed reports, which live in a different directory.
+9. **Create Channels From Streams** - Create one channel per broadcast station for streams in the chosen
+   stream groups that are not attached to any channel yet. This is not the same job as Import M3U Streams:
+   that creates one channel per STREAM and tells duplicates apart with a suffix, so a provider carrying each
+   station once per M3U account gives four channels for one station. This creates one channel per STATION and
+   attaches no streams, leaving the channel as a target for a stream matcher to fill in. It needs "Stream
+   Groups to Seed From" and an existing "Channel Group to Create In"; it refuses when either is unset, when
+   the target group does not exist, when more than one group carries that name, or when the target is in
+   "Channel Groups to Ignore". A name that a channel already uses is skipped, so running it twice does not
+   duplicate anything. Dry Run exports a CSV preview and creates nothing.
+10. **Show Status** - Display live progress / ETA for the most recent operation (no destructive effect).
+11. **Email Report Now** - Build a report from the last processed channels and queue it for email (no destructive effect). It refuses, visibly, when Newsflasharr is absent, disabled, missing its email settings, missing a routing rule for this plugin, or when its collector is not running. Queued means written to Newsflasharr's queue, not yet in your inbox.
+12. **Clear CSV Exports** - Delete all plugin CSV files. It cannot reach the emailed reports, which live in a different directory.
 
 Rename before Import ensures duplicate detection is accurate (standardized names prevent duplicates). The two logo actions are independent — use Default Logo for a fast fallback, or Per-Channel Logos for individualized artwork.
 
-"Channel Groups to Ignore" (v1.26.2071409+) is a scope setting, not a step of its own; it applies across all eleven actions above wherever they read or write channel groups (it does not affect Import M3U Streams' stream matching or duplicate detection). Set it once before running Validate Settings, which reports the resolved exclusion.
+"Channel Groups to Ignore" (v1.26.2071409+) is a scope setting, not a step of its own; it applies across all twelve actions above wherever they read or write channel groups (it does not affect Import M3U Streams' stream matching or duplicate detection). Set it once before running Validate Settings, which reports the resolved exclusion.
 
 ### Match Pipeline
 

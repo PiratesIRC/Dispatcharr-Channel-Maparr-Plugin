@@ -2,7 +2,7 @@
 
 ## v1.26.2241232 (August 12, 2026)
 
-Not released yet. Developed and deployed the same day.
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2241232
 
 **Create Channels From Streams can be told to skip whole networks.** A new setting, **Networks to
 Skip When Creating Channels**, takes a comma-separated list. A station carrying one of those
@@ -19,6 +19,12 @@ This is the first thing in the plugin to call that module.
 Excluded stations are kept separate from unresolved ones. A station that resolved and was filtered
 out by choice is a different fact from a name nothing could make sense of, and folding the two
 together would hide a filter matching more than its author intended.
+
+**It reads what a station is, not what it carries.** The first version of the filter read every
+network named in a station's affiliation field, and a dry run then excluded 21 stations of which 6
+were not Telemundo at all: WSOC is ABC, KZTV, KWTX and KIRO are CBS, WFOX and KMVU are FOX, and each
+merely runs Telemundo on a subchannel. It now reads the station's primary network. Six real
+affiliation strings from the shipped station table are pinned as test cases.
 
 ## v1.26.2241126 (August 12, 2026)
 

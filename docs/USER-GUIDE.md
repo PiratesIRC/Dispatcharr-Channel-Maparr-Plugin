@@ -342,6 +342,10 @@ docker restart dispatcharr
 | **Custom Import Group Name** | `string` | - | Override category-based group naming for imports. |
 | **OTA Channel Name Format** | `string` | `{NETWORK} - {STATE} {CITY} ({CALLSIGN})` | Format template for broadcast channels. |
 | **Match by Market When No Callsign** | `boolean` | `false` | Off by default. Broadcast channels normally match on a callsign printed in the name. With this on, a name that states a market and a channel number instead, such as `ABC 9 HD [SYRACUSE]` or `FOX NET [ABILENE TX]`, is looked up by market: first among the stations licensed to that community, then, when none carries the network, among the stations of that state on that channel number. A station is accepted only when exactly one fits, so an ambiguous market such as `FOX 43 HD [HARRISBURG]`, where three states have a Harrisburg, is left alone rather than guessed at. A callsign printed in the name always wins. Names carrying `PLUS` or `XTRA` are left alone too, because those denote a sister station rather than the market's main one. |
+| **Stream Groups to Seed From** | `string` | - | Used by Create Channels From Streams. Comma-separated stream group names to scan. Only streams in these groups that are not attached to any channel are considered. Empty means the action does nothing. |
+| **Channel Group to Create In** | `string` | - | Used by Create Channels From Streams. The existing channel group new channels are created in. It must already exist, must not be named the same as another group, and must not be in "Channel Groups to Ignore". |
+| **First Channel Number to Use** | `string` | - | Used by Create Channels From Streams. The first channel number to assign. Numbers already in use are skipped, so the run does not need a free block. Empty means start above the highest channel number on the system. |
+| **Networks to Skip When Creating Channels** | `string` | - | Used by Create Channels From Streams. Comma-separated network names. A station whose own network is one of these is reported under `skip, network excluded` in the preview and not created. It reads what a station **is**, not what it carries: a CBS station running Telemundo on a subchannel is a CBS station and is not skipped. The network is taken from the station record and from the stream name, because a low power record often names no network at all. |
 | **Suffix for Unknown Channels** | `string` | ` [Unk]` | Suffix to append to unmatched channels. |
 | **Ignored Tags** | `string` | `[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]` | Tags removed before matching (handles `[]` and `()`). |
 | **Default Logo** | `string` | - | Logo display name from Dispatcharr's Logos page. |
@@ -372,7 +376,15 @@ The action buttons are listed in the recommended execution order:
    Groups to Seed From" and an existing "Channel Group to Create In"; it refuses when either is unset, when
    the target group does not exist, when more than one group carries that name, or when the target is in
    "Channel Groups to Ignore". A name that a channel already uses is skipped, so running it twice does not
-   duplicate anything. Dry Run exports a CSV preview and creates nothing.
+   duplicate anything. "Networks to Skip When Creating Channels" leaves out whole networks, and what it
+   leaves out is listed in the preview rather than silently missing. Dry Run exports a CSV preview and
+   creates nothing.
+
+   The preview sorts every stream into one of four outcomes, and it is worth reading all four rather than
+   only the count: `create`, `skip, name already used`, `skip, network excluded`, and `unresolved`. The last
+   is not a failure list to be fixed; it is mostly national feeds such as `ABC NEWS LIVE`, provider separator
+   rows, and markets that genuinely cannot be decided, such as a name giving only "Charleston" when two
+   states have a Charleston station on that network.
 10. **Show Status** - Display live progress / ETA for the most recent operation (no destructive effect).
 11. **Email Report Now** - Build a report from the last processed channels and queue it for email (no destructive effect). It refuses, visibly, when Newsflasharr is absent, disabled, missing its email settings, missing a routing rule for this plugin, or when its collector is not running. Queued means written to Newsflasharr's queue, not yet in your inbox.
 12. **Clear CSV Exports** - Delete all plugin CSV files. It cannot reach the emailed reports, which live in a different directory.

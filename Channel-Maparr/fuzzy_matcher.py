@@ -18,6 +18,19 @@ except (ImportError, ValueError):
     except ImportError:
         _BUILTIN_ALIASES = {}
 
+try:
+    from .market_index import (
+        build_market_index as _build_market_index,
+        parse_market_reference as _parse_market_reference,
+        resolve_station as _resolve_market_station,
+    )
+except (ImportError, ValueError):
+    from market_index import (
+        build_market_index as _build_market_index,
+        parse_market_reference as _parse_market_reference,
+        resolve_station as _resolve_market_station,
+    )
+
 # Version: YY.DDD.HHMM (Julian date format: Year.DayOfYear.Time)
 __version__ = "26.100.1200"
 
@@ -194,6 +207,7 @@ class FuzzyMatcher(FuzzyMatcherCore):
         self.premium_channels = []  # Channel names only (for fuzzy matching)
         self.premium_channels_full = []  # Full channel objects with category
         self.channel_lookup = {}  # Callsign -> channel data mapping
+        self.market_index = None  # City -> stations, for the OTA market fallback
         self.country_codes = None  # Track which country databases are currently loaded
 
         # Alias map: channel_name -> [stream-name variants]. Builtins ship in
@@ -471,6 +485,10 @@ class FuzzyMatcher(FuzzyMatcherCore):
             self.logger.info(
                 f"Loaded {len(extra)} supplemental stations from {SUPPLEMENTAL_STATIONS_FILE}")
 
+        # Built once per load. The market fallback reads it on every lookup,
+        # and rebuilding it per call would cost one pass over every station.
+        self.market_index = _build_market_index(self.broadcast_channels)
+
         self.logger.info(f"Loaded {loaded} OTA broadcast stations total")
         return loaded
 
@@ -490,6 +508,7 @@ class FuzzyMatcher(FuzzyMatcherCore):
         self.premium_channels = []
         self.premium_channels_full = []
         self.channel_lookup = {}
+        self.market_index = None
 
         # Update country_codes tracking
         self.country_codes = country_codes
@@ -1356,34 +1375,49 @@ class FuzzyMatcher(FuzzyMatcherCore):
         results.sort(key=lambda x: x[1], reverse=True)
         return results
 
-    def match_broadcast_channel(self, channel_name):
+    def match_broadcast_channel(self, channel_name, network=None,
+                                allow_market_fallback=False):
         """
-        Match broadcast (OTA) channel by callsign.
-        
+        Match broadcast (OTA) channel by callsign, then optionally by market.
+
         Args:
             channel_name: Channel name potentially containing a callsign
-        
+            network: The network the name itself states, as returned by
+                ``Plugin._extract_stream_network``. The market fallback needs
+                it, because the channel number is the token that follows it.
+            allow_market_fallback: Enable the second stage, which resolves a
+                market city and channel number against the station table. It is
+                off by default because it infers a station rather than reading
+                one, so a caller that renames existing channels opts in
+                deliberately.
+
         Returns:
             Tuple of (callsign, station_data) or (None, None) if no match
         """
         callsign = self.extract_callsign(channel_name)
-        
-        if not callsign:
-            return None, None
-        
-        # Try exact match first
-        station = self.channel_lookup.get(callsign)
-        
-        if station:
-            return callsign, station
-        
-        # Try base callsign (without suffix)
-        base_callsign = self.normalize_callsign(callsign)
-        station = self.channel_lookup.get(base_callsign)
-        
-        if station:
-            return callsign, station
-        
+
+        if callsign:
+            # Try exact match first
+            station = self.channel_lookup.get(callsign)
+
+            if station:
+                return callsign, station
+
+            # Try base callsign (without suffix)
+            base_callsign = self.normalize_callsign(callsign)
+            station = self.channel_lookup.get(base_callsign)
+
+            if station:
+                return callsign, station
+
+        # A printed callsign is read rather than inferred, so it is only when
+        # one resolved nothing that the market is worth guessing from.
+        if allow_market_fallback and network and self.market_index is not None:
+            reference = _parse_market_reference(channel_name, network)
+            station = _resolve_market_station(reference, network, self.market_index)
+            if station:
+                return station.get('callsign'), station
+
         return callsign, None
     
     def get_category_for_channel(self, channel_name, user_ignored_tags=None):

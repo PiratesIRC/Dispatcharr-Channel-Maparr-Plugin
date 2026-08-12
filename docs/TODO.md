@@ -2,6 +2,16 @@
 
 ## Open (added 2026-08-12)
 
+- [ ] **Create Channels From Streams cannot seed a non-broadcast channel, which is most of what a
+  provider carries.** It resolves every stream through the FCC station table, so anything that is not
+  an over-the-air station resolves to nothing and no channel is created. Measured 2026-08-12 against
+  the 108 unattached streams in the `US| NFL PPV` and `US| NFL REPLAY` groups: **0 resolved**. The 33
+  NFL channels created that day were made with a one-off script that groups streams by a cleaned
+  name instead, which is the same gap the action was built to close for over-the-air stations.
+  Closing it means a second resolver mode with a design decision about which cleaned names are
+  acceptable: the provider's list contains separator rows written as `##### NFL REPLAY #####`, which
+  are dividers rather than channels, and names that clean to nothing at all such as `NFL   | 4k -`.
+
 - [ ] **EPG Janitor's workspace matcher baseline is stale.** `<workspace>/tools/baselines/epg-janitor.json`,
   which the cross-plugin harness `<workspace>/tools/matcher_parity_check.py` compares against, does not match
   what that plugin now produces; it was not regenerated when its quality-tag fix landed. Found on 2026-08-12

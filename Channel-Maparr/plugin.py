@@ -373,6 +373,18 @@ class Plugin:
                 "help_text": "Tags: {NETWORK}, {STATE}, {CITY}, {CALLSIGN}. Channels missing fields are skipped.",
             },
             {
+                "id": "ota_market_fallback",
+                "label": "Match by Market When No Callsign",
+                "type": "boolean",
+                "default": False,
+                "help_text": (
+                    "When a name states a market and a channel number but no callsign, "
+                    "such as ABC 9 HD [SYRACUSE], look the station up by market instead. "
+                    "A station is accepted only when exactly one fits, so an ambiguous "
+                    "market is left alone. Leave this off to match on callsigns only."
+                ),
+            },
+            {
                 "id": "unknown_suffix",
                 "label": "Unknown Channel Suffix",
                 "type": "string",
@@ -1509,6 +1521,9 @@ class Plugin:
             renamed_channels = []
             skipped_channels = []
             ota_format = settings.get("ota_format", PluginConfig.DEFAULT_OTA_FORMAT)
+            # Resolved from the live settings dict, not from saved_settings or
+            # instance state, and read once here rather than per channel.
+            market_fallback = bool(settings.get("ota_market_fallback", False))
 
             # Parse ignored tags from settings
             ignored_tags_str = settings.get("ignored_tags", PluginConfig.DEFAULT_IGNORED_TAGS)
@@ -1569,7 +1584,11 @@ class Plugin:
                 match_method = None
                 if self.matcher.broadcast_channels:
                     debug_stats["ota_attempted"] += 1
-                    callsign, station = self.matcher.match_broadcast_channel(current_name)
+                    callsign, station = self.matcher.match_broadcast_channel(
+                        current_name,
+                        network=self._extract_stream_network(current_name),
+                        allow_market_fallback=market_fallback,
+                    )
 
                     if callsign:
                         ota_callsign_found = True
@@ -2843,7 +2862,11 @@ class Plugin:
                 continue
 
             # Try OTA broadcast match first
-            callsign, ota_station = self.matcher.match_broadcast_channel(stream_name)
+            callsign, ota_station = self.matcher.match_broadcast_channel(
+                stream_name,
+                network=self._extract_stream_network(stream_name),
+                allow_market_fallback=bool(settings.get("ota_market_fallback", False)),
+            )
 
             if ota_station:
                 category = OTA_IMPORT_CATEGORY

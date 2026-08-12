@@ -2,12 +2,28 @@
 
 ## Open (added 2026-08-10)
 
-- [ ] **Match a station by market city and channel number** - a stream naming a market with no callsign, such as
-  `US: ABC 33/40 HD [BIRMINGHAM]` or `US: FOX 13 HD [SEATTLE]`, still resolves to nothing. Measured on the live
-  provider feed: this affects roughly 30 names across the ABC, CBS, FOX and NBC groups. A written plan exists at
-  `docs/superpowers/plans/2026-08-10-ota-market-matching.md` (gitignored): parse the market and channel number,
-  look them up against the station table, accept only when exactly one station fits, and keep a table of market
-  names that are not FCC community cities (Hampton Roads to Hampton, Seattle to Tacoma, Las Vegas to Henderson).
+- [x] **Match a station by market city and channel number** (done 2026-08-12) - a name stating a market with no
+  callsign, such as `US: FOX 13 HD [SEATTLE]`, resolved to nothing. `Channel-Maparr/market_index.py` now parses
+  the market and channel number out of the name and resolves it against the station table in two stages: first
+  among the stations licensed to that community, then, when that community has no station carrying the network,
+  among the stations of that state on that channel number. A station is returned only when exactly one fits.
+  The behaviour is behind the `ota_market_fallback` setting, "Match by Market When No Callsign", which defaults
+  to OFF, and both OTA call sites in `plugin.py` pass it explicitly; an AST guard fails if a call site omits it.
+
+  Measured on the live provider feed 2026-08-12, over the 1,190 distinct names in the nine network stream
+  groups: 997 already matched by callsign, 193 did not, and the market stage resolves **61** of those 193 with
+  none wrong on inspection. Stage one accounts for 53, stage two for the remaining 8 (Seattle to KCPQ in
+  Tacoma, San Francisco to KTVU in Oakland, Las Vegas to KVVU in Henderson, Charlotte to WJZY in Belmont,
+  Raleigh to WTVD in Durham, Palm Beach to WFLX, Gainesville to WOGX in Ocala, Greensboro to WGHP in High
+  Point). Only three alias entries were needed, not the dozen first sketched, because stage two covers most
+  neighbouring-community cases without one.
+
+  Two refusals are deliberate and pinned by tests. A name carrying `PLUS` or `XTRA` is refused, because
+  "FOX 9 PLUS" in Minneapolis is WFTC and not KMSP, so folding it into the main station would give two
+  channels claiming to be the same one. And stage two runs only when the market city has no station carrying
+  the network at all: when it has some that cannot be told apart, widening the search to the whole state
+  returns a station in a third city. That was a real wrong match, `US: ABC 4 HD [CHARLESTON]` resolving to
+  WOAY-TV in Oak Hill, found by running the module over the live corpus and fixed before it shipped.
 
 - [ ] **An action that creates channels for streams that have none** - the work of creating 270 channels on
   2026-08-10 was done with throwaway scripts, not through the plugin. `Import M3U Streams` cannot do it: it

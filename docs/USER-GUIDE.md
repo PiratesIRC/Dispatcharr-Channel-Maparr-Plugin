@@ -341,6 +341,7 @@ docker restart dispatcharr
 | **Category Filter** | `string` | - | Post-match filter by database category. |
 | **Custom Import Group Name** | `string` | - | Override category-based group naming for imports. |
 | **OTA Channel Name Format** | `string` | `{NETWORK} - {STATE} {CITY} ({CALLSIGN})` | Format template for broadcast channels. |
+| **Match by Market When No Callsign** | `boolean` | `false` | Off by default. Broadcast channels normally match on a callsign printed in the name. With this on, a name that states a market and a channel number instead, such as `ABC 9 HD [SYRACUSE]` or `FOX NET [ABILENE TX]`, is looked up by market: first among the stations licensed to that community, then, when none carries the network, among the stations of that state on that channel number. A station is accepted only when exactly one fits, so an ambiguous market such as `FOX 43 HD [HARRISBURG]`, where three states have a Harrisburg, is left alone rather than guessed at. A callsign printed in the name always wins. Names carrying `PLUS` or `XTRA` are left alone too, because those denote a sister station rather than the market's main one. |
 | **Suffix for Unknown Channels** | `string` | ` [Unk]` | Suffix to append to unmatched channels. |
 | **Ignored Tags** | `string` | `[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]` | Tags removed before matching (handles `[]` and `()`). |
 | **Default Logo** | `string` | - | Logo display name from Dispatcharr's Logos page. |

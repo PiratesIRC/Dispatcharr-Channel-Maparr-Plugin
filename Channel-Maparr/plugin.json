@@ -87,6 +87,13 @@
       "help_text": "Template for broadcast (over-the-air) channel names. Available tokens: {NETWORK}, {STATE}, {CITY}, {CALLSIGN}. Example: 'ABC - NY New York (WABC-TV)'."
     },
     {
+      "id": "ota_market_fallback",
+      "label": "Match by Market When No Callsign",
+      "type": "boolean",
+      "default": false,
+      "help_text": "When a name states a market and a channel number but no callsign, such as ABC 9 HD [SYRACUSE], look the station up by market instead. A station is accepted only when exactly one fits, so an ambiguous market is left alone. Leave this off to match on callsigns only."
+    },
+    {
       "id": "unknown_suffix",
       "label": "Unknown Channel Suffix",
       "type": "string",

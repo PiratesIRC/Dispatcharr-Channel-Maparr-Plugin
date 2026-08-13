@@ -2,6 +2,23 @@
 
 ## Open (added 2026-08-12)
 
+- [ ] **The 33 channels in the `US: NFL` group have never been played, so whether they work is
+  unverified.** They were created on 2026-08-12 from streams in the `US| NFL PPV` and
+  `US| NFL REPLAY` provider groups, each holding the 3 streams that carry it (accounts 7, 8 and 9).
+  Structure was verified: the group holds exactly 33 channels, every one has exactly 3 streams, and
+  the channel count went from 1544 to 1577. Playback was not, because verifying a stream opens a
+  provider connection and someone was watching at the time.
+
+  There is no check history to read either: measured 2026-08-12, 0 of the 99 attached streams carried
+  stream statistics and none appeared in the stream checker's stored results, because that checker
+  only covers streams already belonging to a channel and these were unattached until minutes before.
+  The nightly checker run should cover them at no extra cost, since the new group is visible and does
+  not match the exclusion pattern its schedule uses. Read its report rather than probing on demand.
+
+- [ ] **Sixteen of those 33 channels name specific preseason games on 13 to 15 August 2026** and will
+  stop working once the provider retires those streams. Deleting them is a targeted job rather than a
+  hunt: every created channel id is listed in the undo record written alongside them.
+
 - [ ] **Create Channels From Streams cannot seed a non-broadcast channel, which is most of what a
   provider carries.** It resolves every stream through the FCC station table, so anything that is not
   an over-the-air station resolves to nothing and no channel is created. Measured 2026-08-12 against

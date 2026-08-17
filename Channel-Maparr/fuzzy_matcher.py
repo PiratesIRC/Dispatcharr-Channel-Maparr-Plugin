@@ -887,9 +887,16 @@ class FuzzyMatcher(FuzzyMatcherCore):
                 # regional tags like (WEST), (EAST), etc.
                 pass
 
-        # Apply selected hardcoded patterns
+        # Apply selected hardcoded patterns.
+        # Substitute a SPACE, not an empty string (bug-102): every REGIONAL and
+        # MISC pattern also consumes the whitespace flanking its match, so
+        # deleting the match joins the words either side of a mid-name group,
+        # "Big Ten Network (Southern California) Alternate" became
+        # "Big 10 NetworkAlternate". Same defect and same correction as the
+        # quality-tag loop above; a group at either edge just leaves an edge
+        # space, which the whitespace cleanup at the end of this method strips.
         for pattern in patterns_to_apply:
-            name = re.sub(pattern, '', name, flags=re.IGNORECASE)
+            name = re.sub(pattern, ' ', name, flags=re.IGNORECASE)
 
         # Apply user-configured ignored tags with improved handling
         for tag in user_ignored_tags:
@@ -930,8 +937,15 @@ class FuzzyMatcher(FuzzyMatcherCore):
         if ignore_regional:
             name = re.sub(r'\([A-Z0-9]+\)', '', name)
         
-        # Remove common pattern fixes
-        name = re.sub(r'^The\s+', '', name, flags=re.IGNORECASE)
+        # Remove common pattern fixes.
+        # ^\s* is load bearing: a geographic prefix substituted with a space in
+        # the loop above leaves a LEADING space, and an anchor of bare ^The
+        # then silently stops firing ("DMX: The Playground" kept its "The").
+        # Do not "tidy up" by stripping whitespace before these rules instead:
+        # the three suffix rules below require the space before the suffix,
+        # and with a strip() there "West TV" and "Slow TV" stopped normalizing
+        # to nothing, both became "TV", and then matched each other at 100%.
+        name = re.sub(r'^\s*The\s+', '', name, flags=re.IGNORECASE)
         name = re.sub(r'\s+Network\s*$', '', name, flags=re.IGNORECASE)
         name = re.sub(r'\s+Channel\s*$', '', name, flags=re.IGNORECASE)
         name = re.sub(r'\s+TV\s*$', '', name, flags=re.IGNORECASE)

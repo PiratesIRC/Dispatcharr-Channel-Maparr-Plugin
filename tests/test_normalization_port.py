@@ -381,3 +381,54 @@ def test_a_name_that_normalises_to_nothing_matches_nothing(matcher):
     assert matcher.normalize_name("Slow TV") == ""
     assert matcher.fuzzy_match("4K TV", ["ESPN", "BBC One", "TV Land"])[0] is None
     assert matcher.fuzzy_match("ESPN", ["4K TV", "Slow TV"])[0] is None
+
+
+# --------------------------------------------------------------------------- #
+# A bracketed, parenthesized or regional group in the MIDDLE of a name must not
+# glue its neighbours together (bug-102)
+#
+# The same defect as the quality-tag gluing above, in a different pattern list.
+# Every entry in REGIONAL_PATTERNS and MISC_PATTERNS also consumes the
+# whitespace flanking the group, so substituting an empty string deletes that
+# whitespace too and joins the words either side of a mid-name group. The
+# quality list was fixed in 1.26.2241315; this list was missed. When a
+# substitution bug is found in one pattern list, audit every pattern list in
+# the method.
+#
+# The shared component matching_core.py received the same fix on 2026-08-16,
+# but this plugin is a PARTIAL subclass that overrides normalize_name outright,
+# so the shared version never runs here and re-vendoring the component cannot
+# deliver the fix.
+# --------------------------------------------------------------------------- #
+
+BRACKET_GLUING_CASES = [
+    # (input, expected)
+    # "Ten" folds to "10" via the number-word rule before the group is removed;
+    # that is existing intended behaviour, same as the quality cases above.
+    ("Big Ten Network (Southern California) Alternate", "Big 10 Network Alternate"),
+    ("Penthouse (TEN) On Demand", "Penthouse On Demand"),
+    ("Spectrum News (New York) Rochester", "Spectrum News Rochester"),
+    # REGIONAL_PATTERNS entry, not MISC: a parenthesized timezone feed marker.
+    ("Discovery (Pacific) Feed", "Discovery Feed"),
+]
+
+
+@pytest.mark.parametrize("raw,expected", BRACKET_GLUING_CASES)
+def test_a_mid_name_bracket_group_leaves_a_space(matcher, raw, expected):
+    assert matcher.normalize_name(raw) == expected
+
+
+def test_a_group_at_either_edge_leaves_no_stray_space(matcher):
+    assert matcher.normalize_name("(Backup) ESPN") == "ESPN"
+    assert matcher.normalize_name("ESPN (Backup)") == "ESPN"
+
+
+def test_leading_the_is_stripped_after_a_spaced_geographic_prefix(matcher):
+    """Guards the known follow-on trap of substituting a space.
+
+    A geographic prefix replaced with a space leaves a LEADING space, and a
+    leading-The rule anchored as ^The silently stops firing on it. The shared
+    component needed ^\\s*The\\s+ for the same reason. "DMX:" matches the
+    generic geographic colon pattern, so this input exercises that path.
+    """
+    assert matcher.normalize_name("DMX: The Playground") == "Playground"

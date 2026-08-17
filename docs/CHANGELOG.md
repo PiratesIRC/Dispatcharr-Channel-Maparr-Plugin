@@ -1,5 +1,33 @@
 # Channel Maparr — Changelog
 
+## v1.26.2291823 (August 17, 2026)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2291823
+
+**A bracketed, parenthesized or regional group in the middle of a channel name no longer glues its
+neighbours together.** The same defect fixed for quality tags in v1.26.2241315, in a different
+pattern list of the same method: the loop that removes regional feed markers, geographic tags and
+parenthesized groups replaced each match with an empty string, and the regional and parenthesis
+patterns also consume the whitespace flanking the match, so a group in the middle of a name joined
+the words either side of it. `Big Ten Network (Southern California) Alternate` became
+`Big 10 NetworkAlternate`, `Penthouse (TEN) On Demand` became `PenthouseOn Demand`, and
+`Spectrum News (New York) Rochester` became `Spectrum NewsRochester`. A glued name matches nothing,
+and a user ignore tag, which is applied with a word boundary, cannot reach the glued word either.
+
+The loop now substitutes a space, and the rule that strips a leading `The` is anchored `^\s*The\s+`
+so it still fires when a removed prefix leaves a leading space. A group at the start or end of a
+name leaves an edge space, which the existing whitespace cleanup removes.
+
+The shared matcher component received the same correction on 2026-08-16 and this release also
+carries that re-vendored copy, but the component's version never runs here: this plugin overrides
+`normalize_name` outright, so the fix had to be made in this plugin's own code. This release fixes
+the copy that actually executes.
+
+Measured over all 32,603 distinct channel, stream and guide names in a live Dispatcharr database:
+2,438 normalize differently, every one a pure space insertion, zero letter changes, and zero names
+newly normalizing to nothing. The count is large because the parenthesis pattern removes every
+mid-name parenthesized group, including callsigns such as `(KMOV)`.
+
 ## v1.26.2241315 (August 12, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2241315

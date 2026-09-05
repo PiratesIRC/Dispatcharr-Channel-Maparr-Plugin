@@ -1,4 +1,82 @@
-# Channel Maparr — Changelog
+# Channel Maparr Changelog
+
+## v1.26.2481147 (September 5, 2026)
+
+**Housekeeping for the CSV exports, and a pass over everything this plugin puts in front of you.**
+Nothing here changes which channel matches which name.
+
+### Delete CSV exports after a number of days
+
+A new setting, **Delete CSV Exports Older Than (Days)**, defaults to `0`, which keeps every file.
+Set it to a positive number and this plugin's own exports older than that are deleted immediately
+after each new export is written, rather than on a schedule, so the directory stays bounded whenever
+files are being written and nothing is removed on a day you do not run the plugin.
+
+`/data/exports` is shared with several other plugins. Only files named `channel_mapparr_*.csv` are
+ever considered, matched on both the name and the extension. The file just written is never deleted,
+and at least one of this plugin's files always survives, so a small number cannot empty the
+directory. A value that cannot be read as a number deletes nothing and says so in the container log,
+rather than silently behaving like the default. **Clear CSV Exports still deletes all of them**,
+whatever this setting says.
+
+### The settings form is divided into sections
+
+Six headings now group the settings: Matching and Scope, Import M3U Streams, Create Channels From
+Streams, Names Tags and Logos, Run Behaviour and Housekeeping, and Emailed Reports. Each says what
+its section governs and one thing the field labels do not.
+
+**Norway is now offered.** A Norwegian channel database has shipped for some time and the setting
+listed only eleven country codes, so nobody had reason to type `NO`.
+
+**Delete CSV Exports Older Than (Days) sits with Dry Run Mode and Rate Limiting**, not among the
+Create Channels From Streams settings where it first landed. Its identifier is unchanged, so a saved
+value is unaffected.
+
+### Button colours mean one thing
+
+Colour now tracks what pressing a button can do to your channels:
+
+- **Red**, and a confirmation dialog: replaces a value on channels that already exist, and this
+  plugin cannot put the old value back. Rename Channels and Organize by Category.
+- **Orange**: writes data or clears state, but replaces nothing.
+- **Green**: runs an operation that writes no channel data.
+- **Cyan**: sends something outward.
+- **Blue**: reads and reports.
+
+Previously Clear CSV Exports was the only red button, and it deletes no channel data at all, while
+Rename Channels was green and Create Channels From Streams was blue. The user guide has a section
+explaining the scheme.
+
+Nothing this plugin does deletes a channel or a stream. The two logo actions select only channels
+with no logo set, so neither can overwrite artwork you chose; that is why they are orange.
+
+### The top of every CSV export
+
+The commented preamble that opens each export now says what the file is, tells you to skip the
+commented lines on import, and states what the run did before it lists the settings it used.
+
+**Six settings were printed under names the settings page stopped using in v1.26.1001200.** The
+preamble carried its own copy of the labels, written for v0.5.0 and never updated, so it named, for
+example, "Suffix for Unknown Channels" for a setting the page calls "Unknown Channel Suffix". The
+labels are now read from the settings themselves and cannot drift again.
+
+Also corrected in the preamble: a setting that is off now reads `No` rather than `(not set)`, which
+read as though it had never been configured; ten settings that were missing entirely are recorded,
+including Match by Market When No Callsign; a choice is shown as the page words it rather than as
+the value stored behind it; and the match sensitivity line says which direction is stricter.
+
+### Show Status
+
+Four of the five operations that report progress had no readable name and displayed their internal
+identifier, so a run of Apply Per-Channel Logos reported itself as `apply_tv_logos`. All five are
+named now. The message shown before anything has run also named a button that does not exist.
+
+### Corrections to the documentation
+
+The user guide named three settings by labels the settings page retired in v1.26.1001200. The
+README and the user guide both said the bundled broadcast station table holds 1,915 stations; it has
+held 6,839 since v1.26.2221915. Organize by Category described itself as running in the background,
+which it has never done.
 
 ## v1.26.2291823 (August 17, 2026)
 

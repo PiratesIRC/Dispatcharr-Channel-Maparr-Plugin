@@ -1,5 +1,5 @@
 # Channel Mapparr
-A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel names using network data and curated channel lists. It supports multiple country databases and offers advanced organization features. 
+A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel names using network data and curated channel lists. It reads twelve country databases and can also organise channels into groups, import M3U streams and create channels from streams. 
 
 > [!TIP]
 > **New to Dispatcharr plugins?** Start with the **[Dispatcharr Plugin Workflow guide](https://piratesirc.github.io/Dispatcharr-Plugin-Workflow/)**.
@@ -19,10 +19,10 @@ A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel
 ![Last Commit](https://img.shields.io/github/last-commit/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin)
 ![License](https://img.shields.io/github/license/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin)
 
-## Features
+## What it does
 
 **Naming**
-* **Broadcast (OTA) station matching** for United States local affiliates, by callsign, against a bundled 1,915-station table published by the Federal Communications Commission. `ABC 5 (WEWS) CLEVELAND HD` becomes `ABC - OH Cleveland (WEWS)`. Subchannels resolve to their own network, and callsigns that are also ordinary English words are handled without false positives.
+* **Broadcast (OTA) station matching** for United States local affiliates, by callsign, against a bundled 6,839-station table built from the Federal Communications Commission licensing database. `ABC 5 (WEWS) CLEVELAND HD` becomes `ABC - OH Cleveland (WEWS)`. Subchannels resolve to their own network, and callsigns that are also ordinary English words are handled without false positives.
 * **Customizable name format** using `{NETWORK}`, `{STATE}`, `{CITY}` and `{CALLSIGN}`.
 * **Curated channel databases** for 12 countries, about 42,900 channels: AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, UK, US.
 * **Suffix for unmatched channels**, so what did not match is easy to find later.
@@ -44,7 +44,7 @@ A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel
 **Seeing what happened**
 * **Dry Run Mode**: every mutating action writes a CSV of what it would have done, and changes nothing.
 * **Show Status**: live progress and estimated time for the running or most recent operation.
-* **Emailed reports**: optionally email each run as an HTML page and/or a CSV, delivered by the [Newsflasharr](https://github.com/PiratesIRC/Dispatcharr-Newsflasharr-Plugin) plugin. Off by default. **The emailed report never contains your M3U source names**, which the CSV exports do carry in their settings header, and channel names are additionally scrubbed of M3U account names and IP addresses. The HTML page opens as an index with its table in a collapsed section, and sorts by clicking a column heading. Newsflasharr's own Show Status action shows how many reports this plugin has built.
+* **Emailed reports**: optionally email each run as an HTML page and/or a CSV, delivered by the [Newsflasharr](https://github.com/PiratesIRC/Dispatcharr-Newsflasharr-Plugin) plugin. Off by default. **The emailed report never contains your M3U source names**, which the CSV exports do carry in their settings header, and channel names are also scrubbed of M3U account names and IP addresses. The HTML page opens as an index with its table in a collapsed section, and sorts by clicking a column heading. Newsflasharr's own Show Status action shows how many reports this plugin has built.
 
 See the **[user guide](docs/USER-GUIDE.md)** for how to use these, and for every setting.
 
@@ -97,7 +97,7 @@ curated per-country channel lists and a table of United States broadcast station
 published by the Federal Communications Commission.
 
 The plugin never contacts a media provider. It never opens, fetches, decodes, records, restreams
-or redistributes any stream. It reads stream *names* in order to match them, and never the streams
+or redistributes any stream. It reads stream *names* to match them, and never the streams
 themselves. The only outbound connection it makes is to GitHub, and only when you run **Apply
 Per-Channel Logos**, which fetches a public list of logo filenames. Emailed reports, if you enable
 them, are handed to the Newsflasharr plugin, which sends them to destinations **you** configured.

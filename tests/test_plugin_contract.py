@@ -150,8 +150,24 @@ def test_plugin_py_is_bmp_only(plugin_source):
     assert not offenders, [hex(ord(c)) for c in offenders]
 
 
-def test_ignore_groups_is_recorded_in_csv_headers(plugin_source):
-    assert "'ignore_groups': 'Channel Groups to Ignore'" in plugin_source
+def test_ignore_groups_is_recorded_in_csv_headers(plugin_module):
+    """Which groups a run refused to touch must be on the face of the export.
+
+    This used to assert on a literal entry in a hand-written label map inside
+    _generate_csv_settings_header. That map was removed on 2026-09-05, because
+    six of its labels no longer matched the settings form; the preamble now
+    reads its labels from the plugin's own field declarations. The intent is
+    unchanged, so this asserts it against the rendered preamble instead of
+    against the source, which also makes it true of the value and not only of
+    the label.
+    """
+    inst = plugin_module.Plugin.__new__(plugin_module.Plugin)
+    inst.version = "test"
+    label = next(f["label"] for f in inst.fields if f.get("id") == "ignore_groups")
+    header = inst._generate_csv_settings_header(
+        {"ignore_groups": "Graveyard, Slow"},
+        "Rename Channels preview", [("Channels to rename", 1)])
+    assert f"# {label}: Graveyard, Slow" in header, header
 
 
 def test_no_update_check_remains(plugin_source):

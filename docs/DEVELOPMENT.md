@@ -1,6 +1,6 @@
 # Development Guide
 
-How to work on Channel Maparr locally — setup, testing, the automation that
+How to work on Channel Maparr locally: setup, testing, the automation that
 guards the codebase, and how to cut a release. For *what the plugin does* and its
 architecture, see the [README](../README.md) and the [user guide](USER-GUIDE.md);
 for ORM patterns, see [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md).
@@ -13,7 +13,7 @@ HTTP server, no way to execute the plugin end-to-end on a dev machine.
 
 - Imports like `from apps.channels.models import ...`, `from django.db import ...`,
   and `from core.utils import ...` resolve **only** inside the Dispatcharr runtime.
-  They will not import locally — that is expected, not a bug to fix.
+  They will not import locally, which is expected rather than a bug to fix.
 - All data access is the Django ORM, never HTTP. Do not reintroduce
   `urllib`/REST calls for data access (see [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)).
 - The shippable plugin is the `Channel-Maparr/` subdirectory only. The repo root
@@ -25,14 +25,14 @@ HTTP server, no way to execute the plugin end-to-end on a dev machine.
 ## Prerequisites
 
 - **Python 3.11+** (CI runs 3.11 and 3.12).
-- **Node.js** — only for the OpenWolf `.wolf/hooks/*` and the optional context7 MCP.
-- **`gh` CLI** (authenticated) — for releases and PR work.
+- **Node.js**, only for the OpenWolf `.wolf/hooks/*` and the optional context7 MCP.
+- **`gh` CLI** (authenticated), for releases and pull request work.
 
 ```
 pip install -r requirements-dev.txt
 ```
 
-`requirements-dev.txt` is dev/CI only — the shipped plugin installs nothing of its
+`requirements-dev.txt` is for development and continuous integration only. The shipped plugin installs nothing of its
 own; it uses whatever is in Dispatcharr's environment. `rapidfuzz` is included to
 mirror production's preferred fuzzy backend, but the matcher also works without it
 (falls back to `thefuzz`, then a built-in Levenshtein).
@@ -81,7 +81,7 @@ without looking.
 Guiding principle for matching changes (cerebrum, 2026-05-23): **"None is better
 than wrong."** A confident-but-wrong match silently routes a stream to the wrong
 channel; returning `None` makes the miss visible so the user can map it manually.
-Test accuracy changes — do not trust them by inspection. There is also an older
+Test accuracy changes rather than trusting them by inspection. There is also an older
 standalone harness at `.wolf/test_matching.py` (`python .wolf/test_matching.py`).
 
 CI runs the suite plus a `py_compile` check on every push and PR
@@ -90,34 +90,34 @@ CI runs the suite plus a `py_compile` check on every push and PR
 ## Automation that guards edits
 
 - **PostToolUse `py_compile` hook** (`scripts/hook_py_compile.py`, wired in
-  `.claude/settings.json`) — after any `.py` edit, the file is byte-compiled and a
+  `.claude/settings.json`): after any `.py` edit, the file is byte-compiled and a
   `SyntaxError` is surfaced immediately. Fails safe: non-Python edits and unexpected
   conditions are silent no-ops.
-- **OpenWolf hooks** (`.wolf/hooks/*`) — session/context bookkeeping. See
+- **OpenWolf hooks** (`.wolf/hooks/*`) do session and context bookkeeping. See
   `.wolf/OPENWOLF.md`. After significant changes, update `.wolf/anatomy.md` (file
   map), append to `.wolf/memory.md`, and log bugs to `.wolf/buglog.json`.
 
 ## Editing the channel databases
 
 `Channel-Maparr/<CC>_channels.json` (US, UK, CA, AU, BR, DE, ES, FR, MX, NL, IN, NO) are
-the curated match databases — each a `{country_code, country_name, version, channels[]}`
+the curated match databases, each a `{country_code, country_name, version, channels[]}`
 object where every channel is `{channel_name, category, type}`.
 
 - Duplicate channel **names** across categories are allowed (a channel can appear
-  under more than one category). **Byte-identical rows are not** — they bloat the
+  under more than one category). **Byte-identical rows are not.** They bloat the
   candidate index and are rejected by `test_no_identical_duplicate_rows`.
 - Keep data **BMP-only** (no characters above U+FFFF).
 - Aliases live in `Channel-Maparr/aliases.py` (`canonical_name → [stream variants]`).
   Add an alias whenever a canonical DB name has a parenthesized abbreviation that
   normalization strips (e.g. `Réseau des Sports (RDS) HD` ← `RDS`). Entries whose
-  key matches no DB name are simply unused — harmless.
+  key matches no database name are simply unused, which is harmless.
 - `scripts/build_networks_json.py` rebuilds `Channel-Maparr/networks.json` from the FACILITY table of an
   FCC Licensing and Management System dump that the operator downloads by hand. Read its docstring before
   running it: the selection rules exist because of specific defects measured in the FCC data, and the
   removed list must be read before accepting a rebuild.
 - `Channel-Maparr/networks.json` is a **separate** US-only FCC station table
   (`callsign → network_affiliation / community_served_city / community_served_state`,
-  1,915 rows) — the *only* source of OTA/broadcast matches (the `*_channels.json`
+  6,839 rows) and the *only* source of over-the-air broadcast matches (the `*_channels.json`
   files have no callsign/broadcast entries). Loaded by
   `FuzzyMatcher._load_broadcast_stations()` when US is selected. Editing it is how
   OTA callsign coverage is tuned; absent it, `ota_attempted` stays 0.
@@ -127,16 +127,16 @@ object where every channel is `{channel_name, category, type}`.
 Use the `/release` skill (`.claude/skills/release/SKILL.md`) for the guided flow,
 or run the steps manually:
 
-1. `python -m pytest` — must be green.
-2. `python scripts/bump_version.py` — bumps `Major.YY.DDDHHMM` in **both**
+1. `python -m pytest` must be green.
+2. `python scripts/bump_version.py` bumps `Major.YY.DDDHHMM` in **both**
    `Channel-Maparr/plugin.json` and the `PLUGIN_VERSION` constant in `plugin.py`
    (they must never drift; the Python class is the runtime source of truth).
    Use `--dry-run` to preview, `--set X.Y.Z` for an explicit version.
 3. Add a `docs/CHANGELOG.md` entry (newest first, matching the existing format).
-4. `python scripts/package_plugin.py` — builds `Channel-Maparr.zip` (cross-platform
+4. `python scripts/package_plugin.py` builds `Channel-Maparr.zip` (cross-platform
    replacement for `zip.cmd`). Pre-flight compiles every `.py` and asserts
    `plugin.json` is BMP-only; a failure refuses to package. Then run
-   **`python scripts/validate_zip.py Channel-Maparr.zip`** — it must print OK. This
+   **`python scripts/validate_zip.py Channel-Maparr.zip`** must print OK. This
    guards bug-087: a zip with backslash path separators (as PowerShell
    `Compress-Archive` / .NET Framework `ZipFile.CreateFromDirectory` produce) fails
    install on Dispatcharr's Linux host with "missing plugin.py or package

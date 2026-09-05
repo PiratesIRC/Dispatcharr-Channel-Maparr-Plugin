@@ -83,7 +83,7 @@ def _format_capped_name_list(names, limit=_MAX_NAMES_IN_MESSAGE):
 class PluginConfig:
     """Configuration constants for Channel Maparr."""
 
-    PLUGIN_VERSION = "1.26.2291823"
+    PLUGIN_VERSION = "1.26.2481147"
 
     # Channel Database Settings
     DEFAULT_CHANNEL_DATABASES = "US"
@@ -105,6 +105,19 @@ class PluginConfig:
     # File Paths
     RESULTS_FILE = "/data/channel_mapparr_loaded_channels.json"
     EXPORT_DIR = "/data/exports"
+
+    # The export directory is SHARED with at least five other plugins. Measured
+    # on the live installation: 65 stream_mapparr_ files, 26 epg_janitor_, 14
+    # event_channel_managarr_, 10 lineuparr_ and 5 iptv_checker_results_
+    # alongside our own. Every routine that deletes from it selects on BOTH of
+    # these, so that matching on the .csv suffix alone cannot destroy another
+    # project's data.
+    CSV_EXPORT_PREFIX = "channel_mapparr_"
+    CSV_EXPORT_SUFFIX = ".csv"
+    SECONDS_PER_DAY = 86400
+    # Zero keeps every file, so an installation that never asked for age-based
+    # deletion loses nothing by upgrading.
+    DEFAULT_CSV_RETENTION_DAYS = 0
 
     # Emailed reports, delivered by the Newsflasharr plugin.
     # The master toggle is OFF by default on purpose: a released plugin must not
@@ -280,12 +293,31 @@ class Plugin:
         # Build the fields list dynamically
         return [
             {
+                "id": "_section_matching",
+                "label": "Matching and Scope",
+                "type": "info",
+                "description": (
+                    "Which channel databases a run matches against, how close a name "
+                    "has to be before it counts as a match, and which channel groups "
+                    "are in scope. The two group settings are not opposites: Channel "
+                    "Groups to Process narrows a run to the groups you name, while "
+                    "Channel Groups to Ignore is a refusal that every action obeys, "
+                    "including the ones that only replay a saved results file. A name "
+                    "in Channel Groups to Ignore that matches no group refuses most "
+                    "actions rather than being skipped, because a typo there would "
+                    "otherwise quietly widen the run to everything. The actions that "
+                    "replay a saved results file cannot refuse, because they never ask "
+                    "the database which groups exist; they filter on the group name "
+                    "stored in that file."
+                ),
+            },
+            {
                 "id": "channel_databases",
                 "label": "Channel Databases",
                 "type": "string",
                 "default": PluginConfig.DEFAULT_CHANNEL_DATABASES,
                 "placeholder": "US, UK, CA, AU",
-                "help_text": "Comma-separated country codes. Available: AU, BR, CA, DE, ES, FR, IN, MX, NL, UK, US",
+                "help_text": "Comma-separated country codes deciding which channel databases are loaded. Available: AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, UK, US. The same codes choose which tv-logos directories the per-channel logo action searches, so a country left out here is left out of both.",
             },
             {
                 "id": "match_sensitivity",
@@ -293,12 +325,18 @@ class Plugin:
                 "type": "select",
                 "default": "normal",
                 "options": [
-                    {"value": "relaxed", "label": "Relaxed \u2014 more matches, more false positives"},
-                    {"value": "normal", "label": "Normal \u2014 balanced"},
-                    {"value": "strict", "label": "Strict \u2014 fewer matches, high confidence"},
-                    {"value": "exact", "label": "Exact \u2014 near-exact matches only"},
+                    {"value": "relaxed",
+                     "label": "Relaxed (70 of 100), more matches and more mistakes"},
+                    {"value": "normal", "label": "Normal (80 of 100), balanced"},
+                    {"value": "strict",
+                     "label": "Strict (90 of 100), fewer matches and higher confidence"},
+                    {"value": "exact",
+                     "label": "Exact (95 of 100), near-exact matches only"},
                 ],
-                "help_text": "How closely stream names must match channel names. Lower = more matches but more errors.",
+                "help_text": "How close a name has to be before it counts as a match, "
+                             "scored out of 100. A lower threshold finds more matches "
+                             "and makes more mistakes. The threshold each choice uses "
+                             "is recorded at the top of every CSV export.",
             },
             {
                 "id": "selected_groups",
@@ -306,7 +344,7 @@ class Plugin:
                 "type": "string",
                 "default": "",
                 "placeholder": "Locals, News, Entertainment",
-                "help_text": "Comma-separated. Limits rename/logo actions to these groups. Leave empty for all. Use 'Channel Groups to Ignore' to exclude instead.",
+                "help_text": "Comma-separated channel group names. Limits renaming, tagging and logo actions to these groups. Leave empty to process every group. This setting includes; Channel Groups to Ignore excludes, and an exclusion wins.",
             },
             {
                 "id": "ignore_groups",
@@ -332,7 +370,21 @@ class Plugin:
                 "type": "string",
                 "default": "",
                 "placeholder": "Locals, News, Entertainment",
-                "help_text": "Source groups for category-based reorganization. Leave empty for all. Use 'Channel Groups to Ignore' to exclude instead.",
+                "help_text": "Comma-separated group names that Organize by Category is allowed to move channels into or create. Leave empty to use the categories named in the channel database files. A group listed in Channel Groups to Ignore is skipped and the run continues.",
+            },
+            {
+                "id": "_section_m3u_import",
+                "label": "Import M3U Streams",
+                "type": "info",
+                "description": (
+                    "The four settings Import M3U Streams uses to decide which "
+                    "provider streams to bring in and where to put them. That action "
+                    "creates one channel per STREAM, so a provider serving the same "
+                    "station once per M3U account produces one channel per account "
+                    "rather than one channel with several streams attached. Create "
+                    "Channels From Streams, in the next section, is the one that "
+                    "makes a single channel per station."
+                ),
             },
             {
                 "id": "m3u_sources",
@@ -340,7 +392,7 @@ class Plugin:
                 "type": "select",
                 "default": "_all",
                 "options": m3u_source_options,
-                "help_text": "Filter streams to a specific M3U source.",
+                "help_text": "Which M3U account the import reads streams from. All sources reads every one. The list is built from Dispatcharr M3U Accounts when the settings page loads, so an account added since you opened this page will not appear until you reload it.",
             },
             {
                 "id": "m3u_group_filter",
@@ -348,7 +400,7 @@ class Plugin:
                 "type": "string",
                 "default": "",
                 "placeholder": "USA Premium, Sports, Movies",
-                "help_text": "Comma-separated. Only process streams from these M3U groups (pre-match filter).",
+                "help_text": "Comma-separated M3U group titles to import from. This filter is applied BEFORE matching, so a stream in a group not listed here is never looked at. Leave empty to read every group.",
             },
             {
                 "id": "m3u_category_filter",
@@ -356,7 +408,7 @@ class Plugin:
                 "type": "string",
                 "default": "",
                 "placeholder": "Broadcast, Sports, News",
-                "help_text": "Comma-separated. Only import matched streams with these database categories (post-match filter).",
+                "help_text": "Comma-separated category names from the channel database. This filter is applied AFTER matching, so a stream is matched first and then kept only if its category is listed. Leave empty to keep every category.",
             },
             {
                 "id": "m3u_custom_group_name",
@@ -364,7 +416,21 @@ class Plugin:
                 "type": "string",
                 "default": "",
                 "placeholder": "My Custom Group",
-                "help_text": "Place all imports into this single group instead of auto-organizing by category.",
+                "help_text": "Put every imported channel in this one group instead of sorting them into groups by category. Leave empty to name the groups after the category each channel matched.",
+            },
+            {
+                "id": "_section_create_channels",
+                "label": "Create Channels From Streams",
+                "type": "info",
+                "description": (
+                    "The settings for the action that creates one channel per "
+                    "broadcast station, for streams no channel is using yet. It "
+                    "attaches no streams: it creates the channels and stops, leaving "
+                    "the stream assignment to another tool or to hand. Networks to "
+                    "Skip reads what a station IS rather than every network its "
+                    "record mentions, so a CBS station carrying a second network on a "
+                    "subchannel is still treated as a CBS station and is not skipped."
+                ),
             },
             {
                 "id": "seed_source_groups",
@@ -420,12 +486,26 @@ class Plugin:
                 ),
             },
             {
+                "id": "_section_naming",
+                "label": "Names, Tags and Logos",
+                "type": "info",
+                "description": (
+                    "How a matched channel is named, what marks one that did not "
+                    "match, and which logo it gets. Match by Market When No Callsign "
+                    "is off by default and changes nothing for a channel whose name "
+                    "already prints a callsign; it only affects names that state a "
+                    "market and a channel number instead, and it accepts a station "
+                    "only when exactly one fits. Ignored Tags are stripped before "
+                    "matching rather than from the channel name itself."
+                ),
+            },
+            {
                 "id": "ota_format",
                 "label": "OTA Name Format",
                 "type": "string",
                 "default": PluginConfig.DEFAULT_OTA_FORMAT,
                 "placeholder": PluginConfig.DEFAULT_OTA_FORMAT,
-                "help_text": "Tags: {NETWORK}, {STATE}, {CITY}, {CALLSIGN}. Channels missing fields are skipped.",
+                "help_text": "Template for the name given to a matched broadcast channel. The placeholders are {NETWORK}, {STATE}, {CITY} and {CALLSIGN}, and the default produces a name such as ABC - NY New York (WABC-TV). A channel whose station record is missing one of the placeholders you use is left alone rather than renamed with a gap.",
             },
             {
                 "id": "ota_market_fallback",
@@ -445,7 +525,7 @@ class Plugin:
                 "type": "string",
                 "default": PluginConfig.DEFAULT_UNKNOWN_SUFFIX,
                 "placeholder": PluginConfig.DEFAULT_UNKNOWN_SUFFIX,
-                "help_text": "Appended to channels that cannot be matched. Leave empty to skip.",
+                "help_text": "Text appended by Tag Unknown Channels to a channel the matcher could not identify. Include the leading space if you want one, as the default does. Leave empty to tag nothing.",
             },
             {
                 "id": "ignored_tags",
@@ -453,7 +533,7 @@ class Plugin:
                 "type": "string",
                 "default": PluginConfig.DEFAULT_IGNORED_TAGS,
                 "placeholder": PluginConfig.DEFAULT_IGNORED_TAGS,
-                "help_text": "Comma-separated tags to strip before matching. e.g. [HD], (H), [4K]",
+                "help_text": "Comma-separated tags removed from a name before it is matched, which leaves the channel name itself untouched. Write a tag in brackets or parentheses, such as [HD] or (PRIME), to match it literally; a bare word is matched on word boundaries.",
             },
             {
                 "id": "default_logo",
@@ -461,14 +541,28 @@ class Plugin:
                 "type": "string",
                 "default": "",
                 "placeholder": "abc-logo-2013-garnet-us",
-                "help_text": "Logo display name from Dispatcharr's Logos page. Leave empty to skip.",
+                "help_text": "The display name of a logo on the Dispatcharr Logos page, matched without regard to case. Apply Default Logo gives it to every channel in scope that has no logo yet. For a different logo per channel, use Apply Per-Channel Logos instead. Leave empty to skip.",
+            },
+            {
+                "id": "_section_run_behaviour",
+                "label": "Run Behaviour and Housekeeping",
+                "type": "info",
+                "description": (
+                    "Settings that apply to any action rather than to one of them: "
+                    "whether a run only previews its changes, how hard it works the "
+                    "database while it runs, and how long its CSV exports are kept. "
+                    "Dry Run Mode is what produces the preview CSV files; with it off "
+                    "the same actions write to your channels. Old exports are deleted "
+                    "only at the moment a new one is written, so nothing is removed on "
+                    "a day you do not run the plugin."
+                ),
             },
             {
                 "id": "dry_run_mode",
                 "label": "Dry Run Mode",
                 "type": "boolean",
                 "default": False,
-                "help_text": "Preview changes without modifying anything. Actions export CSV reports instead.",
+                "help_text": "With this on, no action writes to the database. Rename Channels, Organize by Category, Import M3U Streams and Create Channels From Streams write a CSV preview to /data/exports. Tag Unknown Channels, Apply Default Logo and Apply Per-Channel Logos (tv-logos) report a count of what they would have done and write no file. Worth turning on the first time you run any of them with new settings.",
             },
             {
                 "id": "rate_limiting",
@@ -476,12 +570,45 @@ class Plugin:
                 "type": "select",
                 "default": "none",
                 "options": [
-                    {"value": "none", "label": "None \u2014 fastest"},
-                    {"value": "low", "label": "Low \u2014 slight delay"},
-                    {"value": "medium", "label": "Medium \u2014 moderate delay"},
-                    {"value": "high", "label": "High \u2014 gentlest on database"},
+                    {"value": "none", "label": "None, fastest"},
+                    {"value": "low", "label": "Low, slight delay"},
+                    {"value": "medium", "label": "Medium, moderate delay"},
+                    {"value": "high", "label": "High, gentlest on the database"},
                 ],
-                "help_text": "Delay between DB writes during large imports to reduce server load.",
+                "help_text": "How long to pause between database writes during a large "
+                             "import, to leave Dispatcharr responsive while one runs. It "
+                             "makes a run slower and changes nothing about the result.",
+            },
+            {
+                "id": "csv_retention_days",
+                "label": "Delete CSV Exports Older Than (Days)",
+                "type": "number",
+                "default": PluginConfig.DEFAULT_CSV_RETENTION_DAYS,
+                "help_text": (
+                    "Housekeeping for the CSV files this plugin writes to "
+                    "/data/exports. After each export, this plugin's own exports "
+                    "older than this many days are deleted. 0 keeps every file, "
+                    "which is the default, so nothing is removed unless you ask "
+                    "for it. The file just written is never deleted, and at least "
+                    "one file always survives. Only files named "
+                    "channel_mapparr_*.csv are touched, because that directory is "
+                    "shared with other plugins. Clear CSV Exports still deletes "
+                    "all of them regardless of this setting."
+                ),
+            },
+            {
+                "id": "_section_notifications",
+                "label": "Emailed Reports",
+                "type": "info",
+                "description": (
+                    "Whether this plugin hands a report to the Newsflasharr plugin, "
+                    "after which runs, and in which format. Nothing is sent unless "
+                    "Newsflasharr is installed and carries a routing rule matching "
+                    "this plugin and its usage report event; without that rule the "
+                    "report is delivered as plain text with no attachment, because "
+                    "attachments are email only. This plugin has no scheduler, so a "
+                    "report is only ever produced by a run you start yourself."
+                ),
             },
             {
                 "id": "notify_enabled",
@@ -557,7 +684,7 @@ class Plugin:
             "description": "Apply standardized names to processed channels. Dry Run exports a CSV preview instead.",
             "button_label": "\u270f\ufe0f Rename",
             "button_variant": "filled",
-            "button_color": "green",
+            "button_color": "red",
             "confirm": {"message": "This will rename channels to the standardized format. This action is irreversible. Continue?"},
         },
         {
@@ -566,7 +693,7 @@ class Plugin:
             "description": "Append the configured suffix to unmatched OTA and premium channels.",
             "button_label": "\u2696 Tag Unknowns",
             "button_variant": "filled",
-            "button_color": "green",
+            "button_color": "orange",
             "confirm": {"message": "This will append the configured suffix to unmatched channels. Continue?"},
         },
         {
@@ -575,7 +702,7 @@ class Plugin:
             "description": "Assign the configured default logo to channels that don't have one.",
             "button_label": "\u2b50 Apply Default Logo",
             "button_variant": "filled",
-            "button_color": "green",
+            "button_color": "orange",
             "confirm": {"message": "This will apply the default logo to channels without a logo. Continue?"},
         },
         {
@@ -584,18 +711,17 @@ class Plugin:
             "description": "Fuzzy-match each channel name to the tv-logo/tv-logos GitHub repo and assign per-channel logos. Uses the country codes from Channel Databases. Channels with an existing logo are left alone.",
             "button_label": "\u2756 Apply Per-Channel Logos",
             "button_variant": "filled",
-            "button_color": "green",
+            "button_color": "orange",
             "confirm": {"message": "This will fetch tv-logos and assign per-channel logos to channels without one. Continue?"},
         },
         {
             "id": "organize_by_category",
             "label": "Organize by Category",
-            "description": "Move channels into category-based groups. Runs in background. Dry Run exports a CSV preview.",
+            "description": "Move channels into category-based groups. Runs in the web request, so a large run can take a while before the page answers. Dry Run exports a CSV preview.",
             "button_label": "\u2630 Organize",
             "button_variant": "filled",
-            "button_color": "green",
+            "button_color": "red",
             "confirm": {"message": "This will create new groups (if needed) and move channels to category-based groups. Continue?"},
-            "background": True,
         },
         {
             "id": "import_m3u_streams",
@@ -603,7 +729,7 @@ class Plugin:
             "description": "Create channels from M3U streams organized by category. Runs in background. Dry Run exports a CSV preview.",
             "button_label": "\u21e9 Import Streams",
             "button_variant": "filled",
-            "button_color": "violet",
+            "button_color": "orange",
             "confirm": {"message": "This will create new channels from M3U streams and organize them into groups. Duplicates get suffixes. Continue?"},
         },
         {
@@ -612,9 +738,8 @@ class Plugin:
             "description": "Create one channel per broadcast station for streams that are not attached to any channel yet. Unlike Import M3U Streams this creates one channel per station rather than one per stream, and it attaches no streams. Runs in background. Dry Run exports a CSV preview.",
             "button_label": "✚ Create Channels",
             "button_variant": "filled",
-            "button_color": "blue",
+            "button_color": "orange",
             "confirm": {"message": "This will create new channels in the target group. No streams are attached. Continue?"},
-            "background": True,
         },
         {
             "id": "plugin_status",
@@ -646,7 +771,7 @@ class Plugin:
             "description": "Delete all CSV export files created by this plugin.",
             "button_label": "\u2717 Clear CSVs",
             "button_variant": "outline",
-            "button_color": "red",
+            "button_color": "orange",
             "confirm": {"message": "Delete all Channel Mapparr CSV exports?"},
         },
     ]
@@ -708,42 +833,137 @@ class Plugin:
         logger.info(f"{PLUGIN_LOG_PREFIX} Match sensitivity: {sensitivity} (threshold: {threshold})")
         return threshold
 
-    def _generate_csv_settings_header(self, settings):
-        """Generate CSV header comments with plugin settings"""
-        # Map field IDs to their labels
-        field_labels = {
-            'channel_databases': 'Channel Databases',
-            'match_sensitivity': 'Match Sensitivity',
-            'selected_groups': 'Channel Groups to Process',
-            'ignore_groups': 'Channel Groups to Ignore',
-            'category_groups': 'Channel Groups for Category Organization',
-            'm3u_sources': 'M3U Sources',
-            'm3u_group_filter': 'M3U Group Filter',
-            'm3u_category_filter': 'Channel Database Category Filter',
-            'm3u_custom_group_name': 'Imported Channel Group Name',
-            'dry_run_mode': 'Dry Run Mode',
-            'ota_format': 'OTA Channel Name Format',
-            'unknown_suffix': 'Suffix for Unknown Channels',
-            'ignored_tags': 'Ignored Tags',
-            'default_logo': 'Default Logo'
-        }
+    @staticmethod
+    def has_no_logo(channel_row):
+        """True when a channel row carries no logo the operator chose.
 
-        header_lines = []
-        header_lines.append("# Channel Mapparr Plugin Settings")
-        header_lines.append(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        header_lines.append(f"# Plugin Version: {self.version}")
-        header_lines.append("#")
+        Dispatcharr stores the absence of a logo as None, as 0, or as the string
+        "0" depending on where the row came from, and 0 is the identifier of its
+        own Default logo rather than a real one.
 
-        # Add each setting
-        for field_id, label in field_labels.items():
-            value = settings.get(field_id, '')
-            if value:
-                header_lines.append(f"# {label}: {value}")
-            else:
-                header_lines.append(f"# {label}: (not set)")
+        This is the whole reason Apply Default Logo and Apply Per-Channel Logos
+        are not marked as destructive: both select ONLY rows this returns True
+        for, so neither can replace artwork somebody picked. It is a plain
+        function so that fact can be tested directly rather than by searching
+        this file for the two different spellings it used to have.
+        """
+        return channel_row.get("logo_id") in (None, 0, "0")
 
-        header_lines.append("#")
-        return '\n'.join(header_lines) + '\n'
+    @staticmethod
+    def _yes_no(value):
+        """Render a stored boolean as Yes or No.
+
+        Dispatcharr stores some booleans as the strings "true" and "false", so a
+        plain truth test reports the string "false" as on. Anything that is not
+        recognisably true reads as No, because a boolean setting is either on or
+        off and there is no third state to report.
+        """
+        if isinstance(value, str):
+            return "Yes" if value.strip().lower() in ("true", "yes", "1") else "No"
+        return "Yes" if value else "No"
+
+    def _describe_setting(self, field, settings):
+        """One preamble line for one declared setting, or None to leave it out.
+
+        Reads the label from the field as the settings form declares it. The
+        label map this replaced was written in release 0.5.0 and the settings
+        were relabelled in release 1.26.1001200 without it, so six settings were
+        printed under names the form does not use. Deriving the label rather than
+        repeating it is what stops that happening again.
+        """
+        field_id = field.get("id") or ""
+        label = field.get("label") or field_id
+        if field.get("type") == "boolean":
+            return f"# {label}: {self._yes_no(settings.get(field_id))}"
+
+        stored = settings.get(field_id, "")
+        if stored == "" or stored is None:
+            return f"# {label}: (not set)"
+
+        # A choice is recorded as the form words it, because the stored value
+        # behind an option can be text that appears nowhere on the page: the M3U
+        # source line used to read "_all" where the operator had picked an
+        # option worded "All sources (no filter)".
+        value = next((option.get("label") or stored
+                      for option in field.get("options") or []
+                      if option.get("value") == stored), stored)
+
+        if field_id == "match_sensitivity":
+            # The option wording already carries the number. This adds the one
+            # thing a number alone does not say, which is which way is stricter.
+            return f"# {label}: {value}. A higher number is stricter."
+        if field_id == "csv_retention_days":
+            # Parsed by the same function the deletion itself uses, so the two
+            # cannot disagree about what the setting means.
+            days = self._retention_days(stored)
+            if days is not None and days <= 0:
+                return f"# {label}: {value} (keep every export)"
+            if days is not None:
+                return (f"# {label}: {value} (this file is deleted after "
+                        f"{days} day(s), once a later export runs)")
+        return f"# {label}: {value}"
+
+    def _generate_csv_settings_header(self, settings, title, summary):
+        """Build the commented preamble that opens every CSV this plugin writes.
+
+        ``title`` names the action that produced the file. ``summary`` is a list
+        of (label, value) pairs saying what the run did, printed ABOVE the
+        settings, because the result is what a reader wants first and the
+        configuration is what they want second.
+
+        Both are REQUIRED rather than defaulted. A preamble that can be built
+        without them is a preamble a new writer can silently leave silent, and
+        Python refusing the call is a better guard than a test that reads this
+        file looking for the keywords.
+
+        The whole preamble is plain ASCII on purpose: a spreadsheet opening a
+        CSV under a different codepage turns a non-ASCII character into
+        mojibake.
+        """
+        lines = [
+            f"# Report: Channel Mapparr, {title}",
+            f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"# Plugin Version: {self.version}",
+            "# Lines beginning with a hash are this preamble, not data. Tell your",
+            "# spreadsheet to skip them on import. The column headings are on the",
+            "# first line that does not begin with a hash.",
+            "#",
+        ]
+
+        if summary:
+            lines.append("# What this run did")
+            for label, value in summary:
+                lines.append(f"# {label}: {value}")
+            lines.append("#")
+
+        # The settings are read from the plugin's own field declarations, in the
+        # order the form shows them, so a relabelled setting cannot leave a stale
+        # name behind here. Reading `fields` costs one small M3UAccount query,
+        # which that property already guards, and an export happens a few times a
+        # run rather than on any hot path.
+        lines.append("# Settings used")
+        try:
+            declared = self.fields
+        except Exception:  # pragma: no cover - fields guards its own query
+            declared = []
+        # The settings under the Emailed Reports heading decide whether an email
+        # is sent, not what is in this file, so they are left out. Reading the
+        # heading rather than a "notify_" name prefix means a setting added
+        # there under any name is excluded, and a setting named notify_ that is
+        # moved elsewhere is not.
+        skipped_section = None
+        for field in declared:
+            if field.get("type") == "info":
+                skipped_section = field.get("id")
+                continue
+            if skipped_section == "_section_notifications":
+                continue
+            described = self._describe_setting(field, settings)
+            if described:
+                lines.append(described)
+
+        lines.append("#")
+        return "\n".join(lines) + "\n"
 
     # ========================================
     # EMAILED REPORTS (via the Newsflasharr plugin)
@@ -1830,6 +2050,11 @@ class Plugin:
             csv_filename = f"channel_mapparr_preview_{timestamp}.csv"
             csv_path = os.path.join(export_dir, csv_filename)
 
+            # Counted before the file is written so the preamble can open with
+            # what the run did. The same two counts are shown in the toast below.
+            renamed_count = sum(1 for c in all_changes if c.get('status') == 'Renamed')
+            skipped_count = sum(1 for c in all_changes if c.get('status') == 'Skipped')
+
             # Write CSV atomically (temp file + rename to prevent corrupt partial writes)
             tmp_path = None
             try:
@@ -1837,7 +2062,11 @@ class Plugin:
                                                  dir=export_dir, suffix='.csv', delete=False) as csvfile:
                     tmp_path = csvfile.name
                     # Write settings header as comments
-                    csvfile.write(self._generate_csv_settings_header(settings))
+                    csvfile.write(self._generate_csv_settings_header(
+                        settings,
+                        title="Rename Channels preview",
+                        summary=[("Channels to rename", renamed_count),
+                                 ("Channels skipped", skipped_count)]))
 
                     fieldnames = ['Channel ID', 'Channel Number', 'Group', 'Current Name', 'New Name', 'Status', 'Matcher', 'Match Method', 'Reason']
                     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -1860,16 +2089,13 @@ class Plugin:
                     if ignored_rows:
                         csvfile.write(
                             f"# Excluded by ignore: {len(ignored_rows)} row(s)\n")
-                os.replace(tmp_path, csv_path)
+                self._finish_csv_export(tmp_path, csv_path, settings)
             except Exception:
                 if tmp_path and os.path.exists(tmp_path):
                     os.unlink(tmp_path)
                 raise
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Preview CSV exported to {csv_path}")
-
-            renamed_count = sum(1 for c in all_changes if c.get('status') == 'Renamed')
-            skipped_count = sum(1 for c in all_changes if c.get('status') == 'Skipped')
 
             preview_message = f"✓ Preview exported to: {csv_filename}\n\n{renamed_count} channels will be renamed, {skipped_count} will be skipped."
             if ignored_rows:
@@ -2099,12 +2325,8 @@ class Plugin:
             )
 
             # Filter channels without logos or with "Default" logo (ID 0)
-            channels_without_logos = []
-            for ch in all_channels:
-                channel_logo_id = ch.get('logo_id')
-                # Check if no logo, empty logo, or logo ID is 0/None (Default)
-                if channel_logo_id is None or channel_logo_id == 0 or channel_logo_id == '0':
-                    channels_without_logos.append(ch)
+            channels_without_logos = [ch for ch in all_channels
+                                      if self.has_no_logo(ch)]
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Found {len(channels_without_logos)} channels without logos (or with Default logo)")
 
@@ -2163,10 +2385,8 @@ class Plugin:
                 group_ids=scope.group_ids,
                 include_ungrouped=scope.include_ungrouped,
             )
-            channels_without_logos = [
-                ch for ch in all_channels
-                if ch.get('logo_id') in (None, 0, '0')
-            ]
+            channels_without_logos = [ch for ch in all_channels
+                                      if self.has_no_logo(ch)]
             if not channels_without_logos:
                 return {"status": "success", "message": "All targeted channels already have logos."}
 
@@ -2446,7 +2666,10 @@ class Plugin:
                                                  delete=False) as csvfile:
                     tmp_path = csvfile.name
                     # Write settings header as comments
-                    csvfile.write(self._generate_csv_settings_header(settings))
+                    csvfile.write(self._generate_csv_settings_header(
+                        settings,
+                        title="Organize by Category preview",
+                        summary=[("Channels to move", len(moves))]))
                     # `scope` is already resolved above in this same function, so
                     # this is not a re-parse: record what the ignore/include
                     # filters actually MATCHED, not just the raw setting text
@@ -2468,7 +2691,7 @@ class Plugin:
                             'Match Value': move['match_value'],
                             'Group Exists': move['group_exists']
                         })
-                os.replace(tmp_path, csv_path)
+                self._finish_csv_export(tmp_path, csv_path, settings)
             except Exception:
                 if tmp_path and os.path.exists(tmp_path):
                     os.unlink(tmp_path)
@@ -3325,6 +3548,10 @@ class Plugin:
         csv_filename = f"channel_mapparr_m3u_import_preview_{timestamp}.csv"
         csv_path = os.path.join(export_dir, csv_filename)
 
+        # One row is written per matched stream and per unmatched stream, so
+        # these two counts are what the reader sees below.
+        matched_count = sum(len(v) for v in matched_by_category.values())
+
         # Write CSV atomically (temp file + rename to prevent corrupt partial writes)
         tmp_path = None
         try:
@@ -3332,7 +3559,12 @@ class Plugin:
                                              dir=export_dir, suffix='.csv', delete=False) as csvfile:
                 tmp_path = csvfile.name
                 # Write settings header
-                csvfile.write(self._generate_csv_settings_header(settings))
+                csvfile.write(self._generate_csv_settings_header(
+                    settings,
+                    title="Import M3U Streams preview",
+                    summary=[("Streams to import", matched_count),
+                             ("Streams with no match", len(unmatched_streams)),
+                             ("Channel groups involved", len(matched_by_category))]))
                 csvfile.write("#\n")
                 csvfile.write("# M3U Import Preview\n")
                 csvfile.write("#\n")
@@ -3394,7 +3626,7 @@ class Plugin:
                         'Will Import': 'No',
                         'Notes': unmatched['reason']
                     })
-            os.replace(tmp_path, csv_path)
+            self._finish_csv_export(tmp_path, csv_path, settings)
         except Exception:
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
@@ -4038,7 +4270,13 @@ class Plugin:
                                              dir=export_dir, suffix='.csv',
                                              delete=False) as csvfile:
                 tmp_path = csvfile.name
-                csvfile.write(self._generate_csv_settings_header(settings))
+                csvfile.write(self._generate_csv_settings_header(
+                    settings,
+                    title="Create Channels From Streams preview",
+                    summary=[("Channels to create", len(plan.create)),
+                             ("Skipped, name already used", len(plan.skip)),
+                             ("Skipped, network excluded", len(plan.excluded)),
+                             ("Streams left unresolved", len(plan.unresolved))]))
                 csvfile.write("#\n# Create Channels From Streams Preview\n#\n")
                 writer = csv.DictWriter(csvfile, fieldnames=[
                     'Action', 'Proposed Channel Name', 'Source Stream Names',
@@ -4057,7 +4295,7 @@ class Plugin:
                             'M3U Accounts': ' '.join(str(a) for a in sorted(
                                 {a for a in item.accounts if a is not None})),
                         })
-            os.replace(tmp_path, csv_path)
+            self._finish_csv_export(tmp_path, csv_path, settings)
             tmp_path = None
         finally:
             if tmp_path and os.path.exists(tmp_path):
@@ -4130,6 +4368,159 @@ class Plugin:
         message = build_status_message(progress)
         return {"status": "success", "message": message}
 
+    @staticmethod
+    def _retention_days(value):
+        """Read the retention setting as a whole number of days, or None.
+
+        Read through float first, then truncated. int("7.0") raises, so parsing
+        with int alone turned a value the operator had explicitly set into a
+        silent no-op that behaved exactly like the 0 which means keep
+        everything. Nothing in this plugin controls what Dispatcharr stores
+        behind a number field, so the parse has to be the tolerant one.
+
+        None means the value could not be read at all. The caller reports that;
+        it is not the same as a value of 0.
+        """
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _csv_exports_to_delete(entries, retention_days, now, protect=None):
+        """Which of this plugin's CSV exports are old enough to remove.
+
+        ``entries`` is a sequence of (filename, modification time) pairs,
+        normally the whole export directory. Returns the names to delete,
+        sorted. Pure: it touches no filesystem, which is where the tests live.
+
+        Nothing is deleted unless a positive number of days is configured, so an
+        installation that never asked for this keeps every file. The file just
+        written is never deleted. At least one of this plugin's files always
+        survives, so a small number cannot empty the directory.
+        """
+        days = Plugin._retention_days(retention_days)
+        if days is None or days <= 0:
+            return []
+
+        mine = []
+        for name, mtime in entries:
+            # BOTH tests are required. The directory is shared, so selecting on
+            # the suffix alone deletes other plugins' exports.
+            if not (name.startswith(PluginConfig.CSV_EXPORT_PREFIX)
+                    and name.endswith(PluginConfig.CSV_EXPORT_SUFFIX)):
+                continue
+            try:
+                stamp = float(mtime)
+            except (TypeError, ValueError):
+                continue
+            # A not-a-number timestamp must be dropped, not kept. Every
+            # comparison against it is false, so it would win the "which is
+            # newest" test below, become the survivor, and let every real file
+            # be deleted instead of one being kept.
+            if stamp != stamp:
+                continue
+            mine.append((name, stamp))
+        if not mine:
+            return []
+
+        # One of this plugin's files is guaranteed to survive. The file just
+        # written is the natural choice when it is present, otherwise the most
+        # recent one. The survivor is only ever chosen from our own files, so a
+        # newer file belonging to another plugin cannot license deleting all of
+        # ours.
+        survivor = protect if any(name == protect for name, _ in mine) else None
+        if survivor is None:
+            survivor = max(mine, key=lambda pair: (pair[1], pair[0]))[0]
+
+        # Strictly older: exactly N days old is not OLDER than N days.
+        cutoff = float(now) - days * PluginConfig.SECONDS_PER_DAY
+        return sorted(name for name, stamp in mine
+                      if stamp < cutoff and name != survivor)
+
+    def _prune_csv_exports(self, retention_days, protect=None):
+        """Delete this plugin's CSV exports older than ``retention_days``.
+
+        Returns how many were removed. NEVER raises: this runs immediately after
+        a successful export, and a failure to tidy up must not turn a successful
+        export into a reported error.
+        """
+        # Parsed once, here, and the result decides whether there is any work at
+        # all. A value that cannot be read behaves exactly like the 0 that means
+        # keep everything, so it has to say so; a blank value is the default and
+        # is not worth a log line every time an export is written.
+        days = self._retention_days(retention_days)
+        if days is None:
+            if str(retention_days).strip() not in ("", "None"):
+                LOGGER.warning(
+                    f"{PLUGIN_LOG_PREFIX} Delete CSV Exports Older Than (Days) is set "
+                    f"to {retention_days!r}, which is not a number. No exports were "
+                    f"deleted. Set it to a whole number of days, or 0 to keep every file."
+                )
+            return 0
+        if days <= 0:
+            # Nothing is ever deleted at 0, so the directory is not read at all.
+            # That directory is shared with five other plugins and holds well
+            # over a hundred files, and two of the four export paths run inside
+            # the web request.
+            return 0
+
+        directory = PluginConfig.EXPORT_DIR
+        try:
+            names = os.listdir(directory)
+        except OSError:
+            return 0
+
+        entries = []
+        for name in names:
+            # Filtered before asking the filesystem for an age. Only about one
+            # file in thirty in that directory is ours, so stat'ing every one of
+            # them is work thrown away. The same two tests are applied again
+            # inside _csv_exports_to_delete, which is the guard the tests
+            # exercise and the one that must not be removed.
+            if not (name.startswith(PluginConfig.CSV_EXPORT_PREFIX)
+                    and name.endswith(PluginConfig.CSV_EXPORT_SUFFIX)):
+                continue
+            try:
+                entries.append((name, os.path.getmtime(os.path.join(directory, name))))
+            except OSError:
+                # It vanished between listing the directory and asking its age,
+                # so there is nothing left to delete.
+                continue
+
+        removed = 0
+        for name in self._csv_exports_to_delete(entries, retention_days,
+                                                time.time(), protect):
+            try:
+                os.remove(os.path.join(directory, name))
+                removed += 1
+                LOGGER.info(f"{PLUGIN_LOG_PREFIX} Deleted CSV export older than "
+                            f"{retention_days} day(s): {name}")
+            except OSError as exc:
+                LOGGER.warning(f"{PLUGIN_LOG_PREFIX} Could not delete old CSV "
+                               f"export {name}: {exc}")
+        return removed
+
+    def _finish_csv_export(self, tmp_path, csv_path, settings):
+        """Publish a finished export, then delete this plugin's older ones.
+
+        Every CSV writer here renames its temporary file into place through this
+        one function, which is what makes the pruning unavoidable: a new writer
+        has to come through here to publish its file. Tidying happens at the
+        moment of writing rather than on a schedule, because files only
+        accumulate when one is written, so pruning here keeps the directory
+        bounded at all times and needs no second timer with its own election and
+        duplicate-fire handling.
+
+        The file just written is protected regardless of what the age
+        arithmetic says.
+        """
+        os.replace(tmp_path, csv_path)
+        self._prune_csv_exports(settings.get("csv_retention_days"),
+                                protect=os.path.basename(csv_path))
+
     def clear_csv_exports_action(self, settings, logger):
         """Delete all CSV export files created by this plugin"""
         try:
@@ -4145,7 +4536,13 @@ class Plugin:
             deleted_count = 0
 
             for filename in os.listdir(export_dir):
-                if filename.startswith("channel_mapparr_") and filename.endswith(".csv"):
+                # Same two tests the age-based deletion uses, from the same
+                # constants, so the two paths cannot drift apart on what counts
+                # as one of this plugin's files. This action deliberately
+                # ignores the age setting: someone pressing it expects
+                # everything of ours cleared.
+                if (filename.startswith(PluginConfig.CSV_EXPORT_PREFIX)
+                        and filename.endswith(PluginConfig.CSV_EXPORT_SUFFIX)):
                     filepath = os.path.join(export_dir, filename)
                     try:
                         os.remove(filepath)

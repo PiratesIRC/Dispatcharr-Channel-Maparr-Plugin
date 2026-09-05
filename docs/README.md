@@ -10,8 +10,8 @@ station names are built, what to do when a channel will not match, reading a
 report, where every file is written, and a troubleshooting section arranged by
 symptom. It also holds the complete settings and action reference.
 
-**[Changelog](CHANGELOG.md)** lists what changed in each version, described in
-terms of what you will notice rather than which functions moved.
+**[Changelog](CHANGELOG.md)** lists what changed in each version, described as what
+you will notice rather than as which functions moved.
 
 ## If you are working on Channel Mapparr itself
 

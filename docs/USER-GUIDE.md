@@ -21,6 +21,7 @@ could go back to being an introduction.
 
 - [Updating the plugin](#updating-the-plugin)
 - [Every setting](#settings-reference)
+- [What the button colours mean](#button-colours)
 - [Recommended action order](#recommended-action-order)
 - [How a name is matched](#match-pipeline)
 - [Performance](#performance)
@@ -105,10 +106,10 @@ which is the only way to confirm a wildcard matched what you expected.
 ## How broadcast station names are built
 
 For United States local affiliates, the plugin matches on the station callsign rather than on the
-channel name, using a bundled table of 1,915 stations.
+channel name, using a bundled table of 6,839 stations.
 
 Given a stream called `ABC 5 (WEWS) CLEVELAND HD`, it extracts `WEWS`, looks it up, and renders the
-name using your **OTA Channel Name Format**. The default format produces
+name using your **OTA Name Format**. The default format produces
 `ABC - OH Cleveland (WEWS)`.
 
 Available tags are `{NETWORK}`, `{STATE}`, `{CITY}` and `{CALLSIGN}`. A channel missing a field is
@@ -248,6 +249,8 @@ never deleted, because a delivery retry re-reads the attachment from disk.
 
 **Clear CSV Exports** deletes files from `/data/exports` only. It cannot reach the emailed reports.
 
+CSV exports are not pruned by count. They are pruned by age, and only if you set **Delete CSV Exports Older Than (Days)** to a positive number. That runs immediately after each export rather than on a schedule, so the directory stays bounded whenever files are being written.
+
 The report count is a count of report **builds**, where one build writes one HTML file and one CSV
 file. It is not a count of emails: with the format set to Both, one build sends two emails, so the
 number will be half the number of emails you received. A report that was built but whose email
@@ -331,29 +334,62 @@ docker restart dispatcharr
 
 | Setting | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
+| | | | |
+| **Matching and Scope** | *section* | | Which channel databases a run matches against, how close a name has to be before it counts as a match, and which channel groups are in scope. The two group settings are not opposites: Channel Groups to Process narrows a run to the groups you name, while Channel Groups to Ignore is a refusal that every action obeys, including the ones that only replay a saved results file. A name in Channel Groups to Ignore that matches no group stops the run rather than being skipped, because a typo there would otherwise quietly widen the run to everything. |
 | **Channel Databases** | `string` | `US` | Comma-separated country codes (AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, UK, US). |
 | **Match Sensitivity** | `select` | `normal` | Relaxed (70), Normal (80), Strict (90), Exact (95). |
 | **Channel Groups to Process** | `string` | - | Comma-separated group names for renaming operations. Empty = all groups. Use "Channel Groups to Ignore" to exclude instead. |
 | **Channel Groups to Ignore** | `string` | - | Comma-separated, supports `*` and `?` wildcards, case-insensitive. Channels in these groups are excluded from renaming, tagging, logos and Organize by Category, regardless of "Channel Groups to Process". Organize skips a target group that is ignored; Import M3U Streams refuses to run if its destination group is ignored. Does not apply to Import's stream matching or duplicate detection. A typo that matches no group refuses the run rather than silently processing everything. |
-| **Channel Groups for Category Organization** | `string` | - | Comma-separated group names for category sorting. Empty = all groups. |
+| **Category Organization Groups** | `string` | - | Comma-separated group names for category sorting. Empty = all groups. |
+| | | | |
+| **Import M3U Streams** | *section* | | The four settings Import M3U Streams uses to decide which provider streams to bring in and where to put them. That action creates one channel per STREAM, so a provider serving the same station once per M3U account produces one channel per account rather than one channel with several streams attached. Create Channels From Streams, in the next section, is the one that makes a single channel per station. |
 | **M3U Source** | `select` | `All sources` | Filter streams to a specific M3U account. |
 | **M3U Group Filter** | `string` | - | Pre-match filter by M3U group-title. |
 | **Category Filter** | `string` | - | Post-match filter by database category. |
 | **Custom Import Group Name** | `string` | - | Override category-based group naming for imports. |
-| **OTA Channel Name Format** | `string` | `{NETWORK} - {STATE} {CITY} ({CALLSIGN})` | Format template for broadcast channels. |
-| **Match by Market When No Callsign** | `boolean` | `false` | Off by default. Broadcast channels normally match on a callsign printed in the name. With this on, a name that states a market and a channel number instead, such as `ABC 9 HD [SYRACUSE]` or `FOX NET [ABILENE TX]`, is looked up by market: first among the stations licensed to that community, then, when none carries the network, among the stations of that state on that channel number. A station is accepted only when exactly one fits, so an ambiguous market such as `FOX 43 HD [HARRISBURG]`, where three states have a Harrisburg, is left alone rather than guessed at. A callsign printed in the name always wins. Names carrying `PLUS` or `XTRA` are left alone too, because those denote a sister station rather than the market's main one. |
+| | | | |
+| **Create Channels From Streams** | *section* | | The settings for the action that creates one channel per broadcast station, for streams no channel is using yet. It attaches no streams: it creates the channels and stops, leaving the stream assignment to another tool or to hand. Networks to Skip reads what a station IS rather than every network its record mentions, so a CBS station carrying a second network on a subchannel is still treated as a CBS station and is not skipped. |
 | **Stream Groups to Seed From** | `string` | - | Used by Create Channels From Streams. Comma-separated stream group names to scan. Only streams in these groups that are not attached to any channel are considered. Empty means the action does nothing. |
 | **Channel Group to Create In** | `string` | - | Used by Create Channels From Streams. The existing channel group new channels are created in. It must already exist, must not be named the same as another group, and must not be in "Channel Groups to Ignore". |
 | **First Channel Number to Use** | `string` | - | Used by Create Channels From Streams. The first channel number to assign. Numbers already in use are skipped, so the run does not need a free block. Empty means start above the highest channel number on the system. |
 | **Networks to Skip When Creating Channels** | `string` | - | Used by Create Channels From Streams. Comma-separated network names. A station whose own network is one of these is reported under `skip, network excluded` in the preview and not created. It reads what a station **is**, not what it carries: a CBS station running Telemundo on a subchannel is a CBS station and is not skipped. The network is taken from the station record and from the stream name, because a low power record often names no network at all. |
-| **Suffix for Unknown Channels** | `string` | ` [Unk]` | Suffix to append to unmatched channels. |
+| | | | |
+| **Names, Tags and Logos** | *section* | | How a matched channel is named, what marks one that did not match, and which logo it gets. Match by Market When No Callsign is off by default and changes nothing for a channel whose name already prints a callsign; it only affects names that state a market and a channel number instead, and it accepts a station only when exactly one fits. Ignored Tags are stripped before matching rather than from the channel name itself. |
+| **OTA Name Format** | `string` | `{NETWORK} - {STATE} {CITY} ({CALLSIGN})` | Format template for broadcast channels. |
+| **Match by Market When No Callsign** | `boolean` | `false` | Off by default. Broadcast channels normally match on a callsign printed in the name. With this on, a name that states a market and a channel number instead, such as `ABC 9 HD [SYRACUSE]` or `FOX NET [ABILENE TX]`, is looked up by market: first among the stations licensed to that community, then, when none carries the network, among the stations of that state on that channel number. A station is accepted only when exactly one fits, so an ambiguous market such as `FOX 43 HD [HARRISBURG]`, where three states have a Harrisburg, is left alone rather than guessed at. A callsign printed in the name always wins. Names carrying `PLUS` or `XTRA` are left alone too, because those denote a sister station rather than the market's main one. |
+| **Unknown Channel Suffix** | `string` | ` [Unk]` | Suffix to append to unmatched channels. |
 | **Ignored Tags** | `string` | `[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]` | Tags removed before matching (handles `[]` and `()`). |
 | **Default Logo** | `string` | - | Logo display name from Dispatcharr's Logos page. |
+| | | | |
+| **Run Behaviour and Housekeeping** | *section* | | Settings that apply to any action rather than to one of them: whether a run only previews its changes, how hard it works the database while it runs, and how long its CSV exports are kept. Dry Run Mode is what produces the preview CSV files; with it off the same actions write to your channels. Old exports are deleted only at the moment a new one is written, so nothing is removed on a day you do not run the plugin. |
 | **Dry Run Mode** | `boolean` | `false` | Preview changes without modifying anything. |
 | **Rate Limiting** | `select` | `None` | Delay between DB writes (None/Low/Medium/High). |
+| **Delete CSV Exports Older Than (Days)** | `number` | `0` | Housekeeping for the CSV files this plugin writes to `/data/exports`. After each export, this plugin's own exports older than this many days are deleted. `0` keeps every file, which is the default, so nothing is removed unless you ask for it. The file just written is never deleted, and at least one file always survives, so a small number cannot empty the directory. Only files named `channel_mapparr_*.csv` are touched, because that directory is shared with other plugins. Clear CSV Exports still deletes all of them regardless of this setting. |
+| | | | |
+| **Emailed Reports** | *section* | | Whether this plugin hands a report to the Newsflasharr plugin, after which runs, and in which format. Nothing is sent unless Newsflasharr is installed and carries a routing rule matching this plugin and its usage report event; without that rule the report is delivered as plain text with no attachment, because attachments are email only. This plugin has no scheduler, so a report is only ever produced by a run you start yourself. |
 | **Send notifications to Newsflasharr** | `boolean` | `false` | Master switch for emailed reports. Requires the Newsflasharr plugin, which is what sends the mail. What routes where is configured in Newsflasharr's own routing rules, keyed on this plugin's name. |
 | **Email A Report After** | `select` | `every_run` | `never`, or every run that produces an export. Organize by Category reports only in Dry Run, because a real run of it produces no export. Does nothing unless the switch above is on. |
 | **Email Report Format** | `select` | `html` | `html`, `csv`, or `both`. A notification carries one attachment, so `both` sends two emails per run rather than one email with two files. Both files are written to `/data/channel_mapparr_reports` either way; this only decides which are emailed. |
+
+### Button colours
+
+
+Every button carries a colour, and the colour says what pressing it can do to your data.
+
+- **Red**: replaces a value on channels that already exist, and this plugin cannot put the old value
+  back. Rename Channels replaces the whole name; Organize by Category replaces the group a channel
+  belongs to, and the group it came from is then recorded only in the preview CSV. Both ask for
+  confirmation first.
+- **Orange**: writes data or clears state, but replaces nothing. Creating channels, tagging unmatched
+  ones with a suffix, filling in a logo where a channel has none, and deleting this plugin's own CSV
+  exports are all in this group.
+- **Green**: runs an operation that writes no channel data. Load and Process Channels works out what
+  the names would be and saves that to a file of its own.
+- **Cyan**: sends something outward. Email Report Now hands a report to the Newsflasharr plugin.
+- **Blue**: reads and reports, changing nothing at all.
+
+Nothing this plugin does deletes a channel or a stream. The two logo actions select only channels
+with no logo set, so neither can overwrite artwork you chose.
 
 ### Recommended Action Order
 
@@ -383,26 +419,26 @@ The action buttons are listed in the recommended execution order:
    The preview sorts every stream into one of four outcomes, and it is worth reading all four rather than
    only the count: `create`, `skip, name already used`, `skip, network excluded`, and `unresolved`. The last
    is not a failure list to be fixed; it is mostly national feeds such as `ABC NEWS LIVE`, provider separator
-   rows, and markets that genuinely cannot be decided, such as a name giving only "Charleston" when two
+   rows, and markets that cannot be decided, such as a name giving only "Charleston" when two
    states have a Charleston station on that network.
 10. **Show Status** - Display live progress / ETA for the most recent operation (no destructive effect).
 11. **Email Report Now** - Build a report from the last processed channels and queue it for email (no destructive effect). It refuses, visibly, when Newsflasharr is absent, disabled, missing its email settings, missing a routing rule for this plugin, or when its collector is not running. Queued means written to Newsflasharr's queue, not yet in your inbox.
 12. **Clear CSV Exports** - Delete all plugin CSV files. It cannot reach the emailed reports, which live in a different directory.
 
-Rename before Import ensures duplicate detection is accurate (standardized names prevent duplicates). The two logo actions are independent — use Default Logo for a fast fallback, or Per-Channel Logos for individualized artwork.
+Rename before Import ensures duplicate detection is accurate (standardized names prevent duplicates). The two logo actions are independent. Use Default Logo for a fast fallback, or Per-Channel Logos for individualized artwork.
 
 "Channel Groups to Ignore" (v1.26.2071409+) is a scope setting, not a step of its own; it applies across all twelve actions above wherever they read or write channel groups (it does not affect Import M3U Streams' stream matching or duplicate detection). Set it once before running Validate Settings, which reports the resolved exclusion.
 
 ### Match Pipeline
 
 
-Each stream is run through four stages in order — the first stage that produces a confident match wins:
+Each stream is run through four stages in order, and the first stage that produces a confident match wins:
 
 | Stage | Method | When it fires | Why |
 |---|---|---|---|
-| **0** | **Alias** | Normalized stream name is a key in the curated alias map | O(1), highest confidence — short-circuits fuzzy entirely for known variants. |
-| **1** | **Exact / very-high similarity** (≥97%) | After normalization, stream and candidate are identical or within a few characters | Catches near-perfect matches instantly with token-overlap guard against `ABC News` vs `BBC News`. |
-| **2** | **Substring** | One string contains the other AND lengths within 75% | Handles prefixed/suffixed variants like `US: HBO HD` ↔ `HBO`. |
+| **0** | **Alias** | Normalized stream name is a key in the curated alias map | Constant time and highest confidence, so a known variant never reaches fuzzy matching. |
+| **1** | **Exact / very-high similarity** (97% or better) | After normalization, stream and candidate are identical or within a few characters | Catches near-perfect matches instantly with token-overlap guard against `ABC News` vs `BBC News`. |
+| **2** | **Substring** | One string contains the other AND lengths within 75% | Handles prefixed/suffixed variants like `US: HBO HD` and `HBO`. |
 | **3** | **Fuzzy token-sort** | Levenshtein after token normalization, length-scaled threshold + subset/divergent/numeric guards | Catches reordered words and minor spelling differences. |
 
 If all four miss, the stream is reported as unmatched (and tagged with the configured suffix if you run **Tag Unknown Channels**).
@@ -412,7 +448,7 @@ If all four miss, the stream is reported as unmatched (and tagged with the confi
 
 Channel Mapparr uses several optimization layers for fast matching:
 
-1. **Alias index** (O(1) hash) - 200+ curated variant→canonical mappings checked before fuzzy.
+1. **Alias index** (O(1) hash) - 200+ curated mappings from a variant name to its canonical name checked before fuzzy.
 2. **Exact lookup** (O(1) hash) - catches near-identical matches instantly.
 3. **Normalized lookup** (O(1) hash) - matches after stripping tags, prefixes, and noise.
 4. **Token-indexed fuzzy matching** - inverted index reduces candidates from 31K to ~50-200 before fuzzy comparison.

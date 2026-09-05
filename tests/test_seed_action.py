@@ -84,10 +84,41 @@ def test_no_em_dash_in_the_new_help_text(field_id):
     assert "—" not in chunk, field_id
 
 
-def test_the_action_declares_that_it_runs_in_the_background():
-    action = next(a for a in _manifest()["actions"]
-                  if a["id"] == "create_channels_from_streams")
-    assert action.get("background") is True
+def test_the_action_reports_that_it_ran_in_the_background():
+    """This used to assert a "background": True key on the action DECLARATION.
+
+    That key reached nothing. Measured in the running container on 2026-09-05,
+    PluginActionSerializer in /app/apps/plugins/serializers.py declares only id,
+    label, description, confirm, button_label, button_variant, button_color and
+    events, and PluginManager._normalize_actions returns the serializer's
+    validated_data, so every other key is discarded before an action is served.
+
+    The flag that does something is the one in the action's RETURN value, which
+    this plugin's own run() reads to decide whether to send a websocket
+    notification: a backgrounded action must not announce a result it does not
+    have yet. That is what this asserts now, by reading the source, because the
+    return happens after a thread start that a unit test does not run.
+    """
+    import ast
+    tree = ast.parse(_source())
+    func = next(n for n in ast.walk(tree)
+                if isinstance(n, ast.FunctionDef)
+                and n.name == "create_channels_from_streams_action")
+    starts_thread = any(
+        isinstance(node, ast.Call)
+        and ast.unparse(node.func).endswith("_try_start_thread")
+        for node in ast.walk(func))
+    returns_flag = any(
+        isinstance(node, ast.Constant) and node.value == "background"
+        for node in ast.walk(func))
+    assert starts_thread, "the action no longer runs in a background thread"
+    assert returns_flag, "the action backgrounds without reporting that it did"
+
+
+def test_no_action_carries_the_inert_background_key():
+    """Neither declaration list may reintroduce it, in either file."""
+    for action in _manifest()["actions"]:
+        assert "background" not in action, action["id"]
 
 
 # --- Dry run ----------------------------------------------------------------

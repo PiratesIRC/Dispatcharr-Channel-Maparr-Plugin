@@ -99,15 +99,21 @@ def save_progress_atomic(path, data):
         raise
 
 
+# The five operations that report progress, keyed by the name plugin.py passes
+# to ProgressTracker, worded as the buttons that start them are worded.
+#
+# This map used to hold eight entries, seven of which were for names nothing has
+# ever written, while four of the five real names were absent. A name with no
+# entry falls back to the identifier itself, so Show Status reported a run of
+# Apply Per-Channel Logos as "apply_tv_logos". tests/test_status_readout.py reads
+# the ProgressTracker calls out of plugin.py and keeps the two lists in step in
+# both directions.
 ACTION_LABELS = {
-    "validate_settings": "Validate Settings",
     "process_channels": "Load & Process Channels",
-    "rename_channels": "Rename Channels",
-    "tag_unknown": "Tag Unknown Channels",
-    "organize_by_category": "Organize by Category",
-    "import_m3u_streams": "Import M3U Streams",
-    "apply_logos": "Apply Logos",
-    "preview_changes": "Preview Changes",
+    "apply_tv_logos": "Apply Per-Channel Logos",
+    "match_streams": "Import M3U Streams, matching streams",
+    "import_streams": "Import M3U Streams, creating channels",
+    "seed_channels": "Create Channels From Streams",
 }
 
 
@@ -135,16 +141,16 @@ def build_status_message(progress, now=None):
         updated = progress.get("updated_at")
         if updated is not None and (now - updated) > STALE_AFTER_SECONDS:
             ago = format_eta(now - updated)
-            return (f"⚠️ {label} — {cur}/{total} ({pct:.0f}%), "
+            return (f"⚠️ {label}: {cur}/{total} ({pct:.0f}%), "
                     f"no progress update in {ago}. The operation may have "
-                    f"stopped — check the container logs.")
+                    f"stopped. Check the container logs.")
         start = progress.get("start_time")
         if start is not None and cur > 0:
             remaining = ((now - start) / cur) * (total - cur)
             eta = f"ETA {format_eta(remaining)}"
         else:
-            eta = "ETA calculating…"
-        return f"\U0001f504 {label} — {cur}/{total} ({pct:.0f}%) · {eta}"
+            eta = "ETA calculating"
+        return f"\U0001f504 {label}: {cur}/{total} ({pct:.0f}%), {eta}"
 
     if status == "done":
         label = _action_label(progress.get("action"))
@@ -156,5 +162,7 @@ def build_status_message(progress, now=None):
             msg += f"\n{summary}"
         return msg
 
-    return ("No Channel-Maparr operation has run yet. Run one of the actions "
-            "above and click 📊 Show Status to watch progress.")
+    # No symbol here on purpose: this names a button, and the symbol it used to
+    # carry was not the one on that button.
+    return ("No Channel Mapparr operation has run yet. Run one of the actions "
+            "above, then press Show Status to watch its progress.")

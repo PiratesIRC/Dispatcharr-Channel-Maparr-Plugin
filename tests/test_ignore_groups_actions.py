@@ -562,7 +562,8 @@ def test_validate_settings_stays_within_the_toast_budget_with_category_groups_se
 
 def test_csv_header_records_the_exclusion(plugin_instance):
     header = plugin_instance._generate_csv_settings_header(
-        {"ignore_groups": "Teamarr", "channel_databases": "US"})
+        {"ignore_groups": "Teamarr", "channel_databases": "US"},
+        "Rename Channels preview", [("Channels to rename", 3)])
     assert "Channel Groups to Ignore: Teamarr" in header
 
 

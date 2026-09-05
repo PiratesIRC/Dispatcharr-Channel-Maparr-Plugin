@@ -1,4 +1,29 @@
-# Channel Maparr — TODO
+# Channel Maparr TODO
+
+## Open (added 2026-09-05)
+
+- [ ] **Two manifests still say this plugin covers 11 countries and it covers 12.** Twelve
+  `*_channels.json` databases ship, including `NO_channels.json` for Norway with 94 channels,
+  and `docs/CHANGELOG.md` records coverage reaching 12 when that database was added. The
+  wrong count is in the `description` field of exactly two files: `Channel-Maparr/plugin.json`
+  (the plugin's own manifest, which Dispatcharr shows on the plugin card) and
+  `plugins/channel-mapparr/plugin.json` (the Plugin Hub listing). **`README.md` is already
+  correct** and says twelve, listing `NO`, and the settings form was corrected in
+  1.26.2481147 and now offers `NO`.
+
+  **Fix both together at the next release**, not separately. The Hub `description` is one of
+  the eight metadata-only fields and needs no version bump, so it could be changed alone, but
+  doing that would leave the Hub listing and the plugin card disagreeing until the plugin's
+  own manifest catches up, and changing that one does require a release.
+
+- [ ] **The Plugin Hub listing has no `README.md`, so its generated page has no documentation
+  section.** `plugins/channel-mapparr/` holds only `plugin.json` and `logo.png`. For an
+  external listing that README is the only documentation surface the Hub renders. Adding any
+  file to a listing requires a version bump, so it has to ride along with a release rather
+  than going in alone. **Check first what the Hub's `update-external-readme` workflow does**:
+  the workspace notes say it pushes the Hub-generated README OUTWARD and never pulls one in,
+  and it is not established whether adding one here would overwrite `README.md` in this
+  repository. Read that workflow before opening the pull request.
 
 ## Open (added 2026-08-12)
 

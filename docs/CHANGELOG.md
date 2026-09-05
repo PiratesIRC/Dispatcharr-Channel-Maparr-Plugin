@@ -2,6 +2,8 @@
 
 ## v1.26.2481147 (September 5, 2026)
 
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2481147
+
 **Housekeeping for the CSV exports, and a pass over everything this plugin puts in front of you.**
 Nothing here changes which channel matches which name.
 

@@ -53,11 +53,11 @@ What the suites cover:
 
 | File | What it guards |
 |------|----------------|
-| `tests/test_matching.py` | Stream→channel accuracy: true positives, true negatives, exact-expected, expected-None, callsign extraction. The query is the STREAM; candidates are channel DB names. |
-| `tests/test_broadcast_ota.py` | OTA matching: `networks.json` populates `broadcast_channels` when US is loaded, and representative affiliate streams resolve callsign → station (`ABC 5 (WEWS) CLEVELAND HD` → Cleveland/OH/ABC). |
+| `tests/test_matching.py` | Stream->channel accuracy: true positives, true negatives, exact-expected, expected-None, callsign extraction. The query is the STREAM; candidates are channel DB names. |
+| `tests/test_broadcast_ota.py` | OTA matching: `networks.json` populates `broadcast_channels` when US is loaded, and representative affiliate streams resolve callsign -> station (`ABC 5 (WEWS) CLEVELAND HD` -> Cleveland/OH/ABC). |
 | `tests/test_ota_network.py` | OTA network resolution: `_parse_network_affiliation` on messy FCC strings, `_extract_stream_network` (stream-stated network), and the parenthesized-callsign override (`(KING)` accepted, `King of the Hill` not). |
 | `tests/test_normalization_port.py` | The three `normalize_name` input-cleaning fixes ported from Stream-Mapparr (helper, regex, full-pipeline) + a corpus no-regression gate (0 ASCII-name changes). |
-| `tests/test_plugin_contract.py` | `plugin.json` ↔ `Plugin` class parity: action-id match, every action has a `button_label`, **exact button_label parity** (catches a symbol corrupted to a literal `?`, which the BMP-only check misses), version agreement, and **BMP-only** (no astral-plane characters the loader silently drops). |
+| `tests/test_plugin_contract.py` | `plugin.json` <-> `Plugin` class parity: action-id match, every action has a `button_label`, **exact button_label parity** (catches a symbol corrupted to a literal `?`, which the BMP-only check misses), version agreement, and **BMP-only** (no astral-plane characters the loader silently drops). |
 | `tests/test_station_table.py` | Structure of `networks.json`, the FCC station table: required keys, unique uppercase callsigns, valid state codes and virtual channels, every affiliation parses to at least one network, no record carries a `category` field, and a named set of stations is present. Also pins that Organize by Category has no callsign branch. |
 | `tests/test_station_affiliation.py` | `station_affiliation.py`: turning the free-text `network_affiliation` field into a network list. Cases are quoted verbatim from `networks.json`, including the semicolon, ampersand and `N/A` shapes. |
 | `tests/test_data_integrity.py` | Per-country JSON structure, **no byte-identical duplicate rows**, BMP-only data, alias-table shape. |
@@ -85,14 +85,17 @@ Test accuracy changes rather than trusting them by inspection. There is also an 
 standalone harness at `.wolf/test_matching.py` (`python .wolf/test_matching.py`).
 
 CI runs the suite plus a `py_compile` check on every push and PR
-(`.github/workflows/tests.yml`, Python 3.11 + 3.12).
+(`.github/workflows/ci.yml`, Python 3.11 + 3.12).
 
 ## Automation that guards edits
 
-- **PostToolUse `py_compile` hook** (`scripts/hook_py_compile.py`, wired in
-  `.claude/settings.json`): after any `.py` edit, the file is byte-compiled and a
-  `SyntaxError` is surfaced immediately. Fails safe: non-Python edits and unexpected
-  conditions are silent no-ops.
+- **PostToolUse `py_compile` hook**: after any `.py` edit, the file is byte-compiled
+  and a `SyntaxError` is surfaced immediately. Since 2026-09-06 this is a workspace-level
+  hook (it began life here as `scripts/hook_py_compile.py`), alongside a `plugin.json`
+  validator and a guard on container lifecycle commands.
+- **Git hooks** (`.githooks/`, installed by `git config core.hooksPath .githooks`):
+  pre-commit compiles the package, checks version sync, runs the ruff error gate and
+  the tests; pre-push runs the publish audit on every pushed ref.
 - **OpenWolf hooks** (`.wolf/hooks/*`) do session and context bookkeeping. See
   `.wolf/OPENWOLF.md`. After significant changes, update `.wolf/anatomy.md` (file
   map), append to `.wolf/memory.md`, and log bugs to `.wolf/buglog.json`.
@@ -107,16 +110,16 @@ object where every channel is `{channel_name, category, type}`.
   under more than one category). **Byte-identical rows are not.** They bloat the
   candidate index and are rejected by `test_no_identical_duplicate_rows`.
 - Keep data **BMP-only** (no characters above U+FFFF).
-- Aliases live in `Channel-Maparr/aliases.py` (`canonical_name → [stream variants]`).
+- Aliases live in `Channel-Maparr/aliases.py` (`canonical_name -> [stream variants]`).
   Add an alias whenever a canonical DB name has a parenthesized abbreviation that
-  normalization strips (e.g. `Réseau des Sports (RDS) HD` ← `RDS`). Entries whose
+  normalization strips (e.g. `Réseau des Sports (RDS) HD` <- `RDS`). Entries whose
   key matches no database name are simply unused, which is harmless.
 - `scripts/build_networks_json.py` rebuilds `Channel-Maparr/networks.json` from the FACILITY table of an
   FCC Licensing and Management System dump that the operator downloads by hand. Read its docstring before
   running it: the selection rules exist because of specific defects measured in the FCC data, and the
   removed list must be read before accepting a rebuild.
 - `Channel-Maparr/networks.json` is a **separate** US-only FCC station table
-  (`callsign → network_affiliation / community_served_city / community_served_state`,
+  (`callsign -> network_affiliation / community_served_city / community_served_state`,
   6,839 rows) and the *only* source of over-the-air broadcast matches (the `*_channels.json`
   files have no callsign/broadcast entries). Loaded by
   `FuzzyMatcher._load_broadcast_stations()` when US is selected. Editing it is how
@@ -133,17 +136,17 @@ or run the steps manually:
    (they must never drift; the Python class is the runtime source of truth).
    Use `--dry-run` to preview, `--set X.Y.Z` for an explicit version.
 3. Add a `docs/CHANGELOG.md` entry (newest first, matching the existing format).
-4. `python scripts/package_plugin.py` builds `Channel-Maparr.zip` (cross-platform
-   replacement for `zip.cmd`). Pre-flight compiles every `.py` and asserts
-   `plugin.json` is BMP-only; a failure refuses to package. Then run
-   **`python scripts/validate_zip.py Channel-Maparr.zip`** must print OK. This
-   guards bug-087: a zip with backslash path separators (as PowerShell
-   `Compress-Archive` / .NET Framework `ZipFile.CreateFromDirectory` produce) fails
-   install on Dispatcharr's Linux host with "missing plugin.py or package
-   __init__.py". `package_plugin.py` is safe; this is the regression gate (it parses
-   raw central-directory bytes, since `zipfile.namelist()` hides the backslashes).
-5. Commit, `git tag <version>`, push.
-6. `gh release create <version> Channel-Maparr.zip --repo PiratesIRC/Dispatcharr-Channel-Maparr-Plugin`.
+4. `python scripts/build_release_zip.py --ref <tag> --out dist` builds `Channel-Maparr.zip`
+   from the git index with LF forced and validates it (forward-slash entry names, package
+   root present, no development files, no CRLF in text entries). This guards bug-087: a zip
+   with backslash path separators, as PowerShell `Compress-Archive` produces, fails install
+   on Dispatcharr's Linux host with "missing plugin.py or package __init__.py". Pushing the
+   tag makes CI build the same zip and create the GitHub release.
+5. Commit, `git tag <version>`, push the branch and the tag. CI's `release` job creates the
+   GitHub release with the archive and the changelog entry; it refuses if one already exists,
+   so do not create it by hand as well.
+6. Download the published asset back and compare its sha256 with the local build; a matching
+   version string is not evidence of matching bytes.
 7. Optional: submit/update `Dispatcharr/Plugins` (PR title exactly
    `[channel-mapparr] <description>`; see the submission notes in `.wolf/cerebrum.md`).
 
@@ -160,4 +163,4 @@ or run the steps manually:
   mode 755 and unwritable by the uwsgi `dispatch` user).
 - **Keep new matching code on the token pre-filter.** Any path that scores names
   must go through `get_candidates()` + cached normalizations, or it reintroduces the
-  O(streams × channels) blowup the index fixed (32h → 6s).
+  O(streams x channels) blowup the index fixed (32h -> 6s).

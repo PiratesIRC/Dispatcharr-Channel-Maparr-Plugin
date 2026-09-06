@@ -53,3 +53,5 @@ CLAUDE-HISTORY.md
 *_LMS_Dump/
 *_LMS_Dump.zip
 Current_LMS_Dump/
+# release build output (build_release_zip.py, CI release job)
+dist/

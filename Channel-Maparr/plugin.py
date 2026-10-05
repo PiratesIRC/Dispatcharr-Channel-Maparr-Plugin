@@ -140,6 +140,7 @@ class PluginConfig:
         "FR": "france", "IT": "italy", "ES": "spain", "MX": "mexico",
         "BR": "brazil", "IN": "india", "IE": "ireland", "NL": "netherlands",
         "NO": "norway",
+        "PL": "poland",
     }
 
     # Rate Limiting
@@ -317,7 +318,7 @@ class Plugin:
                 "type": "string",
                 "default": PluginConfig.DEFAULT_CHANNEL_DATABASES,
                 "placeholder": "US, UK, CA, AU",
-                "help_text": "Comma-separated country codes deciding which channel databases are loaded. Available: AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, UK, US. The same codes choose which tv-logos directories the per-channel logo action searches, so a country left out here is left out of both.",
+                "help_text": "Comma-separated country codes deciding which channel databases are loaded. Available: AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, PL, UK, US. The same codes choose which tv-logos directories the per-channel logo action searches, so a country left out here is left out of both.",
             },
             {
                 "id": "match_sensitivity",

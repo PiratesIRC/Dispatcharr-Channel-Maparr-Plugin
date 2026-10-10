@@ -137,3 +137,23 @@ def test_a_second_identical_run_counts_nothing(plugin, plugin_module, monkeypatc
     updates = [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
     assert plugin._bulk_update_channels(updates, ["name"], log) == 2
     assert plugin._bulk_update_channels(updates, ["name"], log) == 0
+
+
+def test_two_updates_for_one_channel_count_once(plugin, plugin_module, monkeypatch):
+    row = types.SimpleNamespace(id=1, name="old")
+    monkeypatch.setattr(plugin_module.Channel.objects, "filter", lambda **k: [row])
+    monkeypatch.setattr(plugin_module.Channel.objects, "bulk_update", lambda *a, **k: None)
+    monkeypatch.setattr(plugin_module, "transaction", types.SimpleNamespace(atomic=lambda: contextlib.nullcontext()))
+    log = logging.getLogger("test-channel-maparr")
+    updates = [{"id": 1, "name": "a"}, {"id": 1, "name": "b"}]
+    assert plugin._bulk_update_channels(updates, ["name"], log) == 1
+
+
+def test_a_channel_renamed_and_renamed_back_in_one_batch_counts_nothing(plugin, plugin_module, monkeypatch):
+    row = types.SimpleNamespace(id=1, name="old")
+    monkeypatch.setattr(plugin_module.Channel.objects, "filter", lambda **k: [row])
+    monkeypatch.setattr(plugin_module.Channel.objects, "bulk_update", lambda *a, **k: None)
+    monkeypatch.setattr(plugin_module, "transaction", types.SimpleNamespace(atomic=lambda: contextlib.nullcontext()))
+    log = logging.getLogger("test-channel-maparr")
+    updates = [{"id": 1, "name": "a"}, {"id": 1, "name": "old"}]
+    assert plugin._bulk_update_channels(updates, ["name"], log) == 0

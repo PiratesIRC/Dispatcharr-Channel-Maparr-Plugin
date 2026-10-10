@@ -1531,13 +1531,16 @@ class Plugin:
         for u in updates:
             ch = channels.get(u['id'])
             if ch:
-                before[ch.id] = tuple(getattr(ch, f) for f in fields)
+                before.setdefault(ch.id, tuple(getattr(ch, f) for f in fields))
                 for field in fields:
                     if field in u:
                         setattr(ch, field, u[field])
                 to_update.append(ch)
 
-        changed = sum(1 for ch in to_update if tuple(getattr(ch, f) for f in fields) != before[ch.id])
+        changed = sum(
+            1 for cid in before
+            if tuple(getattr(channels[cid], f) for f in fields) != before[cid]
+        )
         if to_update:
             with transaction.atomic():
                 Channel.objects.bulk_update(to_update, fields)

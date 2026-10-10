@@ -42,6 +42,7 @@ SECTION_BOUNDARIES = [
     ("_section_naming", "ota_format"),
     ("_section_run_behaviour", "dry_run_mode"),
     ("_section_notifications", "notify_enabled"),
+    ("_section_usage", "share_usage_counts"),
 ]
 
 

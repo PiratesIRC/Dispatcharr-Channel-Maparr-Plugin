@@ -370,6 +370,9 @@ docker restart dispatcharr
 | **Send notifications to Newsflasharr** | `boolean` | `false` | Master switch for emailed reports. Requires the Newsflasharr plugin, which is what sends the mail. What routes where is configured in Newsflasharr's own routing rules, keyed on this plugin's name. |
 | **Email A Report After** | `select` | `every_run` | `never`, or every run that produces an export. Organize by Category reports only in Dry Run, because a real run of it produces no export. Does nothing unless the switch above is on. |
 | **Email Report Format** | `select` | `html` | `html`, `csv`, or `both`. A notification carries one attachment, so `both` sends two emails per run rather than one email with two files. Both files are written to `/data/channel_mapparr_reports` either way; this only decides which are emailed. |
+| | | | |
+| **Anonymous Usage Counts** | *section* | | Whether this plugin sends its Channels Renamed total and a random install id to the plugin author's counter, which feeds the public badges. The one setting in this section is the last one in the form. See [Anonymous usage counts](#anonymous-usage-counts). |
+| **Share anonymous usage counts** | `boolean` | `true` | Sends this plugin's Channels Renamed total and a random id to the plugin author's counter at plugin-stats.dpas.workers.dev, at most once an hour. Untick to stop; the server deletes this install's figures the next time an action runs. See [Anonymous usage counts](#anonymous-usage-counts). |
 
 ### Button colours
 

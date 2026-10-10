@@ -30,6 +30,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PLUGIN_DIR = REPO_ROOT / "Channel-Maparr"
 PKG_NAME = "channel_maparr"
 
+# Every usage send a test would have started. Tests may read it; nothing asserts at
+# teardown, because existing tests can legitimately reach the reporter.
+USAGE_STARTS = []
+
 # Country databases loaded for matching tests. Mirrors the .wolf/ harness and the
 # project's recommended default set (see docs/TODO.md "Add UK/CA to defaults").
 TEST_DATABASES = ["US", "UK", "CA"]
@@ -128,6 +132,12 @@ def redirect_container_paths(tmp_path, monkeypatch):
                         str(tmp_path / "progress.json"))
     monkeypatch.setattr(plugin_module.PluginConfig, "RENAME_LEDGER_FILE",
                         str(tmp_path / "channel_maparr_rename_counts.jsonl"))
+    USAGE_STARTS.clear()
+    monkeypatch.setattr(plugin_module.USAGE, "data_dir", str(tmp_path / "plugin_stats"))
+    monkeypatch.setattr(plugin_module.USAGE, "directory",
+                        str(tmp_path / "plugin_stats" / "channel-mapparr"))
+    monkeypatch.setattr(plugin_module.USAGE, "_start",
+                        lambda *a, **k: USAGE_STARTS.append(a))
     monkeypatch.setattr(reports_module, "REPORT_DIR",
                         str(tmp_path / "reports"))
 

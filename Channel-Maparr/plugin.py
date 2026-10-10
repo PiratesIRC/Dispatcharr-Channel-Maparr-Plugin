@@ -16,6 +16,7 @@ from datetime import datetime
 
 # Import the fuzzy matcher module
 from .fuzzy_matcher import FuzzyMatcher
+from .usage_client import UsageReporter, jsonl_sum, load_plugin_settings, with_usage_field
 from .channel_seeder import allocate_channel_numbers, build_seed_plan
 from .station_affiliation import primary_network
 from .progress_status import (
@@ -153,6 +154,20 @@ class PluginConfig:
 
     # ETA estimation (seconds per item)
     ESTIMATED_SECONDS_PER_STREAM_MATCH = 0.5
+
+
+# Reports the Channels Renamed total and a random install id to the plugin-stats
+# Worker, so the README badges count each install that keeps the setting ticked and
+# runs an action (README, "Anonymous usage counts"). The total is read from the same
+# ledger the rename actions write. report() never raises; only the network send runs
+# on a background thread.
+USAGE = UsageReporter(
+    plugin="channel-mapparr",
+    counter="channels_renamed",
+    label="Channels Renamed",
+    total_fn=lambda: jsonl_sum(PluginConfig.RENAME_LEDGER_FILE + "*", key="channels"),
+    settings_fn=lambda: load_plugin_settings("channel-mapparr"),
+)
 
 
 class ProgressTracker:
@@ -294,7 +309,7 @@ class Plugin:
             pass
 
         # Build the fields list dynamically
-        return [
+        return with_usage_field([
             {
                 "id": "_section_matching",
                 "label": "Matching and Scope",
@@ -660,7 +675,13 @@ class Plugin:
                              "/data/channel_mapparr_reports either way; this setting "
                              "only decides which are emailed.",
             },
-        ]
+            {
+                "id": "_section_usage",
+                "label": "Anonymous Usage Counts",
+                "type": "info",
+                "description": "The setting below sends this plugin's Channels Renamed total and a random id to the plugin author's counter so the public badges can count installs. No channel names, group names, providers or settings are sent. Untick it to stop; the README section Anonymous usage counts has the details.",
+            },
+        ], USAGE)
 
     # Actions for Dispatcharr UI. `label` is the action title; `button_label`
     # is the text on the actual button (otherwise Dispatcharr renders "Run").
@@ -953,13 +974,14 @@ class Plugin:
         # is sent, not what is in this file, so they are left out. Reading the
         # heading rather than a "notify_" name prefix means a setting added
         # there under any name is excluded, and a setting named notify_ that is
-        # moved elsewhere is not.
+        # moved elsewhere is not. The usage setting decides whether a count is sent,
+        # so it is left out for the same reason.
         skipped_section = None
         for field in declared:
             if field.get("type") == "info":
                 skipped_section = field.get("id")
                 continue
-            if skipped_section == "_section_notifications":
+            if skipped_section in ("_section_notifications", "_section_usage"):
                 continue
             described = self._describe_setting(field, settings)
             if described:
@@ -1567,10 +1589,18 @@ class Plugin:
         try:
             with open(PluginConfig.RENAME_LEDGER_FILE, "a", encoding="utf-8") as handle:
                 handle.write(line + "\n")
-            return True
         except Exception as exc:
             log.warning(f"{PLUGIN_LOG_PREFIX} Could not record the rename tally: {exc}")
             return False
+        self._report_usage(None, log, force=True)
+        return True
+
+    def _report_usage(self, settings, logger, force=False):
+        """Hand the usage total to the reporter; never lets anything escape."""
+        try:
+            USAGE.report(settings, logger, force=force)
+        except Exception:
+            pass
 
     def _get_or_create_group(self, name, logger):
         """Get or create a channel group by name."""
@@ -1746,6 +1776,16 @@ class Plugin:
         return result
 
     def run(self, action, params, context):
+        """Run one action, then hand the usage total to the reporter (see _report_usage)."""
+        result = None
+        try:
+            result = self._run_body(action, params, context)
+            return result
+        finally:
+            if not (isinstance(result, dict) and result.get("background")):
+                self._report_usage(context.get("settings"), context.get("logger", LOGGER))
+
+    def _run_body(self, action, params, context):
         """Main plugin entry point"""
         logger = context.get("logger", LOGGER)
         settings = context.get("settings", {})
@@ -3867,6 +3907,8 @@ class Plugin:
                 "type": "plugin", "plugin": self.name,
                 "message": f"Import error: {e}"
             })
+        finally:
+            self._report_usage(None, logger)
 
     def import_m3u_streams_action(self, settings, logger):
         """Import action: Create channels from M3U streams."""
@@ -4398,6 +4440,8 @@ class Plugin:
             send_websocket_update('updates', 'update', {
                 "type": "plugin", "plugin": self.name,
                 "message": f"Channel creation error: {exc}"})
+        finally:
+            self._report_usage(None, logger)
 
     def plugin_status_action(self, settings, logger):
         """Read the persistent progress file and return a user-facing summary."""

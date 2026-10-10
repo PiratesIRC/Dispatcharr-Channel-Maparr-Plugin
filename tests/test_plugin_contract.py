@@ -62,7 +62,10 @@ def test_manifest_field_ids_present_in_source(manifest, plugin_source):
     missing = [
         f["id"]
         for f in manifest["fields"]
-        if f'"id": "{f["id"]}"' not in plugin_source
+        # The usage checkbox is built by with_usage_field in usage_client.py; its
+        # id is pinned by test_settings_sections.py and test_usage_reporting.py.
+        if f["id"] != "share_usage_counts"
+        and f'"id": "{f["id"]}"' not in plugin_source
     ]
     assert not missing, f"fields in plugin.json but not in plugin.py source: {missing}"
 

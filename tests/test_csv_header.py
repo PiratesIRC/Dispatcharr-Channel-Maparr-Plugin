@@ -108,7 +108,7 @@ def test_every_setting_that_affects_a_run_is_recorded(plugin_module):
     header = _header(plugin_module)
     missing = []
     for fid, label in _declared_labels(plugin_module).items():
-        if fid.startswith("notify_"):
+        if fid.startswith("notify_") or fid == "share_usage_counts":
             continue
         if f"# {label}:" not in header:
             missing.append(fid)
@@ -119,7 +119,7 @@ def test_the_notification_settings_are_not_recorded(plugin_module):
     """They decide whether an email is sent, not what is in this file."""
     header = _header(plugin_module)
     for fid, label in _declared_labels(plugin_module).items():
-        if fid.startswith("notify_"):
+        if fid.startswith("notify_") or fid == "share_usage_counts":
             assert f"# {label}:" not in header, fid
 
 

@@ -1,5 +1,17 @@
 # Channel Maparr Changelog
 
+## v1.26.2832116 (October 10, 2026)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2832116
+
+### Added
+
+- **Channels Renamed tally and anonymous usage counts.** The plugin now keeps a tally of renames in /data/channel_maparr_rename_counts.jsonl: one count for each channel whose name Rename Channels or Tag Unknown Channels actually changes (a re-run that changes nothing, a preview and a Dry Run count nothing). A new setting, Share anonymous usage counts, in its own section at the end of the settings and on by default, sends the Channels Renamed total and a random install id to the plugin author's counter at plugin-stats.dpas.workers.dev, so the README badges count every install. It sends when an action finishes, at most once an hour after a successful send, or ten minutes after the last successful send when a run has just renamed channels. No names, channels, URLs or settings are sent. Untick it to stop; this install's figures are deleted from the server the next time an action runs. The count starts at zero on every install. Details: README, Anonymous usage counts.
+
+### Changed
+
+- The README and user guide now name this HTTPS request; they previously said the only outbound connection was GitHub.
+
 ## v1.26.2481147 (September 5, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2481147

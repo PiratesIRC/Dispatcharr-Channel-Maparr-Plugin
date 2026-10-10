@@ -10,6 +10,8 @@ A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel
 [![Workflow Guide](https://img.shields.io/badge/%F0%9F%93%96-Workflow_Guide-1F6FEB?style=flat)](https://piratesirc.github.io/Dispatcharr-Plugin-Workflow/workflow/02-channel-mapparr/)
 [![Discord](https://img.shields.io/badge/Discord-Discussion-5865F2?logo=discord&logoColor=white)](https://discord.gg/Sp45V5BcxU)
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/PiratesIRC)
+[![Channels Renamed](https://img.shields.io/endpoint?url=https://plugin-stats.dpas.workers.dev/badge/channel-mapparr/channels_renamed)](#anonymous-usage-counts)
+[![Active Installs](https://img.shields.io/endpoint?url=https://plugin-stats.dpas.workers.dev/badge/channel-mapparr/installs)](#anonymous-usage-counts)
 
 [![GitHub Release](https://img.shields.io/github/v/release/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin?include_prereleases&logo=github)](https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases)
 [![Downloads](https://img.shields.io/github/downloads/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/total?color=success&label=Downloads&logo=github)](https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases)
@@ -66,7 +68,7 @@ this page.*
 
 ## Requirements
 * Dispatcharr v0.20.0+
-* Internet access, only for **Apply Per-Channel Logos (tv-logos)**, which fetches the logo file list from GitHub. Every other action works fully offline; the plugin no longer checks for its own updates.
+* Internet access, only for **Apply Per-Channel Logos (tv-logos)**, which fetches the logo file list from GitHub. The anonymous usage counts report (see below) also needs it, and it never blocks a run. Every other action works without it. The plugin no longer checks for its own updates.
 * The [Newsflasharr](https://github.com/PiratesIRC/Dispatcharr-Newsflasharr-Plugin) plugin, only if you want **emailed reports**. It is what actually sends the mail. Channel Mapparr does not require it: with Newsflasharr absent or disabled, nothing is sent and nothing fails.
 
 ## Installation
@@ -77,6 +79,18 @@ this page.*
 
 Upgrading from an earlier version has its own short procedure: see
 [Updating the plugin](docs/USER-GUIDE.md#updating-the-plugin).
+
+## Anonymous usage counts
+
+The Channels Renamed and Active Installs badges count every install that leaves the "Share anonymous usage counts" setting (on by default) ticked and runs at least one action. Channels Renamed counts one for each channel whose name this plugin changes, by either Rename Channels or Tag Unknown Channels. A channel renamed again later, by either action, counts again. A run that changes no name counts nothing, and a preview or a Dry Run counts nothing. Organize by Category, the logo actions, Import M3U Streams and Create Channels From Streams are not counted. A rename you later undo by hand still counts, because the count is of renames made, not of channels that carry a changed name today. The count starts at zero on every install. There is no earlier record, so renames made before this version are not counted.
+
+When an action finishes, the plugin sends this plugin's Channels Renamed total and a random id for this plugin on this install to the plugin author's counter at plugin-stats.dpas.workers.dev. It sends at most once an hour after a successful send, or ten minutes after the last successful send when a run has just renamed channels. There is no timer: a run that finishes inside the gap sends nothing, and the next action that finds the gap passed sends the total.
+
+The server stores that id with the total and the date of the last report, and keeps them until this install unticks the setting and the delete succeeds, or until the plugin author removes them by hand. An install that stops reporting still counts toward Channels Renamed. The connection shows the server your public IP address; the server uses it only to limit abuse and does not store it in its database, though when an install first registers it keeps a salted one-way hash of it (of its /64 block for IPv6) for up to three days. Cloudflare, which hosts the server, keeps its own request logs. No channel names, group names, URLs, providers or settings are sent. The figures are self-reported by installs and capped by the server, not verified.
+
+What counts as an active install: an install that sent at least one report in the last 30 UTC days. A badge changes after the server's hourly recount, which runs at the start of each UTC hour, and Shields may cache the badge for up to an hour more, so a new report can take up to about two hours to show.
+
+The setting is the last one in the settings form, in its own section. Unticking it takes effect when the next action finishes; the plugin then asks the server to delete this install's figures. Once the server confirms the delete, the plugin forgets its id, and ticking the setting again later starts a new one; if the delete could not reach the server, the plugin keeps the id and retries. The plugin keeps that id and the timing of its reports in /data/plugin_stats/channel-mapparr/ (install_id, sent, backoff, disabled, delete_backoff, lock). To start a new id, untick the setting and let an action run so the server deletes this install's figures; deleting that folder while the setting is ticked, or before the server confirms the delete, leaves the old figures on the server, and the new id then sends the full total again, so the badge counts it twice.
 
 ## Documentation
 
@@ -98,8 +112,7 @@ published by the Federal Communications Commission.
 
 The plugin never contacts a media provider. It never opens, fetches, decodes, records, restreams
 or redistributes any stream. It reads stream *names* to match them, and never the streams
-themselves. The only outbound connection it makes is to GitHub, and only when you run **Apply
-Per-Channel Logos**, which fetches a public list of logo filenames. Emailed reports, if you enable
+themselves. The outbound connections it makes are to GitHub, only when you run **Apply Per-Channel Logos**, which fetches a public list of logo filenames, and one small report per run to the plugin author's usage counter, which you can turn off (see [Anonymous usage counts](#anonymous-usage-counts)). Emailed reports, if you enable
 them, are handed to the Newsflasharr plugin, which sends them to destinations **you** configured.
 
 **You are responsible for what you connect Dispatcharr to.** Whether a particular provider,

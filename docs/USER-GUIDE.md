@@ -14,6 +14,7 @@ could go back to being an introduction.
 - [When a channel does not match](#when-a-channel-does-not-match)
 - [Emailed reports, end to end](#emailed-reports-end-to-end)
 - [Reading a report](#reading-a-report)
+- [Anonymous usage counts](#anonymous-usage-counts)
 - [Where everything is written](#where-everything-is-written)
 - [Fixing things by symptom](#fixing-things-by-symptom)
 
@@ -34,9 +35,7 @@ It renames and organizes channel entries that already exist in your Dispatcharr 
 compares each channel's current name against bundled reference data and proposes a standardized
 name.
 
-It does **not** create channels out of nothing, fetch any stream, or contact any provider. The one
-exception to "no outbound connections" is **Apply Per-Channel Logos**, which downloads a public
-list of logo filenames from GitHub.
+It does **not** create channels out of nothing, fetch any stream, or contact any provider. The exceptions to "no outbound connections" are **Apply Per-Channel Logos**, which downloads a public list of logo filenames from GitHub, and the anonymous usage counts report described in [Anonymous usage counts](#anonymous-usage-counts), which you can turn off.
 
 Two things surprise people:
 
@@ -230,6 +229,18 @@ inside your mail client shows every row but cannot reorder them. Save the file a
 Very large runs are capped at 2000 rows. When that happens both the HTML and the CSV say so at the
 top and name the complete export file, so the truncation is never silent.
 
+## Anonymous usage counts
+
+The Channels Renamed and Active Installs badges count every install that leaves the "Share anonymous usage counts" setting (on by default) ticked and runs at least one action. Channels Renamed counts one for each channel whose name this plugin changes, by either Rename Channels or Tag Unknown Channels. A channel renamed again later, by either action, counts again. A run that changes no name counts nothing, and a preview or a Dry Run counts nothing. Organize by Category, the logo actions, Import M3U Streams and Create Channels From Streams are not counted. A rename you later undo by hand still counts, because the count is of renames made, not of channels that carry a changed name today. The count starts at zero on every install. There is no earlier record, so renames made before this version are not counted.
+
+When an action finishes, the plugin sends this plugin's Channels Renamed total and a random id for this plugin on this install to the plugin author's counter at plugin-stats.dpas.workers.dev. It sends at most once an hour after a successful send, or ten minutes after the last successful send when a run has just renamed channels. There is no timer: a run that finishes inside the gap sends nothing, and the next action that finds the gap passed sends the total.
+
+The server stores that id with the total and the date of the last report, and keeps them until this install unticks the setting and the delete succeeds, or until the plugin author removes them by hand. An install that stops reporting still counts toward Channels Renamed. The connection shows the server your public IP address; the server uses it only to limit abuse and does not store it in its database, though when an install first registers it keeps a salted one-way hash of it (of its /64 block for IPv6) for up to three days. Cloudflare, which hosts the server, keeps its own request logs. No channel names, group names, URLs, providers or settings are sent. The figures are self-reported by installs and capped by the server, not verified.
+
+What counts as an active install: an install that sent at least one report in the last 30 UTC days. A badge changes after the server's hourly recount, which runs at the start of each UTC hour, and Shields may cache the badge for up to an hour more, so a new report can take up to about two hours to show.
+
+The setting is the last one in the settings form, in its own section. Unticking it takes effect when the next action finishes; the plugin then asks the server to delete this install's figures. Once the server confirms the delete, the plugin forgets its id, and ticking the setting again later starts a new one; if the delete could not reach the server, the plugin keeps the id and retries. The plugin keeps that id and the timing of its reports in /data/plugin_stats/channel-mapparr/ (install_id, sent, backoff, disabled, delete_backoff, lock). To start a new id, untick the setting and let an action run so the server deletes this install's figures; deleting that folder while the setting is ticked, or before the server confirms the delete, leaves the old figures on the server, and the new id then sends the full total again, so the badge counts it twice.
+
 ## Where everything is written
 
 | Path | What it is |
@@ -240,6 +251,8 @@ top and name the complete export file, so the truncation is never silent.
 | `/data/exports/` | CSV previews. These contain your M3U source names and are never emailed. |
 | `/data/channel_mapparr_reports/` | The HTML and CSV files built for emailing. |
 | `/data/channel-mapparr/report_count.json` | A count of the reports this plugin has built, for Newsflasharr's **Show Status** action to display. Note the hyphen: this one directory is named after the plugin's notification source, not after its other files. |
+| `/data/channel_maparr_rename_counts.jsonl` | One line for each run that renamed at least one channel name: the count and the mode, never a name. Read by the usage counter; the total is not shown anywhere else. |
+| `/data/plugin_stats/channel-mapparr/` | The usage counter's own state: a random id for this install, and the times of its last report. Delete nothing here while the setting is ticked; see [Anonymous usage counts](#anonymous-usage-counts). |
 
 All of these must be writable by Dispatcharr's `dispatch` user. If an action reports success but
 writes nothing, that is the first thing to check.
@@ -372,7 +385,7 @@ docker restart dispatcharr
 | **Email Report Format** | `select` | `html` | `html`, `csv`, or `both`. A notification carries one attachment, so `both` sends two emails per run rather than one email with two files. Both files are written to `/data/channel_mapparr_reports` either way; this only decides which are emailed. |
 | | | | |
 | **Anonymous Usage Counts** | *section* | | Whether this plugin sends its Channels Renamed total and a random install id to the plugin author's counter, which feeds the public badges. The one setting in this section is the last one in the form. See [Anonymous usage counts](#anonymous-usage-counts). |
-| **Share anonymous usage counts** | `boolean` | `true` | Sends this plugin's Channels Renamed total and a random id to the plugin author's counter at plugin-stats.dpas.workers.dev, at most once an hour. Untick to stop; the server deletes this install's figures the next time an action runs. See [Anonymous usage counts](#anonymous-usage-counts). |
+| **Share anonymous usage counts** | `boolean` | `true` | Sends this plugin's Channels Renamed total and a random id to the plugin author's counter at plugin-stats.dpas.workers.dev, at most once an hour after a successful send, or ten minutes after the last successful send when a run has just renamed channels. Untick to stop; the server deletes this install's figures the next time an action runs. See [Anonymous usage counts](#anonymous-usage-counts). |
 
 ### Button colours
 

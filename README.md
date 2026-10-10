@@ -112,7 +112,7 @@ published by the Federal Communications Commission.
 
 The plugin never contacts a media provider. It never opens, fetches, decodes, records, restreams
 or redistributes any stream. It reads stream *names* to match them, and never the streams
-themselves. The outbound connections it makes are to GitHub, only when you run **Apply Per-Channel Logos**, which fetches a public list of logo filenames, and one small report per run to the plugin author's usage counter, which you can turn off (see [Anonymous usage counts](#anonymous-usage-counts)). Emailed reports, if you enable
+themselves. The outbound connections it makes are to GitHub, only when you run **Apply Per-Channel Logos**, which fetches a public list of logo filenames, and a small usage report at most once an hour (ten minutes after the last successful send when a run has just renamed channels), which you can turn off (see [Anonymous usage counts](#anonymous-usage-counts)). Emailed reports, if you enable
 them, are handed to the Newsflasharr plugin, which sends them to destinations **you** configured.
 
 **You are responsible for what you connect Dispatcharr to.** Whether a particular provider,

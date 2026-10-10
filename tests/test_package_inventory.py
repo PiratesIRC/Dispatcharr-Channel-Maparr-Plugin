@@ -63,6 +63,7 @@ SHIPPED_FILES = {
     "report_counter.py",
     "reports.py",
     "station_affiliation.py",
+    "usage_client.py",
     "wildcard_match.py",
 }
 

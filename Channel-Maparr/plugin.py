@@ -104,6 +104,9 @@ class PluginConfig:
 
     # File Paths
     RESULTS_FILE = "/data/channel_mapparr_loaded_channels.json"
+    # Append-only tally of channel names written by Rename Channels and Tag
+    # Unknown Channels: one JSON line per run that wrote at least one name.
+    RENAME_LEDGER_FILE = "/data/channel_maparr_rename_counts.jsonl"
     EXPORT_DIR = "/data/exports"
 
     # The export directory is SHARED with at least five other plugins. Measured
@@ -1518,24 +1521,53 @@ class Plugin:
             logger: logger instance
         """
         if not updates:
-            return
+            return 0
 
         channel_ids = [u['id'] for u in updates]
         channels = {ch.id: ch for ch in Channel.objects.filter(id__in=channel_ids)}
 
+        before = {}
         to_update = []
         for u in updates:
             ch = channels.get(u['id'])
             if ch:
+                before[ch.id] = tuple(getattr(ch, f) for f in fields)
                 for field in fields:
                     if field in u:
                         setattr(ch, field, u[field])
                 to_update.append(ch)
 
+        changed = sum(1 for ch in to_update if tuple(getattr(ch, f) for f in fields) != before[ch.id])
         if to_update:
             with transaction.atomic():
                 Channel.objects.bulk_update(to_update, fields)
             logger.info(f"{PLUGIN_LOG_PREFIX} Bulk updated {len(to_update)} channels (fields: {', '.join(fields)})")
+        return changed
+
+    def _record_channels_renamed(self, count, mode, logger=None):
+        """Append one line recording how many channel names a run wrote.
+
+        Append only and never raises: a tally is worth less than the rename that
+        produced it. Only a run that wrote at least one name records a line, so a
+        preview, a dry run, a run with nothing to rename and a failed write leave
+        no trace. Only an integer and a short mode string are recorded, never a
+        channel name, group name or URL.
+        """
+        log = logger or LOGGER
+        if isinstance(count, bool) or not isinstance(count, int):
+            log.warning(f"{PLUGIN_LOG_PREFIX} Rename tally skipped: the count was "
+                        f"{count!r}, which is not a whole number")
+            return False
+        if count <= 0:
+            return False
+        line = json.dumps({"ts": int(time.time()), "channels": count, "mode": mode})
+        try:
+            with open(PluginConfig.RENAME_LEDGER_FILE, "a", encoding="utf-8") as handle:
+                handle.write(line + "\n")
+            return True
+        except Exception as exc:
+            log.warning(f"{PLUGIN_LOG_PREFIX} Could not record the rename tally: {exc}")
+            return False
 
     def _get_or_create_group(self, name, logger):
         """Get or create a channel group by name."""
@@ -2171,7 +2203,8 @@ class Plugin:
             updates = [{'id': ch['channel_id'], 'name': ch['new_name']} for ch in channels_to_rename]
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Renaming {len(updates)} channels...")
-            self._bulk_update_channels(updates, ['name'], logger)
+            written = self._bulk_update_channels(updates, ['name'], logger)
+            self._record_channels_renamed(written, "rename_channels", logger)
             self._trigger_frontend_refresh(settings, logger)
 
             message_parts = [f"✓ Successfully renamed {len(updates)} channels."]
@@ -2249,7 +2282,8 @@ class Plugin:
                         f"with suffix '{suffix}'. No changes written."}
 
             logger.info(f"{PLUGIN_LOG_PREFIX} Adding suffix '{suffix}' to {len(updates)} unknown channels...")
-            self._bulk_update_channels(updates, ['name'], logger)
+            written = self._bulk_update_channels(updates, ['name'], logger)
+            self._record_channels_renamed(written, "rename_unknown_channels", logger)
             self._trigger_frontend_refresh(settings, logger)
 
             message_parts = [f"✓ Successfully added suffix '{suffix}' to {len(updates)} unknown channels."]

@@ -96,6 +96,7 @@ def _capture_real_container_paths():
         "RESULTS_FILE": plugin_module.PluginConfig.RESULTS_FILE,
         "EXPORT_DIR": plugin_module.PluginConfig.EXPORT_DIR,
         "PROGRESS_FILE": plugin_module.PROGRESS_FILE,
+        "RENAME_LEDGER_FILE": plugin_module.PluginConfig.RENAME_LEDGER_FILE,
         "REPORT_DIR": reports_module.REPORT_DIR,
         "COUNTER_DIR": counter_module.COUNTER_DIR,
     })
@@ -125,6 +126,8 @@ def redirect_container_paths(tmp_path, monkeypatch):
                         str(tmp_path / "exports"))
     monkeypatch.setattr(plugin_module, "PROGRESS_FILE",
                         str(tmp_path / "progress.json"))
+    monkeypatch.setattr(plugin_module.PluginConfig, "RENAME_LEDGER_FILE",
+                        str(tmp_path / "channel_maparr_rename_counts.jsonl"))
     monkeypatch.setattr(reports_module, "REPORT_DIR",
                         str(tmp_path / "reports"))
 

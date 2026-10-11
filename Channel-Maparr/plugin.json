@@ -1,7 +1,7 @@
 {
   "name": "Channel Mapparr",
   "version": "1.26.2832116",
-  "description": "Standardizes broadcast (OTA) and premium/cable channel names using network data and channel lists. Supports M3U stream import, category organization, and fuzzy matching across 42K+ channels in 11 countries.",
+  "description": "Standardizes broadcast (OTA) and premium/cable channel names using network data and channel lists. Supports M3U stream import, category organization, and fuzzy matching across about 42,600 channels in 13 countries.",
   "author": "PiratesIRC",
   "license": "MIT",
   "repo_url": "https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin",

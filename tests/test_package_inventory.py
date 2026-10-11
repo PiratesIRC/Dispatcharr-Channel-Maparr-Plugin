@@ -2,12 +2,13 @@
 
 This exists because of how the plugin is published. The GitHub release archive
 is built with ``git archive HEAD:Channel-Maparr`` and therefore always carries
-whatever the package contains. The Dispatcharr Plugin Hub listing is different:
-this plugin is a STANDARD listing, meaning its source is copied file by file
-into ``plugins/channel-mapparr/`` in the Dispatcharr/Plugins repository. A file
-added here and not copied there is simply absent from every Hub install.
+whatever the package contains. The Dispatcharr Plugin Hub listing is now an
+EXTERNAL listing: the Hub downloads that release archive, so it ships exactly
+the files the release ships and nothing is copied by hand.
 
-That is not a theoretical risk. Measured on 2026-08-12, the Hub listing was
+History, kept because it is why this pin exists: the listing used to be a
+STANDARD listing, copied file by file into ``plugins/channel-mapparr/`` in the
+Dispatcharr/Plugins repository. Measured on 2026-08-12, that copy was
 missing four files this package ships, and two of them are imported at module
 level, so a Hub install would have raised ModuleNotFoundError and the plugin
 would not have loaded at all:
@@ -17,9 +18,9 @@ would not have loaded at all:
     station_affiliation.py  imported by nothing yet       -> loads
     networks_supplemental.json  read behind an exists check -> loads
 
-Adding or removing a shipped file therefore has to fail this test, so that the
-Hub listing is updated in the same breath. Update SHIPPED_FILES below and copy
-the file to the Hub listing in the same change.
+Adding or removing a shipped file still has to fail this test, so that the
+change is deliberate. Update SHIPPED_FILES below; the next release then carries
+the file to the Hub.
 """
 import ast
 from pathlib import Path
@@ -94,11 +95,10 @@ def test_the_shipped_file_list_is_exactly_what_is_pinned():
     removed = sorted(SHIPPED_FILES - tracked)
     assert not added, (
         "these files are shipped but not pinned: %s. Add them to SHIPPED_FILES "
-        "AND copy them into plugins/channel-mapparr/ in the Dispatcharr/Plugins "
-        "repository, or a Hub install will not have them." % added)
+        "if they are meant to ship; the next release carries them to the Hub." % added)
     assert not removed, (
         "these files are pinned but no longer shipped: %s. Remove them from "
-        "SHIPPED_FILES and delete them from the Hub listing." % removed)
+        "SHIPPED_FILES." % removed)
 
 
 def _package_module_names():

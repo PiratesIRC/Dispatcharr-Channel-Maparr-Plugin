@@ -349,7 +349,7 @@ docker restart dispatcharr
 | :--- | :--- | :--- | :--- |
 | | | | |
 | **Matching and Scope** | *section* | | Which channel databases a run matches against, how close a name has to be before it counts as a match, and which channel groups are in scope. The two group settings are not opposites: Channel Groups to Process narrows a run to the groups you name, while Channel Groups to Ignore is a refusal that every action obeys, including the ones that only replay a saved results file. A name in Channel Groups to Ignore that matches no group stops the run rather than being skipped, because a typo there would otherwise quietly widen the run to everything. |
-| **Channel Databases** | `string` | `US` | Comma-separated country codes (AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, UK, US). |
+| **Channel Databases** | `string` | `US` | Comma-separated country codes (AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, PL, UK, US). |
 | **Match Sensitivity** | `select` | `normal` | Relaxed (70), Normal (80), Strict (90), Exact (95). |
 | **Channel Groups to Process** | `string` | - | Comma-separated group names for renaming operations. Empty = all groups. Use "Channel Groups to Ignore" to exclude instead. |
 | **Channel Groups to Ignore** | `string` | - | Comma-separated, supports `*` and `?` wildcards, case-insensitive. Channels in these groups are excluded from renaming, tagging, logos and Organize by Category, regardless of "Channel Groups to Process". Organize skips a target group that is ignored; Import M3U Streams refuses to run if its destination group is ignored. Does not apply to Import's stream matching or duplicate detection. A typo that matches no group refuses the run rather than silently processing everything. |

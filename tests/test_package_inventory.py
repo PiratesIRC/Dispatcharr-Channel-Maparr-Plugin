@@ -40,6 +40,7 @@ SHIPPED_FILES = {
     "MX_channels.json",
     "NL_channels.json",
     "NO_channels.json",
+    "PL_channels.json",
     "UK_channels.json",
     "US_channels.json",
     "__init__.py",

@@ -1,5 +1,5 @@
 # Channel Mapparr
-A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel names using network data and curated channel lists. It reads twelve country databases and can also organise channels into groups, import M3U streams and create channels from streams. 
+A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel names using network data and curated channel lists. It reads thirteen country databases and can also organise channels into groups, import M3U streams and create channels from streams.
 
 > [!TIP]
 > **New to Dispatcharr plugins?** Start with the **[Dispatcharr Plugin Workflow guide](https://piratesirc.github.io/Dispatcharr-Plugin-Workflow/)**.
@@ -26,7 +26,7 @@ A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel
 **Naming**
 * **Broadcast (OTA) station matching** for United States local affiliates, by callsign, against a bundled 6,839-station table built from the Federal Communications Commission licensing database. `ABC 5 (WEWS) CLEVELAND HD` becomes `ABC - OH Cleveland (WEWS)`. Subchannels resolve to their own network, and callsigns that are also ordinary English words are handled without false positives.
 * **Customizable name format** using `{NETWORK}`, `{STATE}`, `{CITY}` and `{CALLSIGN}`.
-* **Curated channel databases** for 12 countries, about 42,900 channels: AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, UK, US.
+* **Curated channel databases** for 13 countries: AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, PL, UK, US.
 * **Suffix for unmatched channels**, so what did not match is easy to find later.
 
 **Matching**

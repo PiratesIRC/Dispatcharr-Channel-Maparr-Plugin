@@ -11,7 +11,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PLUGIN_DIR = REPO_ROOT / "Channel-Maparr"
-COUNTRY_CODES = ["US", "UK", "CA", "AU", "BR", "DE", "ES", "FR", "MX", "NL", "IN"]
+COUNTRY_CODES = ["US", "UK", "CA", "AU", "BR", "DE", "ES", "FR", "MX", "NL", "IN", "PL"]
 
 
 def _load(cc):

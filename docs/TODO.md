@@ -2,7 +2,7 @@
 
 ## Open (added 2026-09-05)
 
-- [ ] **Two manifests still say this plugin covers 11 countries and it covers 12.** Twelve
+- [x] **Two manifests still say this plugin covers 11 countries and it covers 12.** Twelve
   `*_channels.json` databases ship, including `NO_channels.json` for Norway with 94 channels,
   and `docs/CHANGELOG.md` records coverage reaching 12 when that database was added. The
   wrong count is in the `description` field of exactly two files: `Channel-Maparr/plugin.json`
@@ -15,6 +15,10 @@
   the eight metadata-only fields and needs no version bump, so it could be changed alone, but
   doing that would leave the Hub listing and the plugin card disagreeing until the plugin's
   own manifest catches up, and changing that one does require a release.
+
+  **Done 2026-10-11 in release 1.26.2840039:** both descriptions now read "about 42,600
+  channels in 13 countries" (PL was added by pull request #14; measured total 42,628). The
+  Hub listing took the new description from the plugin manifest in Dispatcharr/Plugins#422.
 
 - [ ] **The Plugin Hub listing has no `README.md`, so its generated page has no documentation
   section.** `plugins/channel-mapparr/` holds only `plugin.json` and `logo.png`. For an

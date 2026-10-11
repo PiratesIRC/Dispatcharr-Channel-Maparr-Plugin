@@ -1,6 +1,6 @@
 {
   "name": "Channel Mapparr",
-  "version": "1.26.2832116",
+  "version": "1.26.2840039",
   "description": "Standardizes broadcast (OTA) and premium/cable channel names using network data and channel lists. Supports M3U stream import, category organization, and fuzzy matching across about 42,600 channels in 13 countries.",
   "author": "PiratesIRC",
   "license": "MIT",

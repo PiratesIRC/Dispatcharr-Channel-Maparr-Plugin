@@ -1,5 +1,17 @@
 # Channel Maparr Changelog
 
+## v1.26.2840039 (October 11, 2026)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2840039
+
+### Added
+
+- **Poland channel database.** PL_channels.json adds 382 Polish channels in 13 categories, contributed by grandfso in pull request #14. Add PL to Channel Databases to match against it; Apply Logos looks for Polish logos in the tv-logos poland folder. Twelve of its names are spelled with the Polish letter L with stroke, and a provider name that writes that letter as a plain L does not match them yet.
+
+### Changed
+
+- The plugin description now says 13 countries and about 42,600 channels; it said 11 countries.
+
 ## v1.26.2832116 (October 10, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2832116

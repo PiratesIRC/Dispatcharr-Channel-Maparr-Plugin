@@ -20,7 +20,7 @@
   channels in 13 countries" (PL was added by pull request #14; measured total 42,628). The
   Hub listing took the new description from the plugin manifest in Dispatcharr/Plugins#422.
 
-- [ ] **The Plugin Hub listing has no `README.md`, so its generated page has no documentation
+- [x] **The Plugin Hub listing has no `README.md`, so its generated page has no documentation
   section.** `plugins/channel-mapparr/` holds only `plugin.json` and `logo.png`. For an
   external listing that README is the only documentation surface the Hub renders. Adding any
   file to a listing requires a version bump, so it has to ride along with a release rather
@@ -28,6 +28,13 @@
   the workspace notes say it pushes the Hub-generated README OUTWARD and never pulls one in,
   and it is not established whether adding one here would overwrite `README.md` in this
   repository. Read that workflow before opening the pull request.
+
+  **Done:** `hub_listing.py generate` now writes the listing README from this repository's
+  `README.md`. Measured 2026-10-11: `plugins/channel-mapparr/README.md` (11,981 bytes) is on
+  Dispatcharr/Plugins main, added by #421 (1.26.2832116, 2026-10-10) and updated by #422
+  (1.26.2840039). Every commit to this repository's `README.md` since then is ours or a
+  contributor's, so the Hub workflow has not overwritten it. The rendered Hub page itself was
+  not checked.
 
 ## Open (added 2026-08-12)
 

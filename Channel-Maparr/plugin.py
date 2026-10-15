@@ -143,6 +143,10 @@ class PluginConfig:
     # tv-logos GitHub repo for per-channel logo lookup
     TV_LOGOS_REPO = "tv-logo/tv-logos"
     TV_LOGOS_BRANCH = "main"
+    # Country folders whose broadcast station logos sit in a subfolder the
+    # top-level file list skips. Fetched as a second list and searched by
+    # callsign for names in the OTA station format.
+    TV_LOGOS_STATION_DIRS = {"united-states": "united-states/us-local"}
     COUNTRY_DIR_MAP = {
         "US": "united-states", "CA": "canada", "UK": "united-kingdom",
         "GB": "united-kingdom", "AU": "australia", "DE": "germany",
@@ -738,7 +742,7 @@ class Plugin:
         {
             "id": "apply_tv_logos",
             "label": "Apply Per-Channel Logos (tv-logos)",
-            "description": "Fuzzy-match each channel name to the tv-logo/tv-logos GitHub repo and assign per-channel logos. Uses the country codes from Channel Databases. A channel with no match takes the logo of its EPG entry when it has one. Channels with an existing logo are left alone.",
+            "description": "Fuzzy-match each channel name to the tv-logo/tv-logos GitHub repo and assign per-channel logos. Uses the country codes from Channel Databases. A US broadcast station (\"CBS - AL Birmingham (WIAT)\") gets its station logo by callsign. A channel with no match takes the logo of its EPG entry, or for a station its network's logo. Channels with an existing logo are left alone.",
             "button_label": "\u2756 Apply Per-Channel Logos",
             "button_variant": "filled",
             "button_color": "orange",
@@ -2487,6 +2491,9 @@ class Plugin:
                 build_logo_url,
                 fetch_tv_logos_filelist,
                 match_channel_to_logo,
+                match_station_logo,
+                network_logo,
+                parse_station_name,
             )
 
             country_codes_str = settings.get("channel_databases", PluginConfig.DEFAULT_CHANNEL_DATABASES).strip()
@@ -2540,6 +2547,23 @@ class Plugin:
                 if files:
                     country_filelists.append((cc.lower(), country_dir, files))
 
+            # Station logo folders, fetched once per folder like the lists
+            # above. A failed fetch only means no station logos this run.
+            station_filelists = {}
+            for _suffix, country_dir, _files in country_filelists:
+                station_dir = PluginConfig.TV_LOGOS_STATION_DIRS.get(country_dir)
+                if not station_dir or station_dir in station_filelists:
+                    continue
+                cache_key = (PluginConfig.TV_LOGOS_REPO, PluginConfig.TV_LOGOS_BRANCH, station_dir)
+                files = self._tv_logos_cache.get(cache_key)
+                if files is None:
+                    files = fetch_tv_logos_filelist(*cache_key)
+                    if files:
+                        self._tv_logos_cache[cache_key] = files
+                logger.info(f"{PLUGIN_LOG_PREFIX} {len(files)} station logos available in {station_dir}")
+                if files:
+                    station_filelists[country_dir] = (station_dir, files)
+
             if not country_filelists:
                 return {"status": "error", "error": "No tv-logos file lists could be fetched. Check network access or repo path."}
 
@@ -2567,8 +2591,12 @@ class Plugin:
             assigned = 0
             no_match = 0
             already_set = 0
-            would_create = 0
+            # URLs a real run would add to the Logo catalog, counted once each:
+            # many channels can share one (a network logo), and the real run
+            # creates that entry once and reuses it.
+            would_create_urls = set()
             from_epg = 0
+            from_network = 0
             channel_updates = []
             # EPG fallback: a channel with no logo and no tv-logos match takes
             # the icon of the EPG entry it is mapped to. Read once, only for
@@ -2599,19 +2627,47 @@ class Plugin:
                 rows.append(row)
 
                 matched_url = None
-                for suffix, country_dir, files in country_filelists:
-                    matched_file = match_channel_to_logo(name, files, suffix,
-                                                         threshold=threshold)
-                    if matched_file:
-                        matched_url = build_logo_url(
-                            PluginConfig.TV_LOGOS_REPO, PluginConfig.TV_LOGOS_BRANCH,
-                            country_dir, matched_file,
-                        )
-                        break
+                # 1. A broadcast station name: the station's own logo, found
+                #    by callsign in the station folder.
+                station = parse_station_name(name)
+                if station:
+                    for _suffix, country_dir, _files in country_filelists:
+                        station_dir, station_files = station_filelists.get(country_dir, (None, ()))
+                        station_file = match_station_logo(station, station_files)
+                        if station_file:
+                            matched_url = build_logo_url(
+                                PluginConfig.TV_LOGOS_REPO, PluginConfig.TV_LOGOS_BRANCH,
+                                station_dir, station_file,
+                            )
+                            break
+                # 2. The fuzzy name match against the country folder.
+                if not matched_url:
+                    for suffix, country_dir, files in country_filelists:
+                        matched_file = match_channel_to_logo(name, files, suffix,
+                                                             threshold=threshold)
+                        if matched_file:
+                            matched_url = build_logo_url(
+                                PluginConfig.TV_LOGOS_REPO, PluginConfig.TV_LOGOS_BRANCH,
+                                country_dir, matched_file,
+                            )
+                            break
+                # 3 and 4 only fill a channel with no logo: the EPG icon, then
+                # the station's network logo (generic, so it comes last).
                 use_epg = False
+                use_network = False
                 if not matched_url and current_logo_id is None:
                     matched_url = epg_icons.get(ch.get('id'))
                     use_epg = bool(matched_url)
+                if not matched_url and current_logo_id is None and station:
+                    for suffix, country_dir, files in country_filelists:
+                        network_file = network_logo(station[0], files, suffix)
+                        if network_file:
+                            matched_url = build_logo_url(
+                                PluginConfig.TV_LOGOS_REPO, PluginConfig.TV_LOGOS_BRANCH,
+                                country_dir, network_file,
+                            )
+                            use_network = True
+                            break
                 if not matched_url:
                     no_match += 1
                     row['status'] = 'No match, logo kept'
@@ -2628,13 +2684,16 @@ class Plugin:
                 if use_epg:
                     row['status'] = 'Assign EPG logo'
                     from_epg += 1
+                elif use_network:
+                    row['status'] = 'Assign network logo'
+                    from_network += 1
                 else:
                     row['status'] = 'Replace' if current_logo_id is not None else 'Assign'
                 logo = existing_logos_by_url.get(matched_url)
                 if not logo:
                     if dry_run:
                         # No Logo.objects.create - a dry run must write nothing.
-                        would_create += 1
+                        would_create_urls.add(matched_url)
                         assigned += 1
                         progress.update()
                         continue
@@ -2654,12 +2713,15 @@ class Plugin:
             replaced = sum(1 for r in rows if r['status'] == 'Replace')
             epg_note = (f" {from_epg} of them took the EPG logo because tv-logos "
                         f"had no match." if from_epg else "")
+            if from_network:
+                epg_note += (f" {from_network} of them took their network's logo "
+                             f"because tv-logos has no logo for that station.")
 
             if dry_run:
                 if replace_existing:
                     csv_filename = self._write_logo_replace_preview(
                         settings, rows, assigned, replaced, already_set, no_match,
-                        from_epg)
+                        from_epg, from_network)
                     summary = (
                         f"Dry Run: would set logos on {assigned} channel(s), "
                         f"{replaced} of them replacing an existing logo "
@@ -2670,7 +2732,7 @@ class Plugin:
                 else:
                     summary = (
                         f"Dry Run: would apply logos to {assigned} channel(s) "
-                        f"({no_match} had no match, {would_create} would need a "
+                        f"({no_match} had no match, {len(would_create_urls)} would need a "
                         f"new Logo catalog entry).{epg_note} No changes written."
                     )
                 progress.finish(summary=f"{summary} Scope: {scope.info}")
@@ -2735,7 +2797,7 @@ class Plugin:
             return {}
 
     def _write_logo_replace_preview(self, settings, rows, assigned, replaced,
-                                    already_set, no_match, from_epg):
+                                    already_set, no_match, from_epg, from_network):
         """Write the Replace Logos Dry Run preview CSV; return its filename."""
         export_dir = PluginConfig.EXPORT_DIR
         os.makedirs(export_dir, exist_ok=True)
@@ -2754,6 +2816,7 @@ class Plugin:
                     summary=[("Channels that would get a logo", assigned),
                              ("Of those, replacing an existing logo", replaced),
                              ("Of those, the EPG logo (no tv-logos match)", from_epg),
+                             ("Of those, the network logo (no station logo)", from_network),
                              ("Channels that already have the matched logo", already_set),
                              ("Channels with no match (logo kept)", no_match)]))
                 fieldnames = ['Channel ID', 'Channel Number', 'Channel Name',

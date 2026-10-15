@@ -426,13 +426,18 @@ The action buttons are listed in the recommended execution order:
    `itv-2-plus`) and the plain channel's logo when there is no `-plus` file; a hyphen between a letter
    and a digit in a filename is ignored, so E4 matches `e-4`. A channel that has no logo and no tv-logos match takes the logo of the EPG entry it is
    mapped to, when that entry has one; a channel that already has a logo never gets an EPG logo.
+   A US broadcast station named in this plugin's OTA format, such as `CBS - AL Birmingham (WIAT)`, is
+   looked up by callsign in the tv-logos `us-local` folder (`cbs-42-wiat-us.png`); the file must also
+   name the channel's network, so a station's old affiliation is never used. When tv-logos has no file
+   for that station, a channel with no logo gets its network's logo (`nbc-us.png`; for CBS the only one
+   tv-logos has is the white `cbs-logo-white-us.png`), after the EPG logo has been tried.
 
    **Replace Logos (tv-logos)** does the same matching on every channel in "Channel Groups to Process",
    including channels that already have a logo, and replaces that logo when the tv-logos repo has a
    match. It searches the tv-logos country folders for the codes in "Channel Databases" and accepts a
    match at the "Match Sensitivity" threshold (Apply Per-Channel Logos always uses 85 of 100). A
    channel with no match keeps its current logo, and one that already has the matched logo is not
-   touched. The same EPG fallback applies, marked `Assign EPG logo` in the preview. With Dry Run on it writes `channel_mapparr_logo_replace_preview_<time>.csv` to
+   touched. The same station logos apply, and so do the EPG and network fallbacks, which only fill a channel with no logo; the preview marks them `Assign EPG logo` and `Assign network logo`. With Dry Run on it writes `channel_mapparr_logo_replace_preview_<time>.csv` to
    `/data/exports`, listing each channel's current logo, the new one and the outcome. A real run first
    writes `logo_backup_<time>.json` to `/data/channel_mapparr_logo_backups`, holding every changed
    channel's previous logo ID, and refuses to change anything if that file cannot be written. Run it

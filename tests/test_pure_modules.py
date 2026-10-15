@@ -123,3 +123,53 @@ def test_build_logo_url_shape():
     assert url.startswith("https://raw.githubusercontent.com/")
     assert url.endswith("/cnn-us.png")
     assert "united-states" in url
+
+
+# --- broadcast station logos (tv-logos us-local) --------------------------
+# Real filenames from countries/united-states/us-local.
+US_LOCAL = [
+    "cbs-42-wiat-us.png", "cbs-2-kalb-dt2-us.png", "nbc-5-kalb-us.png",
+    "cbs-11-khou-icon-us.png", "cbs-11-khou-us.png",
+    "abc-3-wear-white-us.png", "abc-3-wear-us.png", "abc-fox-kfbb-us.png",
+    "abc-7-WVII-us.png",
+]
+US_TOP = ["abc-us.png", "nbc-us.png", "cbs-logo-white-us.png", "cbs-nfl-us.png"]
+
+
+@pytest.mark.parametrize("name, expected", [
+    ("CBS - AL Birmingham (WIAT)", ("cbs", "wiat")),
+    ("ABC - AL Birmingham (WBMA-LD)", ("abc", "wbma")),
+    ("NFL  | 03 - 1pm Bears at Packers", None),
+    ("CBS", None),
+    ("Sky News", None),
+])
+def test_parse_station_name(name, expected):
+    assert lm.parse_station_name(name) == expected
+
+
+@pytest.mark.parametrize("name, expected", [
+    ("CBS - AL Birmingham (WIAT)", "cbs-42-wiat-us.png"),
+    # KALB carries NBC and, on a subchannel, CBS: the network decides
+    ("NBC - LA Alexandria (KALB)", "nbc-5-kalb-us.png"),
+    ("CBS - LA Alexandria (KALB)", "cbs-2-kalb-dt2-us.png"),
+    # a plain file wins over its icon and white variants
+    ("CBS - TX Houston (KHOU)", "cbs-11-khou-us.png"),
+    ("ABC - FL Pensacola (WEAR)", "abc-3-wear-us.png"),
+    # a file naming two networks serves either; uppercase callsigns match
+    ("FOX - MT Great Falls (KFBB)", "abc-fox-kfbb-us.png"),
+    ("ABC - NY Elmira (WVII)", "abc-7-WVII-us.png"),
+    # callsign present but under another network: not this station's logo
+    ("FOX - LA Alexandria (KALB)", None),
+    ("CBS - MO St. Louis (KMOV)", None),
+])
+def test_match_station_logo(name, expected):
+    assert lm.match_station_logo(lm.parse_station_name(name), US_LOCAL) == expected
+
+
+@pytest.mark.parametrize("network, expected", [
+    ("nbc", "nbc-us.png"),
+    ("cbs", "cbs-logo-white-us.png"),
+    ("pbs", None),
+])
+def test_network_logo(network, expected):
+    assert lm.network_logo(network, US_TOP, "us") == expected

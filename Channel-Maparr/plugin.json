@@ -355,7 +355,7 @@
     {
       "id": "apply_tv_logos",
       "label": "Apply Per-Channel Logos (tv-logos)",
-      "description": "Fuzzy-match each channel name to the tv-logo/tv-logos GitHub repo and assign per-channel logos. Uses the country codes from Channel Databases. A channel with no match takes the logo of its EPG entry when it has one. Channels with an existing logo are left alone.",
+      "description": "Fuzzy-match each channel name to the tv-logo/tv-logos GitHub repo and assign per-channel logos. Uses the country codes from Channel Databases. A US broadcast station (\"CBS - AL Birmingham (WIAT)\") gets its station logo by callsign. A channel with no match takes the logo of its EPG entry, or for a station its network's logo. Channels with an existing logo are left alone.",
       "button_label": "\u2756 Apply Per-Channel Logos",
       "button_variant": "filled",
       "button_color": "orange",

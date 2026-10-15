@@ -180,6 +180,68 @@ def _best_logo(normalized_channel, logo_filenames, country_suffix, threshold):
     return None
 
 
+# A broadcast station name in this plugin's OTA format, "{NETWORK} - {STATE}
+# {CITY} ({CALLSIGN})": "CBS - AL Birmingham (WIAT)". A callsign may carry a
+# suffix ("WBMA-LD"); only the four or three letters are kept.
+_STATION_NAME = re.compile(
+    r'^\s*([A-Za-z0-9]+)\s+-\s+.*\(([KW][A-Z]{2,3})(?:-[A-Z0-9]+)?\)\s*$')
+
+
+def parse_station_name(channel_name):
+    """("cbs", "wiat") for "CBS - AL Birmingham (WIAT)"; None for any name
+    not in the broadcast station format."""
+    match = _STATION_NAME.match(channel_name or '')
+    if not match:
+        return None
+    return match.group(1).lower(), match.group(2).lower()
+
+
+def match_station_logo(station, local_files):
+    """The tv-logos us-local file for a (network, callsign) pair, or None.
+
+    us-local files are named "<network>-<channel number>-<callsign>-us.png"
+    (cbs-42-wiat-us.png), with variations ("abc-fox-kfbb-us.png",
+    "cbs-2-kalb-dt2-us.png"). A file qualifies when one of its hyphen-separated
+    words is the callsign AND one is the channel's network: a station that
+    changed affiliation keeps its callsign, and a file showing its old
+    network is the wrong logo (KALB has cbs-2-kalb-dt2 for its CBS
+    subchannel and nbc-5-kalb for NBC). Among qualifying files, one without a
+    "dt" subchannel word, then one without a style word (white, hz, light, icon),
+    then the shortest name wins, so the choice does not depend on the order
+    GitHub lists files in.
+    """
+    if not station:
+        return None
+    network, callsign = station
+    candidates = []
+    for filename in local_files:
+        words = re.sub(r'\.[a-z]+$', '', filename.lower()).split('-')
+        if callsign in words and network in words:
+            candidates.append((filename, words))
+    if not candidates:
+        return None
+
+    def rank(item):
+        filename, words = item
+        subchannel = any(re.fullmatch(r'dt\d*', w) for w in words)
+        styled = any(w in ('white', 'hz', 'light', 'dark', 'icon') for w in words)
+        return (subchannel, styled, len(filename), filename)
+
+    return min(candidates, key=rank)[0]
+
+
+def network_logo(network, logo_filenames, country_suffix):
+    """The tv-logos file for a network name ("cbs"), or None. Tries
+    "<network>-<suffix>.png" and then the white variant, which is the only
+    CBS network logo the repo has (cbs-logo-white-us.png)."""
+    available = set(logo_filenames)
+    for candidate in (f"{network}-{country_suffix}.png",
+                      f"{network}-logo-white-{country_suffix}.png"):
+        if candidate in available:
+            return candidate
+    return None
+
+
 _IMAGE_EXTS = ('.png', '.svg', '.jpg', '.jpeg', '.gif', '.webp')
 
 

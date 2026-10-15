@@ -98,22 +98,36 @@ def build_name_to_ids(rows):
     return mapping
 
 
-def resolve_group_scope(include_value, ignore_value, group_name_to_ids, *, include_label):
+def resolve_group_scope(include_value, ignore_value, group_name_to_ids, *, include_label,
+                        include_wildcards=False):
     """Resolve the include filter, then subtract the exclusion.
 
     Returns a GroupScope whose group_ids is always explicit. Raises
     GroupScopeError for every refusal case in the spec's section 4 table.
+
+    include_wildcards lets an include token containing * or ? select every
+    group it matches, case-insensitively ("US:*"). A token without one is
+    still matched exactly and case-sensitively either way. It is off for
+    Category Organization Groups, whose names can be groups that Organize by
+    Category has yet to create, which no wildcard can name.
     """
     include_tokens = parse_tokens(include_value)
     ignore_tokens = parse_tokens(ignore_value)
 
     # --- include ---------------------------------------------------------
     if include_tokens:
-        # Exact, case-sensitive: unchanged from the pre-existing behaviour.
-        missing = [t for t in include_tokens if t not in group_name_to_ids]
         target = set()
-        for tok in include_tokens:
-            target |= group_name_to_ids.get(tok, set())
+        if include_wildcards:
+            # ci_plain=False keeps a literal token exact and case-sensitive.
+            matched, missing = expand_patterns(
+                include_tokens, list(group_name_to_ids), ci_plain=False)
+            for name in matched:
+                target |= group_name_to_ids[name]
+        else:
+            # Exact, case-sensitive: unchanged from the pre-existing behaviour.
+            missing = [t for t in include_tokens if t not in group_name_to_ids]
+            for tok in include_tokens:
+                target |= group_name_to_ids.get(tok, set())
         if not target:
             raise GroupScopeError(
                 f"None of the groups named in '{include_label}' could be found: "

@@ -1051,3 +1051,26 @@ def test_apply_tv_logos_dry_run_writes_nothing(
 
     assert result["status"] == "success"
     assert "Dry Run" in result["message"]
+
+
+GROUPS_WITH_COLONS = [
+    {"id": 1, "name": "US: News"},
+    {"id": 2, "name": "US: Sports"},
+    {"id": 3, "name": "UK: All"},
+]
+
+
+def test_channel_groups_to_process_accepts_a_wildcard(
+        plugin_instance, logger, fake_groups):
+    fake_groups(GROUPS_WITH_COLONS)
+    scope = plugin_instance._resolve_process_scope(
+        {"selected_groups": "US:*"}, logger)
+    assert scope.group_ids == frozenset({1, 2})
+
+
+def test_category_organization_groups_keeps_exact_names(
+        plugin_instance, logger, fake_groups, plugin_module):
+    fake_groups(GROUPS_WITH_COLONS)
+    with pytest.raises(plugin_module.GroupScopeError):
+        plugin_instance._resolve_category_scope(
+            {"category_groups": "US:*"}, logger)

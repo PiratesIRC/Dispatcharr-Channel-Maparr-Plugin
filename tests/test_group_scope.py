@@ -93,6 +93,62 @@ def test_include_is_exact_and_case_sensitive(gs, names):
         resolve(gs, names, include="sports")
 
 
+def resolve_wild(gs, names, include="", ignore=""):
+    return gs.resolve_group_scope(
+        include, ignore, names, include_label="Channel Groups to Process",
+        include_wildcards=True)
+
+
+@pytest.fixture
+def colon_names(gs):
+    return gs.build_name_to_ids([
+        {"id": 1, "name": "US: News"}, {"id": 2, "name": "US: Sports"},
+        {"id": 3, "name": "UK: All"}, {"id": 4, "name": "US| NBC"},
+        {"id": 5, "name": "US-Family"},
+    ])
+
+
+def test_include_wildcard_selects_every_matching_group(gs, colon_names):
+    """The operator typed US:* and every action refused, because the include
+    filter was exact-only while its sibling, the ignore filter, took globs."""
+    scope = resolve_wild(gs, colon_names, include="US:*")
+    assert scope.group_ids == frozenset({1, 2})
+    assert scope.include_ungrouped is False
+
+
+def test_include_wildcard_is_case_insensitive(gs, colon_names):
+    assert resolve_wild(gs, colon_names, include="us:*").group_ids == frozenset({1, 2})
+
+
+def test_include_literal_stays_exact_and_case_sensitive_with_wildcards_on(gs, colon_names):
+    assert resolve_wild(gs, colon_names, include="UK: All").group_ids == frozenset({3})
+    with pytest.raises(gs.GroupScopeError):
+        resolve_wild(gs, colon_names, include="uk: all")
+
+
+def test_include_wildcard_and_literal_combine(gs, colon_names):
+    scope = resolve_wild(gs, colon_names, include="US:*, UK: All")
+    assert scope.group_ids == frozenset({1, 2, 3})
+
+
+def test_include_wildcard_matching_nothing_refuses_and_names_it(gs, colon_names):
+    with pytest.raises(gs.GroupScopeError) as exc:
+        resolve_wild(gs, colon_names, include="CA:*")
+    assert "CA:*" in str(exc.value)
+
+
+def test_include_wildcard_then_ignore_wins(gs, colon_names):
+    scope = resolve_wild(gs, colon_names, include="US:*", ignore="US: Sports")
+    assert scope.group_ids == frozenset({1})
+
+
+def test_without_the_flag_a_wildcard_is_still_a_literal(gs, colon_names):
+    """Category Organization Groups keeps exact names: it can name a group
+    that does not exist yet, which a wildcard cannot."""
+    with pytest.raises(gs.GroupScopeError):
+        resolve(gs, colon_names, include="US:*")
+
+
 # --- the reporter's case -------------------------------------------------
 
 def test_ignore_only_processes_everything_else(gs, names):

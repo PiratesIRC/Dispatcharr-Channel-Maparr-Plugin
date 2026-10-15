@@ -367,8 +367,8 @@ class Plugin:
                 "label": "Channel Groups to Process",
                 "type": "string",
                 "default": "",
-                "placeholder": "Locals, News, Entertainment",
-                "help_text": "Comma-separated channel group names. Limits renaming, tagging and logo actions to these groups. Leave empty to process every group. This setting includes; Channel Groups to Ignore excludes, and an exclusion wins.",
+                "placeholder": "Locals, News, US:*",
+                "help_text": "Comma-separated channel group names. Limits renaming, tagging and logo actions to these groups. Supports * and ? wildcards, matched case-insensitively: US:* selects every group whose name starts with US:. A name without a wildcard must match exactly, including case. Leave empty to process every group. This setting includes; Channel Groups to Ignore excludes, and an exclusion wins.",
             },
             {
                 "id": "ignore_groups",
@@ -1460,6 +1460,7 @@ class Plugin:
             (settings.get("ignore_groups") or ""),
             name_to_ids,
             include_label=self._INCLUDE_LABELS[include_key],
+            include_wildcards=(include_key == "selected_groups"),
         )
         logger.info(f"{PLUGIN_LOG_PREFIX} Scope: {scope.info}")
         for name in scope.out_of_scope_names:

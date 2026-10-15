@@ -60,6 +60,7 @@ EXPECTED_COLOURS = {
     # red: replaces a value on channels that already exist
     "rename_channels": "red",
     "organize_by_category": "red",
+    "replace_tv_logos": "red",
     # orange: writes or clears, replaces nothing
     "rename_unknown_channels": "orange",
     "apply_logos": "orange",
@@ -152,7 +153,8 @@ def test_every_served_action_has_an_expected_colour(plugin_module):
 def test_red_is_reserved_for_the_actions_that_replace_channel_values(plugin_module):
     """If red spreads to merely noisy actions it stops carrying any warning."""
     red = {a["id"] for a in _actions(plugin_module) if a.get("button_color") == "red"}
-    assert red == {"rename_channels", "organize_by_category"}, red
+    assert red == {"rename_channels", "organize_by_category",
+                   "replace_tv_logos"}, red
 
 
 @pytest.mark.parametrize("logo_id,expected", [
@@ -190,7 +192,10 @@ def test_both_logo_actions_select_through_that_predicate(plugin_module):
                 and ast.unparse(inner.func).endswith("has_no_logo")
                 for inner in ast.walk(node))
     }
-    assert {"apply_logos_action", "apply_tv_logos_action"} <= callers, callers
+    # apply_tv_logos_action delegates to _assign_tv_logos, whose non-replacing
+    # branch is the caller. That it stays non-replacing is pinned by behaviour
+    # in tests/test_tv_logos_replace.py.
+    assert {"apply_logos_action", "_assign_tv_logos"} <= callers, callers
 
 
 def test_every_red_action_also_asks_for_confirmation(plugin_module):

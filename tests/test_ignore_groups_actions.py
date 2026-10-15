@@ -1025,7 +1025,7 @@ def test_apply_tv_logos_dry_run_writes_nothing(
     monkeypatch.setattr(logo_matcher_module, "fetch_tv_logos_filelist",
                          lambda repo, branch, country_dir: ["a.png"])
     monkeypatch.setattr(logo_matcher_module, "match_channel_to_logo",
-                         lambda name, files, suffix: "a.png")
+                         lambda name, files, suffix, threshold=None: "a.png")
     monkeypatch.setattr(logo_matcher_module, "build_logo_url",
                          lambda repo, branch, country_dir, filename: f"https://example/{filename}")
 

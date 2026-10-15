@@ -33,6 +33,10 @@ CHANNEL_OBJECTS_ALLOWLIST = {
     # group, and that group is checked against the ignore list by
     # _check_group_destinations_not_ignored before the action starts.
     "_create_seed_channels",
+    # Reads the EPG icon URL of channel ids the tv-logos actions pass in,
+    # which they took from a scoped _get_all_channels result. Filters on those
+    # ids only and writes nothing.
+    "_epg_icon_urls",
 }
 
 

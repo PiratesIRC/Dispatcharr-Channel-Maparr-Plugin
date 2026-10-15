@@ -203,7 +203,7 @@
       "label": "Dry Run Mode",
       "type": "boolean",
       "default": false,
-      "help_text": "With this on, no action writes to the database. Rename Channels, Organize by Category, Import M3U Streams and Create Channels From Streams write a CSV preview to /data/exports. Tag Unknown Channels, Apply Default Logo and Apply Per-Channel Logos (tv-logos) report a count of what they would have done and write no file. Worth turning on the first time you run any of them with new settings."
+      "help_text": "With this on, no action writes to the database. Rename Channels, Organize by Category, Replace Logos (tv-logos), Import M3U Streams and Create Channels From Streams write a CSV preview to /data/exports. Tag Unknown Channels, Apply Default Logo and Apply Per-Channel Logos (tv-logos) report a count of what they would have done and write no file. Worth turning on the first time you run any of them with new settings."
     },
     {
       "id": "rate_limiting",
@@ -355,12 +355,23 @@
     {
       "id": "apply_tv_logos",
       "label": "Apply Per-Channel Logos (tv-logos)",
-      "description": "Fuzzy-match each channel name to the tv-logo/tv-logos GitHub repo and assign per-channel logos. Uses the country codes from Channel Databases. Channels with an existing logo are left alone.",
+      "description": "Fuzzy-match each channel name to the tv-logo/tv-logos GitHub repo and assign per-channel logos. Uses the country codes from Channel Databases. A channel with no match takes the logo of its EPG entry when it has one. Channels with an existing logo are left alone.",
       "button_label": "\u2756 Apply Per-Channel Logos",
       "button_variant": "filled",
       "button_color": "orange",
       "confirm": {
         "message": "This will fetch tv-logos and assign per-channel logos to channels without one. Continue?"
+      }
+    },
+    {
+      "id": "replace_tv_logos",
+      "label": "Replace Logos (tv-logos)",
+      "description": "Like Apply Per-Channel Logos, but also replaces a logo a channel already has when the tv-logos repo has a match for its name. Uses the country codes from Channel Databases and the threshold from Match Sensitivity. Channels with no match keep their current logo; one with no logo at all takes the logo of its EPG entry when it has one. A real run first saves every replaced channel's previous logo to /data/channel_mapparr_logo_backups. Dry Run exports a CSV preview.",
+      "button_label": "\u21bb Replace Logos",
+      "button_variant": "filled",
+      "button_color": "red",
+      "confirm": {
+        "message": "This will replace the existing logo on every channel in scope that has a tv-logos match. Previous logo IDs are saved to a backup file first. Continue?"
       }
     },
     {

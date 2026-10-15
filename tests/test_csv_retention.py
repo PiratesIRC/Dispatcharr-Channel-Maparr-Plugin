@@ -529,14 +529,20 @@ def test_every_csv_writer_finishes_through_that_same_function(plugin_tree):
     That is what makes the pruning unavoidable: a new export writer has to go
     through _finish_csv_export to publish its file, and pruning happens there.
     """
-    assert _functions_calling_os(plugin_tree, "replace") == {"_finish_csv_export"}
+    # _write_logo_backup also renames a temporary file into place, but it
+    # writes a JSON backup to PluginConfig.LOGO_BACKUP_DIR, outside the export
+    # directory, which must NOT be pruned: it is the only record of the logos
+    # Replace Logos (tv-logos) replaced.
+    assert _functions_calling_os(plugin_tree, "replace") == {
+        "_finish_csv_export", "_write_logo_backup"}
 
 
-def test_all_four_export_writers_call_the_finishing_helper(plugin_tree):
+def test_all_five_export_writers_call_the_finishing_helper(plugin_tree):
     writers = _functions_calling_method(plugin_tree, "_finish_csv_export")
     assert writers == {
         "preview_changes_action",
         "category_groups_dry_run_action",
         "_export_m3u_import_preview",
         "_export_seed_preview",
+        "_write_logo_replace_preview",
     }

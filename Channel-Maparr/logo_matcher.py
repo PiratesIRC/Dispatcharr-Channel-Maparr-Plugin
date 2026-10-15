@@ -31,6 +31,36 @@ LOGGER = logging.getLogger("plugins.channel_maparr.logo_matcher")
 # Threshold for fuzzy matching channel names to logo filenames
 LOGO_MATCH_THRESHOLD = 85
 
+# Words a channel name or a tv-logos filename may end with that say nothing
+# about which channel it is. Stripped from BOTH sides, repeatedly, so that
+# "Food Network" and food-network-uk.png compare as "food" and "food". They
+# used to be stripped from the channel name only, which left "food" against
+# "food network" and lost the match.
+_NOISE_SUFFIX = re.compile(r'\s+(network|channel|tv)$')
+
+# Picture-quality tags. Stripped from channel names only: on a channel name
+# they describe the feed, but in a filename they can be part of a different
+# channel's name (bbc-uhd-uk.png is not the BBC logo, and stripping it there
+# matched "CBBC" to it).
+_QUALITY_SUFFIX = re.compile(r'\s+(hd|sd|uhd|4k|fhd)$')
+
+# A name ending in "+1" (a timeshift channel: "ITV2 +1", "E4+1") or in a
+# bare "+" ("Sky Sports+"). tv-logos names both with a "-plus" suffix
+# (itv-2-plus-uk.png, sky-sports-plus-hz-uk.png). Without this the "+"
+# was dropped and the "1" kept, so "ITV2 +1" became "itv2 1" and matched
+# itv-1-uk.png, the logo of a different channel.
+_TIMESHIFT = re.compile(r'\s*\+\s*1?\s*$')
+
+
+def _strip_noise_suffixes(name, quality=False):
+    while True:
+        stripped = _NOISE_SUFFIX.sub('', name)
+        if quality:
+            stripped = _QUALITY_SUFFIX.sub('', stripped)
+        if stripped == name:
+            return name
+        name = stripped
+
 
 def normalize_logo_filename(filename, country_suffix):
     """Normalize a tv-logos filename for comparison.
@@ -45,7 +75,12 @@ def normalize_logo_filename(filename, country_suffix):
     name = re.sub(suffix_pattern, '', name, flags=re.IGNORECASE)
     # Replace hyphens with spaces
     name = name.replace('-', ' ')
-    return name.lower().strip()
+    name = re.sub(r'\s+', ' ', name).lower().strip()
+    # food-network-plus-uk.png must compare as "food plus", the form
+    # match_channel_to_logo builds for "Food Network +1"
+    if name.endswith(' plus'):
+        return _strip_noise_suffixes(name[:-len(' plus')]) + ' plus'
+    return _strip_noise_suffixes(name)
 
 
 def normalize_channel_name(name):
@@ -61,19 +96,67 @@ def normalize_channel_name(name):
     name = name.replace('&', ' and ')
     # Remove special characters except spaces
     name = re.sub(r'[^\w\s]', '', name)
-    # Strip common suffixes that tv-logos filenames don't include
-    name = re.sub(r'\s+(hd|sd|uhd|4k|fhd|network|channel|tv)\s*$', '', name)
-    # Collapse whitespace
+    # Collapse whitespace, then strip the suffixes normalize_logo_filename
+    # strips too, and the picture-quality tags it does not
     name = re.sub(r'\s+', ' ', name).strip()
-    return name
+    return _strip_noise_suffixes(name, quality=True)
+
+
+def split_timeshift(channel_name):
+    """Split "ITV2 +1 HD" into ("ITV2 HD", True); a name with no "+" tail
+    comes back unchanged with False. A noise suffix after the "+1" is moved
+    in front of it first, so "+1 HD" is recognised as well as "HD +1"."""
+    name = channel_name.strip()
+    tail = re.search(r'(\s+(hd|sd|uhd|4k|fhd))+$', name, flags=re.IGNORECASE)
+    if tail:
+        name = name[:tail.start()]
+    match = _TIMESHIFT.search(name)
+    if not match:
+        return channel_name, False
+    return name[:match.start()].strip(), True
+
+
+def _score(normalized_channel, normalized_logo):
+    """Similarity of two normalized names, 0 to 100.
+
+    Also compared with every space removed, and the higher score kept:
+    tv-logos hyphenates between letters and digits (e-4, film-4, itv-2,
+    4-seven) where channel names do not (E4, Film4, ITV2, 4seven), and that
+    one hyphen cost enough points to fail the Exact threshold.
+    """
+    spaced = fuzz.ratio(normalized_channel, normalized_logo)
+    if spaced == 100:
+        return spaced
+    joined = fuzz.ratio(normalized_channel.replace(' ', ''),
+                        normalized_logo.replace(' ', ''))
+    return max(spaced, joined)
 
 
 def match_channel_to_logo(channel_name, logo_filenames, country_suffix, threshold=LOGO_MATCH_THRESHOLD):
     """Match a channel name against a list of tv-logos filenames.
 
     Returns the matching filename or None if no match meets the threshold.
+
+    A timeshift channel ("ITV2 +1") is matched first as "<name> plus", which
+    is how tv-logos names those files, and falls back to the plain channel's
+    logo when the repo has no "-plus" file for it.
     """
-    normalized_channel = normalize_channel_name(channel_name)
+    base_name, is_timeshift = split_timeshift(channel_name)
+    if is_timeshift:
+        base = normalize_channel_name(base_name)
+        if not base:
+            return None
+        found = _best_logo(f"{base} plus", logo_filenames, country_suffix, threshold)
+        if found:
+            return found
+        return _best_logo(base, logo_filenames, country_suffix, threshold)
+    return _best_logo(normalize_channel_name(channel_name), logo_filenames,
+                      country_suffix, threshold)
+
+
+def _best_logo(normalized_channel, logo_filenames, country_suffix, threshold):
+    """The filename scoring highest against normalized_channel, or None when
+    the best score is below threshold."""
     if not normalized_channel:
         return None
 
@@ -85,7 +168,7 @@ def match_channel_to_logo(channel_name, logo_filenames, country_suffix, threshol
         if not normalized_logo:
             continue
 
-        score = fuzz.ratio(normalized_channel, normalized_logo)
+        score = _score(normalized_channel, normalized_logo)
         if score > best_score:
             best_score = score
             best_file = filename

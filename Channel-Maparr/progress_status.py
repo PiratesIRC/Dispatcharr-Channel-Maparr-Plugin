@@ -99,7 +99,7 @@ def save_progress_atomic(path, data):
         raise
 
 
-# The five operations that report progress, keyed by the name plugin.py passes
+# The six operations that report progress, keyed by the name plugin.py passes
 # to ProgressTracker, worded as the buttons that start them are worded.
 #
 # This map used to hold eight entries, seven of which were for names nothing has
@@ -111,6 +111,7 @@ def save_progress_atomic(path, data):
 ACTION_LABELS = {
     "process_channels": "Load & Process Channels",
     "apply_tv_logos": "Apply Per-Channel Logos",
+    "replace_tv_logos": "Replace Logos (tv-logos)",
     "match_streams": "Import M3U Streams, matching streams",
     "import_streams": "Import M3U Streams, creating channels",
     "seed_channels": "Create Channels From Streams",

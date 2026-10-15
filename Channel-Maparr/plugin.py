@@ -109,6 +109,11 @@ class PluginConfig:
     # Unknown Channels: one JSON line per run that wrote at least one name.
     RENAME_LEDGER_FILE = "/data/channel_maparr_rename_counts.jsonl"
     EXPORT_DIR = "/data/exports"
+    # Replace Logos (tv-logos) writes every channel's previous logo_id here
+    # before it changes anything. Kept out of EXPORT_DIR on purpose: Clear CSV
+    # Exports and the retention pruning delete from there, and this file is the
+    # only record of what the replaced logos were.
+    LOGO_BACKUP_DIR = "/data/channel_mapparr_logo_backups"
 
     # The export directory is SHARED with at least five other plugins. Measured
     # on the live installation: 65 stream_mapparr_ files, 26 epg_janitor_, 14
@@ -581,7 +586,7 @@ class Plugin:
                 "label": "Dry Run Mode",
                 "type": "boolean",
                 "default": False,
-                "help_text": "With this on, no action writes to the database. Rename Channels, Organize by Category, Import M3U Streams and Create Channels From Streams write a CSV preview to /data/exports. Tag Unknown Channels, Apply Default Logo and Apply Per-Channel Logos (tv-logos) report a count of what they would have done and write no file. Worth turning on the first time you run any of them with new settings.",
+                "help_text": "With this on, no action writes to the database. Rename Channels, Organize by Category, Replace Logos (tv-logos), Import M3U Streams and Create Channels From Streams write a CSV preview to /data/exports. Tag Unknown Channels, Apply Default Logo and Apply Per-Channel Logos (tv-logos) report a count of what they would have done and write no file. Worth turning on the first time you run any of them with new settings.",
             },
             {
                 "id": "rate_limiting",
@@ -733,11 +738,20 @@ class Plugin:
         {
             "id": "apply_tv_logos",
             "label": "Apply Per-Channel Logos (tv-logos)",
-            "description": "Fuzzy-match each channel name to the tv-logo/tv-logos GitHub repo and assign per-channel logos. Uses the country codes from Channel Databases. Channels with an existing logo are left alone.",
+            "description": "Fuzzy-match each channel name to the tv-logo/tv-logos GitHub repo and assign per-channel logos. Uses the country codes from Channel Databases. A channel with no match takes the logo of its EPG entry when it has one. Channels with an existing logo are left alone.",
             "button_label": "\u2756 Apply Per-Channel Logos",
             "button_variant": "filled",
             "button_color": "orange",
             "confirm": {"message": "This will fetch tv-logos and assign per-channel logos to channels without one. Continue?"},
+        },
+        {
+            "id": "replace_tv_logos",
+            "label": "Replace Logos (tv-logos)",
+            "description": "Like Apply Per-Channel Logos, but also replaces a logo a channel already has when the tv-logos repo has a match for its name. Uses the country codes from Channel Databases and the threshold from Match Sensitivity. Channels with no match keep their current logo; one with no logo at all takes the logo of its EPG entry when it has one. A real run first saves every replaced channel's previous logo to /data/channel_mapparr_logo_backups. Dry Run exports a CSV preview.",
+            "button_label": "\u21bb Replace Logos",
+            "button_variant": "filled",
+            "button_color": "red",
+            "confirm": {"message": "This will replace the existing logo on every channel in scope that has a tv-logos match. Previous logo IDs are saved to a backup file first. Continue?"},
         },
         {
             "id": "organize_by_category",
@@ -1799,6 +1813,7 @@ class Plugin:
                 "rename_unknown_channels": self.rename_unknown_channels_action,
                 "apply_logos": self.apply_logos_action,
                 "apply_tv_logos": self.apply_tv_logos_action,
+                "replace_tv_logos": self.replace_tv_logos_action,
                 "organize_by_category": self.organize_by_category_action,
                 "import_m3u_streams": self.import_m3u_streams_action,
                 "create_channels_from_streams": self.create_channels_from_streams_action,
@@ -2445,8 +2460,33 @@ class Plugin:
         `channel_databases`; channels that already have a logo are left alone.
         Creates Logo entries in Dispatcharr pointing at raw.githubusercontent
         URLs and assigns them to channels in bulk."""
+        return self._assign_tv_logos(settings, logger, replace_existing=False,
+                                     dry_run=settings.get("dry_run_mode", False))
+
+    def replace_tv_logos_action(self, settings, logger):
+        """Same matching as apply_tv_logos_action, but a channel that already
+        has a logo gets the tv-logos one too when its name matches. A channel
+        with no match keeps the logo it has. Dry Run writes a CSV preview; a
+        real run saves every replaced channel's previous logo_id to
+        PluginConfig.LOGO_BACKUP_DIR first and refuses if that save fails."""
+        return self._assign_tv_logos(settings, logger, replace_existing=True,
+                                     dry_run=settings.get("dry_run_mode", False))
+
+    def _assign_tv_logos(self, settings, logger, replace_existing, dry_run):
+        """Shared body of the two tv-logos actions.
+
+        With replace_existing False only channels has_no_logo returns True for
+        are considered, which is what keeps Apply Per-Channel Logos from ever
+        replacing artwork. With it True every channel in scope is considered.
+        """
+        action_title = "replacing tv-logos" if replace_existing else "applying tv-logos"
         try:
-            from .logo_matcher import fetch_tv_logos_filelist, match_channel_to_logo, build_logo_url
+            from .logo_matcher import (
+                LOGO_MATCH_THRESHOLD,
+                build_logo_url,
+                fetch_tv_logos_filelist,
+                match_channel_to_logo,
+            )
 
             country_codes_str = settings.get("channel_databases", PluginConfig.DEFAULT_CHANNEL_DATABASES).strip()
             country_codes = [c.strip().upper() for c in country_codes_str.split(',') if c.strip()]
@@ -2463,12 +2503,18 @@ class Plugin:
                 group_ids=scope.group_ids,
                 include_ungrouped=scope.include_ungrouped,
             )
-            channels_without_logos = [ch for ch in all_channels
-                                      if self.has_no_logo(ch)]
-            if not channels_without_logos:
-                return {"status": "success", "message": "All targeted channels already have logos."}
+            if replace_existing:
+                target_channels = list(all_channels)
+                if not target_channels:
+                    return {"status": "success", "message": "No channels in scope."}
+            else:
+                target_channels = [ch for ch in all_channels
+                                   if self.has_no_logo(ch)]
+                if not target_channels:
+                    return {"status": "success", "message": "All targeted channels already have logos."}
 
             existing_logos_by_url = {logo.url: logo for logo in Logo.objects.all()}
+            logo_url_by_id = {logo.id: logo.url for logo in existing_logos_by_url.values()}
 
             # Fetch logo file lists for each selected country, then try each
             # country until a match is found per channel. Cache per (repo,
@@ -2496,37 +2542,93 @@ class Plugin:
             if not country_filelists:
                 return {"status": "error", "error": "No tv-logos file lists could be fetched. Check network access or repo path."}
 
-            # Hoisted above the loop: a dry run must create NOTHING, including
-            # the Logo catalog rows the real run creates on a first-time match
-            # (previously created even under Dry Run, orphaning them in the
-            # catalog if the operator then declined the real run).
-            dry_run = settings.get("dry_run_mode", False)
+            # Replace Logos follows Match Sensitivity, because it overwrites
+            # artwork and the operator chooses how close a name must be. Apply
+            # Per-Channel Logos keeps logo_matcher's fixed threshold, as it did
+            # before Replace Logos existed.
+            if replace_existing:
+                threshold = self._resolve_threshold(settings, logger)
+            else:
+                threshold = LOGO_MATCH_THRESHOLD
 
-            progress = ProgressTracker(len(channels_without_logos), "apply_tv_logos", logger)
+            # dry_run is read by each action and passed in, so the tests that
+            # list which actions honour Dry Run Mode find both. It must stop
+            # EVERY write, including the Logo catalog rows the real run creates
+            # on a first-time match (previously created even under Dry Run,
+            # orphaning them if the operator then declined the real run).
+
+            # ProgressTracker takes a literal name so tests/test_status_readout.py
+            # can read both out of this file.
+            if replace_existing:
+                progress = ProgressTracker(len(target_channels), "replace_tv_logos", logger)
+            else:
+                progress = ProgressTracker(len(target_channels), "apply_tv_logos", logger)
             assigned = 0
             no_match = 0
+            already_set = 0
             would_create = 0
+            from_epg = 0
             channel_updates = []
+            # EPG fallback: a channel with no logo and no tv-logos match takes
+            # the icon of the EPG entry it is mapped to. Read once, only for
+            # channels with no logo, so it can never replace a logo.
+            epg_icons = self._epg_icon_urls(
+                [ch.get('id') for ch in target_channels if self.has_no_logo(ch)],
+                logger)
+            # One row per channel considered, for the Dry Run preview and the
+            # backup file. Only Replace Logos uses them.
+            rows = []
 
-            for ch in channels_without_logos:
+            for ch in target_channels:
                 name = ch.get('name', '')
                 if not name:
                     progress.update()
                     continue
+                current_logo_id = None if self.has_no_logo(ch) else ch.get('logo_id')
+                current_url = logo_url_by_id.get(current_logo_id, '') if current_logo_id is not None else ''
+                row = {
+                    'channel_id': ch.get('id'),
+                    'channel_number': ch.get('channel_number', ''),
+                    'name': name,
+                    'old_logo_id': current_logo_id,
+                    'old_logo_url': current_url,
+                    'new_logo_url': '',
+                    'status': '',
+                }
+                rows.append(row)
+
                 matched_url = None
                 for suffix, country_dir, files in country_filelists:
-                    matched_file = match_channel_to_logo(name, files, suffix)
+                    matched_file = match_channel_to_logo(name, files, suffix,
+                                                         threshold=threshold)
                     if matched_file:
                         matched_url = build_logo_url(
                             PluginConfig.TV_LOGOS_REPO, PluginConfig.TV_LOGOS_BRANCH,
                             country_dir, matched_file,
                         )
                         break
+                use_epg = False
+                if not matched_url and current_logo_id is None:
+                    matched_url = epg_icons.get(ch.get('id'))
+                    use_epg = bool(matched_url)
                 if not matched_url:
                     no_match += 1
+                    row['status'] = 'No match, logo kept'
+                    progress.update()
+                    continue
+                row['new_logo_url'] = matched_url
+
+                if current_url and current_url == matched_url:
+                    already_set += 1
+                    row['status'] = 'Already this logo'
                     progress.update()
                     continue
 
+                if use_epg:
+                    row['status'] = 'Assign EPG logo'
+                    from_epg += 1
+                else:
+                    row['status'] = 'Replace' if current_logo_id is not None else 'Assign'
                 logo = existing_logos_by_url.get(matched_url)
                 if not logo:
                     if dry_run:
@@ -2540,6 +2642,7 @@ class Plugin:
                         existing_logos_by_url[matched_url] = logo
                     except Exception as exc:
                         logger.warning(f"{PLUGIN_LOG_PREFIX} Failed to create Logo for '{name}' (url={matched_url}): {exc}")
+                        row['status'] = 'Failed to create logo entry'
                         progress.update()
                         continue
 
@@ -2547,26 +2650,163 @@ class Plugin:
                 assigned += 1
                 progress.update()
 
+            replaced = sum(1 for r in rows if r['status'] == 'Replace')
+            epg_note = (f" {from_epg} of them took the EPG logo because tv-logos "
+                        f"had no match." if from_epg else "")
+
             if dry_run:
-                summary = (
-                    f"Dry Run: would apply logos to {assigned} channel(s) "
-                    f"({no_match} had no match, {would_create} would need a "
-                    f"new Logo catalog entry). No changes written."
-                )
+                if replace_existing:
+                    csv_filename = self._write_logo_replace_preview(
+                        settings, rows, assigned, replaced, already_set, no_match,
+                        from_epg)
+                    summary = (
+                        f"Dry Run: would set logos on {assigned} channel(s), "
+                        f"{replaced} of them replacing an existing logo "
+                        f"({already_set} already had that logo, {no_match} had "
+                        f"no match and keep theirs).{epg_note} Preview exported "
+                        f"to: {csv_filename}. No changes written."
+                    )
+                else:
+                    summary = (
+                        f"Dry Run: would apply logos to {assigned} channel(s) "
+                        f"({no_match} had no match, {would_create} would need a "
+                        f"new Logo catalog entry).{epg_note} No changes written."
+                    )
                 progress.finish(summary=f"{summary} Scope: {scope.info}")
                 return {"status": "success", "message": summary}
 
+            backup_name = None
             if channel_updates:
+                if replace_existing:
+                    updated_ids = {u['id'] for u in channel_updates}
+                    try:
+                        backup_name = self._write_logo_backup(
+                            [r for r in rows if r['channel_id'] in updated_ids])
+                    except Exception as exc:
+                        logger.error(f"{PLUGIN_LOG_PREFIX} Could not write the logo backup: {exc}")
+                        progress.finish(summary="Refused: logo backup could not be written.")
+                        return {"status": "error", "error":
+                                f"No logos were replaced because the backup of the "
+                                f"current logos could not be written to "
+                                f"{PluginConfig.LOGO_BACKUP_DIR}: {exc}"}
                 self._bulk_update_channels(channel_updates, ['logo_id'], logger)
                 self._trigger_frontend_refresh(settings, logger)
 
-            summary = f"Assigned {assigned} logos, {no_match} channels had no match."
+            if replace_existing:
+                summary = (f"Set logos on {assigned} channel(s), {replaced} of them "
+                           f"replacing an existing logo. {already_set} already had "
+                           f"that logo, {no_match} had no match and kept theirs."
+                           f"{epg_note}")
+                if backup_name:
+                    summary += f" Previous logos saved to {backup_name}."
+            else:
+                summary = (f"Assigned {assigned} logos, {no_match} channels had no "
+                           f"match.{epg_note}")
             progress.finish(summary=f"{summary} Scope: {scope.info}")
             return {"status": "success", "message": f"✓ {summary}"}
 
         except Exception as e:
-            logger.error(f"{PLUGIN_LOG_PREFIX} Error applying tv-logos: {e}")
-            return {"status": "error", "error": f"Error applying tv-logos: {e}"}
+            logger.error(f"{PLUGIN_LOG_PREFIX} Error {action_title}: {e}")
+            return {"status": "error", "error": f"Error {action_title}: {e}"}
+
+    def _epg_icon_urls(self, channel_ids, logger):
+        """Map channel id to the icon URL of the EPG entry it is mapped to.
+
+        Only ids with a non-empty icon appear. Callers pass ids already taken
+        from a scoped _get_all_channels result, so this reads no channel
+        outside the scope. The EPG fallback is a convenience, not the primary
+        input: a failed read logs a warning and returns an empty map, and the
+        action carries on with tv-logos matches only.
+        """
+        ids = [i for i in channel_ids if i is not None]
+        if not ids:
+            return {}
+        try:
+            found = {}
+            for r in Channel.objects.filter(id__in=ids).values('id', 'epg_data__icon_url'):
+                url = (r.get('epg_data__icon_url') or '').strip()
+                if url:
+                    found[r['id']] = url
+            return found
+        except Exception as exc:
+            logger.warning(f"{PLUGIN_LOG_PREFIX} Could not read EPG logos, so no "
+                           f"channel gets an EPG logo this run: {exc}")
+            return {}
+
+    def _write_logo_replace_preview(self, settings, rows, assigned, replaced,
+                                    already_set, no_match, from_epg):
+        """Write the Replace Logos Dry Run preview CSV; return its filename."""
+        export_dir = PluginConfig.EXPORT_DIR
+        os.makedirs(export_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        csv_filename = f"channel_mapparr_logo_replace_preview_{timestamp}.csv"
+        csv_path = os.path.join(export_dir, csv_filename)
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', newline='', encoding='utf-8',
+                                             dir=export_dir, suffix='.csv',
+                                             delete=False) as csvfile:
+                tmp_path = csvfile.name
+                csvfile.write(self._generate_csv_settings_header(
+                    settings,
+                    title="Replace Logos (tv-logos) preview",
+                    summary=[("Channels that would get a logo", assigned),
+                             ("Of those, replacing an existing logo", replaced),
+                             ("Of those, the EPG logo (no tv-logos match)", from_epg),
+                             ("Channels that already have the matched logo", already_set),
+                             ("Channels with no match (logo kept)", no_match)]))
+                fieldnames = ['Channel ID', 'Channel Number', 'Channel Name',
+                              'Status', 'Current Logo', 'New Logo']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                for r in rows:
+                    writer.writerow({
+                        'Channel ID': r['channel_id'],
+                        'Channel Number': r['channel_number'],
+                        'Channel Name': r['name'],
+                        'Status': r['status'],
+                        'Current Logo': r['old_logo_url'],
+                        'New Logo': r['new_logo_url'],
+                    })
+            self._finish_csv_export(tmp_path, csv_path, settings)
+        except Exception:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
+        return csv_filename
+
+    def _write_logo_backup(self, rows):
+        """Save the logo_id each channel had before Replace Logos changed it.
+
+        Written atomically and BEFORE the update, so a failure here stops the
+        action with nothing changed. Returns the backup's filename.
+        """
+        backup_dir = PluginConfig.LOGO_BACKUP_DIR
+        os.makedirs(backup_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"logo_backup_{timestamp}.json"
+        path = os.path.join(backup_dir, filename)
+        payload = {
+            "written": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "note": ("logo_id each channel had before Replace Logos (tv-logos). "
+                     "null means the channel had no logo."),
+            "channels": [
+                {"channel_id": r['channel_id'], "name": r['name'],
+                 "old_logo_id": r['old_logo_id'], "old_logo_url": r['old_logo_url'],
+                 "new_logo_url": r['new_logo_url']}
+                for r in rows
+            ],
+        }
+        fd, tmp_path = tempfile.mkstemp(dir=backup_dir, suffix='.json')
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+                json.dump(payload, handle, indent=2)
+            os.replace(tmp_path, path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
+        return filename
 
     def category_groups_dry_run_action(self, settings, logger):
         """Export a CSV showing which channels would be moved to which category-based groups."""

@@ -142,19 +142,27 @@ def _dry_run_csv_writers():
         for inner in ast.walk(node):
             if isinstance(inner, ast.Call) and ast.unparse(inner.func).split(".")[-1] in exporting:
                 writers.add(node.name)
+            # Replace Logos shares _assign_tv_logos with Apply Per-Channel
+            # Logos; only the replacing call writes a preview CSV.
+            if (isinstance(inner, ast.Call)
+                    and ast.unparse(inner.func).split(".")[-1] == "_assign_tv_logos"
+                    and any(kw.arg == "replace_existing"
+                            and isinstance(kw.value, ast.Constant) and kw.value.value is True
+                            for kw in inner.keywords)):
+                writers.add(node.name)
     return writers & _actions_honouring_dry_run()
 
 
 def test_the_dry_run_help_text_does_not_promise_a_csv_from_every_action(
         plugin_module):
-    """Four of the seven write a CSV preview. Three report a count and no file.
+    """Five of the eight write a CSV preview. Three report a count and no file.
 
-    Saying "writes a CSV preview" of all seven would send an operator looking in
+    Saying "writes a CSV preview" of all eight would send an operator looking in
     /data/exports for a file Apply Default Logo never writes.
     """
     writers = _dry_run_csv_writers()
     others = _actions_honouring_dry_run() - writers
-    assert len(writers) == 4, sorted(writers)
+    assert len(writers) == 5, sorted(writers)
     assert len(others) == 3, sorted(others)
     help_text = _help_text(plugin_module, "dry_run_mode").lower()
     assert any(marker in help_text for marker in

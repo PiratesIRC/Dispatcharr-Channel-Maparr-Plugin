@@ -394,8 +394,9 @@ Every button carries a colour, and the colour says what pressing it can do to yo
 
 - **Red**: replaces a value on channels that already exist, and this plugin cannot put the old value
   back. Rename Channels replaces the whole name; Organize by Category replaces the group a channel
-  belongs to, and the group it came from is then recorded only in the preview CSV. Both ask for
-  confirmation first.
+  belongs to, and the group it came from is then recorded only in the preview CSV. Replace Logos
+  (tv-logos) replaces a channel's logo; it saves the previous logo IDs to a JSON file first, but this
+  plugin has no action that reads that file back. All three ask for confirmation first.
 - **Orange**: writes data or clears state, but replaces nothing. Creating channels, tagging unmatched
   ones with a suffix, filling in a logo where a channel has none, and deleting this plugin's own CSV
   exports are all in this group.
@@ -404,8 +405,9 @@ Every button carries a colour, and the colour says what pressing it can do to yo
 - **Cyan**: sends something outward. Email Report Now hands a report to the Newsflasharr plugin.
 - **Blue**: reads and reports, changing nothing at all.
 
-Nothing this plugin does deletes a channel or a stream. The two logo actions select only channels
-with no logo set, so neither can overwrite artwork you chose.
+Nothing this plugin does deletes a channel or a stream. Apply Default Logo and Apply Per-Channel Logos
+select only channels with no logo set, so neither can overwrite artwork you chose. Replace Logos
+(tv-logos) is the one action that does.
 
 ### Recommended Action Order
 
@@ -418,6 +420,22 @@ The action buttons are listed in the recommended execution order:
 4. **Tag Unknown Channels** - Append suffix to unmatched channels.
 5. **Apply Default Logo** - Assign one default logo to all channels without one.
 6. **Apply Per-Channel Logos (tv-logos)** - Fuzzy-match each channel to the [tv-logo/tv-logos](https://github.com/tv-logo/tv-logos) repo and assign individual artwork.
+   Only channels with no logo are considered; a channel that already has a logo, for example one from
+   the EPG, is left alone. A channel ending in "+1" gets the repo's `-plus` logo (ITV2 +1 gets
+   `itv-2-plus`) and the plain channel's logo when there is no `-plus` file; a hyphen between a letter
+   and a digit in a filename is ignored, so E4 matches `e-4`. A channel that has no logo and no tv-logos match takes the logo of the EPG entry it is
+   mapped to, when that entry has one; a channel that already has a logo never gets an EPG logo.
+
+   **Replace Logos (tv-logos)** does the same matching on every channel in "Channel Groups to Process",
+   including channels that already have a logo, and replaces that logo when the tv-logos repo has a
+   match. It searches the tv-logos country folders for the codes in "Channel Databases" and accepts a
+   match at the "Match Sensitivity" threshold (Apply Per-Channel Logos always uses 85 of 100). A
+   channel with no match keeps its current logo, and one that already has the matched logo is not
+   touched. The same EPG fallback applies, marked `Assign EPG logo` in the preview. With Dry Run on it writes `channel_mapparr_logo_replace_preview_<time>.csv` to
+   `/data/exports`, listing each channel's current logo, the new one and the outcome. A real run first
+   writes `logo_backup_<time>.json` to `/data/channel_mapparr_logo_backups`, holding every changed
+   channel's previous logo ID, and refuses to change anything if that file cannot be written. Run it
+   with Dry Run on first and read the preview.
 7. **Organize by Category** - Move channels into category groups (or CSV preview).
 8. **Import M3U Streams** - Create channels from M3U streams (or CSV preview).
 9. **Create Channels From Streams** - Create one channel per broadcast station for streams in the chosen

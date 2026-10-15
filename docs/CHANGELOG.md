@@ -1,5 +1,21 @@
 # Channel Maparr Changelog
 
+## v1.26.2881225 (October 15, 2026)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2881225
+
+### Added
+
+- **Replace Logos (tv-logos).** A new red action that runs the tv-logos match on every channel in Channel Groups to Process, including channels that already have a logo, and replaces that logo when the repo has a match. It uses the country codes from Channel Databases and the Match Sensitivity threshold; Exact is the safest choice, because lower thresholds accept some wrong logos. A channel with no match keeps its logo. With Dry Run on it writes channel_mapparr_logo_replace_preview_<time>.csv to /data/exports, listing each channel's current logo, the new one and the outcome. A real run first saves every changed channel's previous logo ID to /data/channel_mapparr_logo_backups and changes nothing if that file cannot be written. No action reads the backup back yet. Apply Per-Channel Logos is unchanged in this respect: it still touches only channels with no logo.
+- **Broadcast station logos.** A channel named in the OTA station format, such as "CBS - AL Birmingham (WIAT)", is looked up by callsign in the tv-logos us-local folder, which this plugin did not read before. The file must also name the channel's network, so a station's old affiliation is never used. When tv-logos has no file for the station, a channel with no logo gets its network's logo instead. For CBS the only network logo tv-logos has is a white one, cbs-logo-white-us.png. On one installation this gave 271 of 305 logo-less US channels a logo: 127 station logos and 144 network logos.
+- **EPG logo fallback.** Both tv-logos actions now give a channel with no logo and no tv-logos match the icon of the EPG entry it is mapped to, when that entry has one. A channel that already has a logo never gets an EPG logo.
+- **Wildcards in Channel Groups to Process.** The setting now accepts * and ? like Channel Groups to Ignore, matched without regard to case, so US:* selects every group whose name starts with US:. A name without a wildcard must still match exactly, including case. Category Organization Groups still takes exact names only, because it can name groups that Organize by Category has yet to create.
+
+### Changed
+
+- **Better tv-logos matching.** A hyphen between a letter and a digit in a filename no longer costs the match, so E4, Film4, ITV2 and 4seven find e-4, film-4, itv-2 and 4-seven. A channel ending in +1 gets the repo's -plus logo (ITV2 +1 used to get the ITV1 logo) and falls back to the plain channel's logo. Network, Channel and TV are now stripped from filenames as well as channel names, so Food Network and Discovery Channel match. On 181 UK channels at Exact, matches went from 97 to 135.
+- A Dry Run of either tv-logos action now counts each new Logo catalog entry once. It counted one per channel, so a run where many channels share a network logo reported far more new entries than a real run creates.
+
 ## v1.26.2840039 (October 11, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2840039

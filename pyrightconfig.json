@@ -1,0 +1,14 @@
+{
+  "//": [
+    "basedpyright, REPORT ONLY: nothing in CI or the git hooks runs it.",
+    "Run: pip install basedpyright==1.40.1, then basedpyright from this directory.",
+    "reportMissingImports is a warning because Django and the Dispatcharr modules",
+    "exist only inside the container (19 such warnings, measured 2026-10-17),",
+    "so the error count is type findings only (16 on 2026-10-17, 7 of them in",
+    "files vendored from _shared/, which are fixed there and re-vendored)."
+  ],
+  "include": ["Channel-Maparr"],
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "standard",
+  "reportMissingImports": "warning"
+}

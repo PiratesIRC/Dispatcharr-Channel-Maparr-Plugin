@@ -1,5 +1,13 @@
 # Channel Maparr Changelog
 
+## v1.26.2901846 (October 17, 2026)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2901846
+
+### Fixed
+
+- **Matching actions no longer pause the rest of Dispatcharr while they prepare.** Before matching, each action prepares every stream and database name once, and that step never paused for other work: on an installation with about 24,000 streams it held the Dispatcharr worker for over a second, so other requests and streams served by that worker waited. It now pauses every 500 names, so the worker keeps serving. Match results are unchanged.
+
 ## v1.26.2901605 (October 17, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2901605

@@ -4,3 +4,6 @@
 # works without it (thefuzz -> built-in Levenshtein fallback).
 pytest>=8.0
 rapidfuzz>=3.0
+# gevent: the hub_hold guard in tests/conftest.py, pinned to the Dispatcharr
+# container's version (measured 2026-10-17).
+gevent==26.8.0

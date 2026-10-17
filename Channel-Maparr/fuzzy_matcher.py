@@ -6,6 +6,7 @@ Reusable across multiple plugins (Stream-Mapparr, Channel Mapparr, etc.)
 
 import os
 import re
+import time
 import json
 import logging
 from glob import glob
@@ -180,6 +181,13 @@ NUM_WORDS_RE = re.compile(
 )
 
 
+# Names between yields in precompute_normalizations. Dispatcharr runs plugins
+# under gevent with early monkey-patching, where time.sleep(0) is gevent.sleep(0)
+# and hands the worker back; on this installation 24,207 stream names held it for 1.0 s with no yield
+# (measured 2026-10-17). Elsewhere time.sleep(0) does nothing.
+PRECOMPUTE_YIELD_EVERY = 500
+
+
 class FuzzyMatcher(FuzzyMatcherCore):
     """Handles fuzzy matching for channel and stream names with normalization and database loading."""
 
@@ -245,7 +253,9 @@ class FuzzyMatcher(FuzzyMatcherCore):
         self._processed_cache.clear()
         self._callsign_cache.clear()
 
-        for name in names:
+        for index, name in enumerate(names):
+            if index and index % PRECOMPUTE_YIELD_EVERY == 0:
+                time.sleep(0)
             norm = self.normalize_name(name, user_ignored_tags)
             if norm and len(norm) >= 2:
                 norm_lower = norm.lower()

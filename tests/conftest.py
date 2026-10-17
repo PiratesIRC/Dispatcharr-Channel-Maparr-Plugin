@@ -19,7 +19,9 @@ field/action contract against static sources rather than by executing it.
 The property no longer makes a network call: the GitHub update check was
 removed on 2026-07-26 because it ran on Dispatcharr's per-request hot path.
 """
+import contextlib
 import importlib.util
+import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -264,3 +266,39 @@ def fake_groups(monkeypatch, plugin_module):
         return rows
 
     return _install
+
+# ---- gevent hub-hold guard (same as Sentinelarr's and Stream-Mapparr's) ------
+# uWSGI runs this plugin under `gevent = 400` with early monkey-patching, so a
+# thread here is a greenlet and code that runs without yielding holds the whole
+# worker. hub_hold(max_ms) fails a test when the body runs longer than max_ms
+# between two switches into the hub, measured by gevent.util.assert_switches
+# (gevent pinned to the container's version, 26.8.0). Without gevent the guard
+# skips locally but FAILS under CI (GitHub Actions sets CI=true), so a CI run
+# cannot pass it vacuously.
+
+def _import_gevent_util():
+    try:
+        import gevent.util
+        return gevent.util
+    except ImportError:
+        if os.environ.get("CI"):
+            pytest.fail("gevent is not installed; CI pins gevent==26.8.0 for this guard")
+        pytest.skip("gevent is not installed (pip install gevent==26.8.0)")
+
+
+@pytest.fixture
+def hub_hold():
+    util = _import_gevent_util()
+    import gevent
+
+    @contextlib.contextmanager
+    def guard(max_ms):
+        with util.assert_switches(max_blocking_time=max_ms / 1000.0, hub_only=True):
+            # The tracer measures from the greenlet's LAST switch, not from
+            # entering the block, so test setup that ran without yielding is
+            # charged to the body (measured 2026-10-17 in Sentinelarr: a 5 ms
+            # body failed a 50 ms limit). One switch to the hub starts it here.
+            gevent.sleep(0)
+            yield
+
+    return guard

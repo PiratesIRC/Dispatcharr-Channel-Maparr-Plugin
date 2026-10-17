@@ -1,5 +1,17 @@
 # Channel Maparr Changelog
 
+## v1.26.2901605 (October 17, 2026)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2901605
+
+### Fixed
+
+- **Cancelling Import M3U Streams ended in an error.** Stopping the import part way through raised an error instead of reporting how many channels it had created before the stop. It now returns the "Import cancelled" message with that count, and saves no results file for the partial run.
+
+### Changed
+
+- The release archive now carries signed build provenance. Check a downloaded copy with `gh attestation verify Channel-Maparr.zip -R PiratesIRC/Dispatcharr-Channel-Maparr-Plugin --signer-workflow PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/.github/workflows/ci.yml`.
+
 ## v1.26.2881225 (October 15, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2881225

@@ -84,7 +84,7 @@ def _format_capped_name_list(names, limit=_MAX_NAMES_IN_MESSAGE):
 class PluginConfig:
     """Configuration constants for Channel Maparr."""
 
-    PLUGIN_VERSION = "1.26.2881225"
+    PLUGIN_VERSION = "1.26.2901605"
 
     # Channel Database Settings
     DEFAULT_CHANNEL_DATABASES = "US"

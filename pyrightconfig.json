@@ -3,11 +3,18 @@
     "basedpyright, REPORT ONLY: nothing in CI or the git hooks runs it.",
     "Run: pip install basedpyright==1.40.1, then basedpyright from this directory.",
     "reportMissingImports is a warning because Django and the Dispatcharr modules",
-    "exist only inside the container (19 such warnings, measured 2026-10-17),",
-    "so the error count is type findings only (16 on 2026-10-17, 7 of them in",
-    "files vendored from _shared/, which are fixed there and re-vendored)."
+    "exist only inside the container (8 such warnings, measured 2026-10-17).",
+    "The three vendored files are analysed but their diagnostics are ignored:",
+    "each is a hash-pinned copy of _shared/ or plugin-stats/client/, so a",
+    "finding belongs to the master copy. Their 7 errors on 2026-10-17 were all",
+    "false positives (read one by one). The plugin's own files had 9, all fixed."
   ],
   "include": ["Channel-Maparr"],
+  "ignore": [
+    "Channel-Maparr/matching_core.py",
+    "Channel-Maparr/notify_client.py",
+    "Channel-Maparr/usage_client.py"
+  ],
   "pythonVersion": "3.12",
   "typeCheckingMode": "standard",
   "reportMissingImports": "warning"

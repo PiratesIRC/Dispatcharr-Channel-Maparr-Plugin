@@ -638,7 +638,7 @@ def write_report(model, report_dir, now):
     Both files carry the run's timestamp in their name and are never rewritten,
     because an email send re-reads the attachment path on every retry attempt.
     """
-    result = {"html_path": None, "csv_path": None, "error": None}
+    result: dict[str, str | None] = {"html_path": None, "csv_path": None, "error": None}
     try:
         os.makedirs(report_dir, exist_ok=True)
         stamp = datetime.datetime.fromtimestamp(

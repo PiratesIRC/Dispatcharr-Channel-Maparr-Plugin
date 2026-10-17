@@ -6,6 +6,7 @@ comparing clean channel names against structured filenames.
 """
 
 import re
+import urllib.error
 import urllib.request
 import json
 import logging

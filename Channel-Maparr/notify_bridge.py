@@ -145,7 +145,9 @@ def routes_to_smtp(nf_settings, source=SOURCE, event=EVENT):
     for rule in rules if isinstance(rules, list) else []:
         if not isinstance(rule, dict):
             continue
-        match = rule.get("match") if isinstance(rule.get("match"), dict) else {}
+        match = rule.get("match")
+        if not isinstance(match, dict):
+            match = {}
         if match.get("source") not in (None, source):
             continue
         if match.get("event") not in (None, event):

@@ -725,7 +725,8 @@ class FuzzyMatcher(FuzzyMatcherCore):
     
     
     def normalize_name(self, name, user_ignored_tags=None, ignore_quality=True, ignore_regional=True,
-                       ignore_geographic=True, ignore_misc=True, remove_cinemax=False, remove_country_prefix=False):
+                       ignore_geographic=True, ignore_misc=True, remove_cinemax=False, remove_country_prefix=False,
+                       strip_bare_region=None):
         """
         Normalize channel or stream name for matching by removing tags, prefixes, and other noise.
 
@@ -738,6 +739,8 @@ class FuzzyMatcher(FuzzyMatcherCore):
             ignore_misc: If True, remove ALL content within parentheses (e.g., (CX), (B), (PRIME), (Backup))
             remove_cinemax: If True, remove "Cinemax" prefix (useful when channel name contains "max")
             remove_country_prefix: If True, remove country code prefixes (e.g., CA:, UK , DE: ) from start of name
+            strip_bare_region: Accepted so the signature matches FuzzyMatcherCore.normalize_name and is
+                ignored: this override never strips bare time-zone region words.
 
         Returns:
             Normalized name

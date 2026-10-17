@@ -3767,7 +3767,7 @@ class Plugin:
                 return True, unique_name
             counter += 1
 
-    def _import_matched_streams(self, matched_by_category, category_to_group_id, settings, logger):
+    def _import_matched_streams(self, matched_by_category, category_to_group_id, settings, logger) -> dict:
         """
         Import matched streams as channels in Dispatcharr using Django ORM.
 
@@ -4149,6 +4149,11 @@ class Plugin:
             settings,
             logger,
         )
+        # A cancelled import returns its own result, which has no "imports"
+        # list; saving or counting it raised KeyError instead of reporting how
+        # many channels were created before the cancel.
+        if "imports" not in import_results:
+            return import_results
 
         # Step 5: Save results to JSON
         results_file = self._save_m3u_import_results(

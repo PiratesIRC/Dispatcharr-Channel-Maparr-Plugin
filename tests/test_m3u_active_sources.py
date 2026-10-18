@@ -21,7 +21,7 @@ STREAM_ROWS = [
 ]
 
 
-class FakeStreamQuery:
+class FakeStreamRows:
     def __init__(self, rows):
         self.rows = rows
 
@@ -33,12 +33,12 @@ class FakeStreamQuery:
 
     def exclude(self, **kwargs):
         assert kwargs == {"m3u_account__is_active": False}, kwargs
-        return FakeStreamQuery([r for r in self.rows
+        return FakeStreamRows([r for r in self.rows
                                 if r.m3u_account_id is None or ACCOUNTS[r.m3u_account_id]])
 
     def filter(self, **kwargs):
         names = {"Active": 1, "Disabled": 2}
-        return FakeStreamQuery([r for r in self.rows
+        return FakeStreamRows([r for r in self.rows
                                 if r.m3u_account_id == names[kwargs["m3u_account__name"]]])
 
     def __iter__(self):
@@ -47,7 +47,7 @@ class FakeStreamQuery:
 
 @pytest.fixture
 def fake_streams(plugin_module, plugin_instance, monkeypatch):
-    monkeypatch.setattr(plugin_module.Stream, "objects", FakeStreamQuery(STREAM_ROWS),
+    monkeypatch.setattr(plugin_module.Stream, "objects", FakeStreamRows(STREAM_ROWS),
                         raising=False)
     monkeypatch.setattr(plugin_instance, "_get_all_groups", lambda logger: [])
     return plugin_instance

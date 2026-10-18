@@ -1,5 +1,13 @@
 # Channel Maparr Changelog
 
+## v1.26.2911354 (October 18, 2026)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2911354
+
+### Changed
+
+- **The M3U Source setting's default now skips M3U accounts that are disabled in Dispatcharr.** It used to read every stream, including streams from accounts you had switched off, so Import M3U Streams and Create Channels From Streams could use them. The option is now called "All active sources (disabled accounts skipped)". Streams that belong to no M3U account are still read. A disabled account you pick by name is still read, and the dropdown marks it as disabled. Suggested by a user.
+
 ## v1.26.2901846 (October 17, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2901846

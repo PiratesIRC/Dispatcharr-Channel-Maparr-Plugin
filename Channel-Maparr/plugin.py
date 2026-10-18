@@ -311,10 +311,11 @@ class Plugin:
         `::test_no_version_field_in_the_settings_form` keep it that way.
         """
         # Discover M3U sources from database
-        m3u_source_options = [{"value": "_all", "label": "All sources (no filter)"}]
+        m3u_source_options = [{"value": "_all", "label": "All active sources (disabled accounts skipped)"}]
         try:
-            for acc in M3UAccount.objects.all().values('id', 'name').order_by('name'):
-                m3u_source_options.append({"value": acc['name'], "label": acc['name']})
+            for acc in M3UAccount.objects.all().values('id', 'name', 'is_active').order_by('name'):
+                label = acc['name'] if acc.get('is_active', True) else f"{acc['name']} (disabled in Dispatcharr)"
+                m3u_source_options.append({"value": acc['name'], "label": label})
         except Exception:
             pass
 
@@ -420,7 +421,7 @@ class Plugin:
                 "type": "select",
                 "default": "_all",
                 "options": m3u_source_options,
-                "help_text": "Which M3U account the import reads streams from. All sources reads every one. The list is built from Dispatcharr M3U Accounts when the settings page loads, so an account added since you opened this page will not appear until you reload it.",
+                "help_text": "Which M3U account the import reads streams from. All active sources reads every account that is enabled in Dispatcharr and skips the disabled ones; pick a disabled account by name to read it anyway. The list is built from Dispatcharr M3U Accounts when the settings page loads, so an account added since you opened this page will not appear until you reload it.",
             },
             {
                 "id": "m3u_group_filter",
@@ -3338,8 +3339,8 @@ class Plugin:
         m3u_sources_str = settings.get("m3u_sources", "").strip()
 
         if not m3u_sources_str or m3u_sources_str == "_all":
-            # If empty, fetch from ALL M3U sources
-            logger.info(f"{PLUGIN_LOG_PREFIX} No M3U sources specified, fetching from all M3U accounts")
+            # If empty, fetch from every M3U account that is not disabled
+            logger.info(f"{PLUGIN_LOG_PREFIX} No M3U sources specified, fetching from all active M3U accounts")
             m3u_sources = None
         else:
             # Parse comma-separated M3U source names
@@ -3349,11 +3350,13 @@ class Plugin:
         all_streams = []
 
         if m3u_sources is None:
-            # Fetch all streams (no filtering)
-            logger.info(f"{PLUGIN_LOG_PREFIX} Querying all streams from database...")
+            # Skip streams of disabled M3U accounts. exclude() rather than
+            # filter(is_active=True) so a stream with no account (a custom
+            # stream) is still read.
+            logger.info(f"{PLUGIN_LOG_PREFIX} Querying streams of active M3U accounts from database...")
             streams_qs = Stream.objects.only(
                 'id', 'name', 'm3u_account_id', 'channel_group_id'
-            ).all()
+            ).exclude(m3u_account__is_active=False)
 
             for stream in streams_qs:
                 stream_dict = {

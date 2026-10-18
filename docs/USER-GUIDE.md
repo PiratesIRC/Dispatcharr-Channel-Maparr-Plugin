@@ -357,7 +357,7 @@ docker restart dispatcharr
 | **Category Organization Groups** | `string` | - | Comma-separated group names for category sorting. Empty = all groups. |
 | | | | |
 | **Import M3U Streams** | *section* | | The four settings Import M3U Streams uses to decide which provider streams to bring in and where to put them. That action creates one channel per STREAM, so a provider serving the same station once per M3U account produces one channel per account rather than one channel with several streams attached. Create Channels From Streams, in the next section, is the one that makes a single channel per station. |
-| **M3U Source** | `select` | `All sources` | Filter streams to a specific M3U account. |
+| **M3U Source** | `select` | `All active sources` | Filter streams to a specific M3U account. The default reads every account enabled in Dispatcharr and skips disabled ones; a disabled account picked by name is still read. |
 | **M3U Group Filter** | `string` | - | Pre-match filter by M3U group-title. |
 | **Category Filter** | `string` | - | Post-match filter by database category. |
 | **Custom Import Group Name** | `string` | - | Override category-based group naming for imports. |

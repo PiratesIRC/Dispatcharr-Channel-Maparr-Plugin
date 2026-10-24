@@ -1,5 +1,13 @@
 # Channel Maparr Changelog
 
+## v1.26.2971911 (October 24, 2026)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2971911
+
+### Fixed
+
+- **Anonymous usage counts now send from installs made from a release zip or the Plugin Hub.** Before each report the plugin reads its own settings to check the "Share anonymous usage counts" setting, and it looked for them under a fixed name that matches only a folder copied by hand. Dispatcharr names the settings after the install folder, which is channel_maparr for an imported release zip and channel_mapparr for a Hub install, so on those installs the plugin found no settings and sent nothing. That is why the Active Installs badge showed 1 and Channels Renamed showed 0. The plugin now uses the name of the folder it is installed in. Nothing else about what is sent has changed, and unticking the setting still stops it.
+
 ## v1.26.2911354 (October 18, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2911354

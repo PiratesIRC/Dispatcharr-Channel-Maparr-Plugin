@@ -7,6 +7,7 @@ when they end, and _record_channels_renamed after the ledger line is written
 """
 import json
 import logging
+import os
 
 import pytest
 
@@ -54,11 +55,22 @@ def test_the_total_sums_the_rename_tally(plugin_module, tmp_path, monkeypatch):
     assert plugin_module.USAGE.total_fn() == 12
 
 
-def test_settings_are_read_under_the_plugin_key(plugin_module, monkeypatch):
+def test_settings_are_read_under_the_key_of_the_installed_folder(plugin_module, monkeypatch):
     seen = []
     monkeypatch.setattr(plugin_module, "load_plugin_settings", lambda key, logger=None: seen.append(key) or {})
     plugin_module.USAGE.settings_fn()
-    assert seen == ["channel-mapparr"]
+    folder = os.path.dirname(os.path.abspath(plugin_module.__file__))
+    assert seen == [os.path.basename(folder).replace(" ", "_").lower()]
+
+
+@pytest.mark.parametrize("folder, key", [
+    ("/data/plugins/channel-mapparr", "channel-mapparr"),  # copied by hand
+    ("/data/plugins/channel_maparr", "channel_maparr"),    # release zip imported
+    ("/data/plugins/channel_mapparr", "channel_mapparr"),  # installed from the Hub
+    ("/data/plugins/Channel Mapparr/", "channel_mapparr"),
+])
+def test_the_plugin_key_is_the_one_the_loader_gives_the_folder(plugin_module, folder, key):
+    assert plugin_module._plugin_key_for_dir(folder) == key
 
 
 def test_a_written_tally_line_reports_forced_after_the_file_is_closed(plugin, plugin_module, usage, tmp_path, monkeypatch):

@@ -171,12 +171,23 @@ class PluginConfig:
 # runs an action (README, "Anonymous usage counts"). The total is read from the same
 # ledger the rename actions write. report() never raises; only the network send runs
 # on a background thread.
+def _plugin_key_for_dir(path):
+    """The key Dispatcharr's loader gives a plugin installed in this folder."""
+    return os.path.basename(os.path.normpath(path)).replace(" ", "_").lower()
+
+
+# The PluginConfig key follows the install folder, which differs by install route: a
+# hand copy keeps "channel-mapparr", an imported release zip becomes "channel_maparr" and
+# a Hub install "channel_mapparr". A written-out key finds no settings row on the last
+# two, and the reporter then sends nothing, so the key is computed from this folder.
+PLUGIN_DB_KEY = _plugin_key_for_dir(os.path.dirname(os.path.abspath(__file__)))
+
 USAGE = UsageReporter(
     plugin="channel-mapparr",
     counter="channels_renamed",
     label="Channels Renamed",
     total_fn=lambda: jsonl_sum(PluginConfig.RENAME_LEDGER_FILE + "*", key="channels"),
-    settings_fn=lambda: load_plugin_settings("channel-mapparr"),
+    settings_fn=lambda: load_plugin_settings(PLUGIN_DB_KEY),
 )
 
 

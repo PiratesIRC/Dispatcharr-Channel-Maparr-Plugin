@@ -16,6 +16,7 @@ import ast
 import json
 import pathlib
 import sys
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -261,10 +262,10 @@ def test_creation_attaches_no_streams(plugin_module, monkeypatch, logger):
     """
     links = []
     manager = _FakeChannelManager()
-    monkeypatch.setattr(plugin_module.Channel, "objects", manager)
+    monkeypatch.setattr(plugin_module, "Channel", MagicMock(objects=manager))
     monkeypatch.setattr(
-        plugin_module.ChannelStream, "objects",
-        type("M", (), {"create": lambda self, **k: links.append(k)})())
+        plugin_module, "ChannelStream",
+        MagicMock(objects=type("M", (), {"create": lambda self, **k: links.append(k)})()))
 
     plugin = plugin_module.Plugin()
     records = plugin._create_seed_channels(
@@ -279,7 +280,7 @@ def test_creation_attaches_no_streams(plugin_module, monkeypatch, logger):
 
 def test_creation_uses_the_configured_start_number(plugin_module, monkeypatch, logger):
     manager = _FakeChannelManager(numbers_in_use=[4000.0])
-    monkeypatch.setattr(plugin_module.Channel, "objects", manager)
+    monkeypatch.setattr(plugin_module, "Channel", MagicMock(objects=manager))
     plugin = plugin_module.Plugin()
     plugin._create_seed_channels(_plan("A", "B"), 11,
                                  {"seed_start_number": "5110"}, logger)
@@ -288,7 +289,7 @@ def test_creation_uses_the_configured_start_number(plugin_module, monkeypatch, l
 
 def test_creation_skips_a_number_already_in_use(plugin_module, monkeypatch, logger):
     manager = _FakeChannelManager(numbers_in_use=[5110.0])
-    monkeypatch.setattr(plugin_module.Channel, "objects", manager)
+    monkeypatch.setattr(plugin_module, "Channel", MagicMock(objects=manager))
     plugin = plugin_module.Plugin()
     plugin._create_seed_channels(_plan("A", "B"), 11,
                                  {"seed_start_number": "5110"}, logger)
@@ -298,7 +299,7 @@ def test_creation_skips_a_number_already_in_use(plugin_module, monkeypatch, logg
 def test_a_start_number_that_is_not_a_number_falls_back_rather_than_raising(
         plugin_module, monkeypatch, logger):
     manager = _FakeChannelManager(numbers_in_use=[4000.0])
-    monkeypatch.setattr(plugin_module.Channel, "objects", manager)
+    monkeypatch.setattr(plugin_module, "Channel", MagicMock(objects=manager))
     plugin = plugin_module.Plugin()
     plugin._create_seed_channels(_plan("A"), 11,
                                  {"seed_start_number": "not a number"}, logger)

@@ -9,6 +9,7 @@ be disabled and is still read. Picking a disabled account by name still reads
 it, because that choice is explicit; the dropdown marks it as disabled.
 """
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -47,8 +48,7 @@ class FakeStreamRows:
 
 @pytest.fixture
 def fake_streams(plugin_module, plugin_instance, monkeypatch):
-    monkeypatch.setattr(plugin_module.Stream, "objects", FakeStreamRows(STREAM_ROWS),
-                        raising=False)
+    monkeypatch.setattr(plugin_module, "Stream", MagicMock(objects=FakeStreamRows(STREAM_ROWS)))
     monkeypatch.setattr(plugin_instance, "_get_all_groups", lambda logger: [])
     return plugin_instance
 
@@ -69,9 +69,8 @@ def test_the_dropdown_marks_a_disabled_account(plugin_module, plugin_instance, m
     rows = [{"id": 1, "name": "Active", "is_active": True},
             {"id": 2, "name": "Disabled", "is_active": False}]
     values = SimpleNamespace(order_by=lambda *a: rows)
-    monkeypatch.setattr(plugin_module.M3UAccount, "objects",
-                        SimpleNamespace(all=lambda: SimpleNamespace(values=lambda *a: values)),
-                        raising=False)
+    monkeypatch.setattr(plugin_module, "M3UAccount", MagicMock(
+        objects=SimpleNamespace(all=lambda: SimpleNamespace(values=lambda *a: values))))
     field = next(f for f in plugin_instance.fields if f.get("id") == "m3u_sources")
     options = {o["value"]: o["label"] for o in field["options"]}
     assert options["Active"] == "Active"

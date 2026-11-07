@@ -23,6 +23,7 @@ import contextlib
 import importlib.util
 import os
 import sys
+import unittest.mock
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -109,8 +110,51 @@ def _capture_real_container_paths():
     })
 
 
+def _deleted_stub_attributes(root, depth=3, path=""):
+    """Yield the dotted path of every attribute marked deleted under a stub."""
+    deleted = getattr(unittest.mock, "_deleted", None)
+    children = getattr(root, "_mock_children", None)
+    if deleted is None or not isinstance(children, dict):
+        return
+    for name, child in list(children.items()):
+        if child is deleted:
+            yield root, name, f"{path}.{name}"
+        elif depth > 1 and isinstance(child, unittest.mock.NonCallableMock):
+            yield from _deleted_stub_attributes(child, depth - 1, f"{path}.{name}")
+
+
 @pytest.fixture(autouse=True)
-def redirect_container_paths(tmp_path, monkeypatch):
+def shared_stubs_stay_intact():
+    """Fail the test that leaves an attribute of a shared Dispatcharr stub deleted.
+
+    The Dispatcharr models (Channel, Stream, ...) are one MagicMock each for the
+    whole session. Since pytest 9.2.0, monkeypatch.setattr(<stub>, "objects", x)
+    is undone with delattr, which marks the attribute deleted, and every LATER
+    test that touches it fails with "has no attribute". Patch the module-level
+    name instead: monkeypatch.setattr(plugin_module, "Channel", MagicMock(...)).
+
+    redirect_container_paths requests this fixture BEFORE monkeypatch, so it is
+    set up first and torn down last, after monkeypatch has undone everything.
+    Autouse alone does not give that order: pytest sets autouse fixtures up
+    alphabetically, which put the check one test late. The damage is repaired after the
+    report so only the test that caused it fails.
+    """
+    yield
+    import channel_maparr.plugin as plugin_module  # noqa: E402
+    found = []
+    for attr, value in vars(plugin_module).items():
+        if isinstance(value, unittest.mock.NonCallableMock):
+            for owner, name, dotted in _deleted_stub_attributes(value):
+                found.append(f"plugin_module.{attr}{dotted}")
+                del owner._mock_children[name]
+    if found:
+        pytest.fail("this test left shared Dispatcharr stub attributes deleted: "
+                    + ", ".join(sorted(found))
+                    + " (patch the module-level name, not an attribute of the stub)")
+
+
+@pytest.fixture(autouse=True)
+def redirect_container_paths(shared_stubs_stay_intact, tmp_path, monkeypatch):
     """Point every path the plugin writes to at a temporary directory.
 
     Autouse on purpose. The value of this fixture is that a new test cannot

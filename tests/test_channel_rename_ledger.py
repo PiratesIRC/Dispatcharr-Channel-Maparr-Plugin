@@ -2,6 +2,7 @@ import contextlib
 import json
 import logging
 import types
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -117,10 +118,22 @@ def test_rename_unknown_dry_run_writes_no_line(plugin, plugin_module, ledger, tm
     assert _lines(ledger) == []
 
 
+def _install_channel_rows(monkeypatch, plugin_module, filter_fn):
+    """Give this test its own Channel stand-in.
+
+    Patch the module-level name, never an attribute of the shared session
+    MagicMock: since pytest 9.2.0 monkeypatch undoes a setattr on a mock child
+    with delattr, which leaves the attribute deleted for every later test.
+    """
+    channel = MagicMock()
+    channel.objects.filter = filter_fn
+    channel.objects.bulk_update = lambda *a, **k: None
+    monkeypatch.setattr(plugin_module, "Channel", channel)
+
+
 def test_bulk_update_returns_the_number_it_wrote_and_zero_for_nothing(plugin, plugin_module, monkeypatch):
     rows = {1: types.SimpleNamespace(id=1, name="old"), 2: types.SimpleNamespace(id=2, name="old")}
-    monkeypatch.setattr(plugin_module.Channel.objects, "filter", lambda **k: list(rows.values()))
-    monkeypatch.setattr(plugin_module.Channel.objects, "bulk_update", lambda *a, **k: None)
+    _install_channel_rows(monkeypatch, plugin_module, lambda **k: list(rows.values()))
     monkeypatch.setattr(plugin_module, "transaction", types.SimpleNamespace(atomic=lambda: contextlib.nullcontext()))
     log = logging.getLogger("test-channel-maparr")
     assert plugin._bulk_update_channels([], ["name"], log) == 0
@@ -130,8 +143,7 @@ def test_bulk_update_returns_the_number_it_wrote_and_zero_for_nothing(plugin, pl
 
 def test_a_second_identical_run_counts_nothing(plugin, plugin_module, monkeypatch):
     rows = {1: types.SimpleNamespace(id=1, name="old"), 2: types.SimpleNamespace(id=2, name="old")}
-    monkeypatch.setattr(plugin_module.Channel.objects, "filter", lambda **k: list(rows.values()))
-    monkeypatch.setattr(plugin_module.Channel.objects, "bulk_update", lambda *a, **k: None)
+    _install_channel_rows(monkeypatch, plugin_module, lambda **k: list(rows.values()))
     monkeypatch.setattr(plugin_module, "transaction", types.SimpleNamespace(atomic=lambda: contextlib.nullcontext()))
     log = logging.getLogger("test-channel-maparr")
     updates = [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
@@ -141,8 +153,7 @@ def test_a_second_identical_run_counts_nothing(plugin, plugin_module, monkeypatc
 
 def test_two_updates_for_one_channel_count_once(plugin, plugin_module, monkeypatch):
     row = types.SimpleNamespace(id=1, name="old")
-    monkeypatch.setattr(plugin_module.Channel.objects, "filter", lambda **k: [row])
-    monkeypatch.setattr(plugin_module.Channel.objects, "bulk_update", lambda *a, **k: None)
+    _install_channel_rows(monkeypatch, plugin_module, lambda **k: [row])
     monkeypatch.setattr(plugin_module, "transaction", types.SimpleNamespace(atomic=lambda: contextlib.nullcontext()))
     log = logging.getLogger("test-channel-maparr")
     updates = [{"id": 1, "name": "a"}, {"id": 1, "name": "b"}]
@@ -151,8 +162,7 @@ def test_two_updates_for_one_channel_count_once(plugin, plugin_module, monkeypat
 
 def test_a_channel_renamed_and_renamed_back_in_one_batch_counts_nothing(plugin, plugin_module, monkeypatch):
     row = types.SimpleNamespace(id=1, name="old")
-    monkeypatch.setattr(plugin_module.Channel.objects, "filter", lambda **k: [row])
-    monkeypatch.setattr(plugin_module.Channel.objects, "bulk_update", lambda *a, **k: None)
+    _install_channel_rows(monkeypatch, plugin_module, lambda **k: [row])
     monkeypatch.setattr(plugin_module, "transaction", types.SimpleNamespace(atomic=lambda: contextlib.nullcontext()))
     log = logging.getLogger("test-channel-maparr")
     updates = [{"id": 1, "name": "a"}, {"id": 1, "name": "old"}]

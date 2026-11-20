@@ -47,6 +47,7 @@ SHIPPED_FILES = {
     "__init__.py",
     "aliases.py",
     "channel_seeder.py",
+    "cm_fields.py",
     "fuzzy_matcher.py",
     "group_scope.py",
     "logo.png",

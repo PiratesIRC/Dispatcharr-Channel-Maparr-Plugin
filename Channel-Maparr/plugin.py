@@ -32,6 +32,7 @@ from .group_scope import (
     split_rows_by_ignore,
 )
 from .wildcard_match import expand_patterns
+from . import cm_fields
 
 # Django model imports
 from apps.channels.models import Channel, ChannelGroup, Logo, Stream, ChannelStream
@@ -704,6 +705,47 @@ class Plugin:
                 "description": "The setting below sends this plugin's Channels Renamed total and a random id to the plugin author's counter so the public badges can count installs. No channel names, group names, providers or settings are sent. Untick it to stop; the README section Anonymous usage counts has the details.",
             },
         ], USAGE)
+
+    def get_fields(self, context=None):
+        """The settings form for Dispatcharr 0.34 and later, in collapsible sections.
+
+        Dispatcharr 0.34 calls this at discovery and on a reload instead of
+        reading ``fields``; 0.33 and earlier never call it and keep the flat
+        form, which holds no field type they do not know. The layout is
+        ``cm_fields.build_form``. The loader does not catch an exception raised
+        here, so any failure falls back to the flat form rather than breaking
+        discovery of the plugin.
+
+        ``_uses_pick_lists`` tells ``run`` to write the pick-list values back
+        into the old text settings; it stays False on 0.33, which never calls
+        this, and on the flat fallback.
+        """
+        self._uses_pick_lists = False
+        flat = self.fields
+        try:
+            settings = (context or {}).get("settings") or {}
+            channel_groups, stream_groups = self._pick_list_names()
+            fields = cm_fields.build_form(flat, settings, channel_groups, stream_groups)
+            self._uses_pick_lists = True
+            return fields
+        except Exception as exc:
+            LOGGER.warning(f"{PLUGIN_LOG_PREFIX} Sectioned settings form failed, using the flat form: {exc}")
+            return flat
+
+    @staticmethod
+    def _pick_list_names():
+        """Every channel group name, and the names of groups holding a stream,
+        for the settings pick lists. Read once when the plugin loads. Never
+        raises: on a database error the lists are empty and saved values still
+        show, because cm_fields adds every saved value as an option."""
+        try:
+            channel_groups = list(ChannelGroup.objects.values_list("name", flat=True))
+            stream_groups = list(Stream.objects.exclude(channel_group__isnull=True)
+                                 .values_list("channel_group__name", flat=True).distinct())
+            return channel_groups, stream_groups
+        except Exception as exc:
+            LOGGER.warning(f"{PLUGIN_LOG_PREFIX} Could not read groups for the settings lists: {exc}")
+            return [], []
 
     # Actions for Dispatcharr UI. `label` is the action title; `button_label`
     # is the text on the actual button (otherwise Dispatcharr renders "Run").
@@ -1821,6 +1863,12 @@ class Plugin:
         """Main plugin entry point"""
         logger = context.get("logger", LOGGER)
         settings = context.get("settings", {})
+        # The 0.34 form stores five settings as lists under new ids; write them
+        # back into the old text settings so every parser reads one form. Only
+        # when get_fields built that form: on 0.33 a list left over from an
+        # earlier 0.34 save must not override what the 0.33 form now holds.
+        if getattr(self, "_uses_pick_lists", False):
+            settings = cm_fields.legacy_settings(settings)
 
         try:
             action_map = {

@@ -35,7 +35,10 @@ from .wildcard_match import expand_patterns
 from . import cm_fields
 
 # Django model imports
-from apps.channels.models import Channel, ChannelGroup, Logo, Stream, ChannelStream
+from apps.channels.models import (
+    Channel, ChannelGroup, ChannelProfile, ChannelProfileMembership, ChannelStream, Logo,
+    Stream,
+)
 from apps.m3u.models import M3UAccount
 from django.db import transaction
 from core.utils import send_websocket_update
@@ -3829,6 +3832,27 @@ class Plugin:
                 return True, unique_name
             counter += 1
 
+    @staticmethod
+    def _all_channel_profiles():
+        """Every channel profile, read once per run (bug-203).
+
+        Dispatcharr outputs a channel only through a ChannelProfileMembership row
+        and adds those rows when a profile is created, not when a channel is. Its
+        own channel-create endpoint adds a new channel to every profile, enabled,
+        unless told otherwise; the plugin does the same.
+        """
+        return list(ChannelProfile.objects.all())
+
+    @staticmethod
+    def _add_channel_to_profiles(channel, profiles):
+        """Add one new channel to each profile, enabled. Call inside the same
+        transaction that created the channel, so both commit or neither does."""
+        if profiles:
+            ChannelProfileMembership.objects.bulk_create([
+                ChannelProfileMembership(channel_profile=profile, channel=channel, enabled=True)
+                for profile in profiles
+            ])
+
     def _import_matched_streams(self, matched_by_category, category_to_group_id, settings, logger) -> dict:
         """
         Import matched streams as channels in Dispatcharr using Django ORM.
@@ -3863,6 +3887,7 @@ class Plugin:
             for matched in matched_streams:
                 all_stream_ids.add(matched['stream']['id'])
         stream_objects = {s.id: s for s in Stream.objects.filter(id__in=all_stream_ids)}
+        channel_profiles = self._all_channel_profiles()
 
         # Sort categories for consistent ordering
         for category in sorted(matched_by_category.keys()):
@@ -3923,6 +3948,7 @@ class Plugin:
                                 channel_number=next_channel_num,
                                 channel_group_id=group_id,
                             )
+                            self._add_channel_to_profiles(new_channel, channel_profiles)
 
                             # Link stream to channel (uses prefetched stream objects)
                             stream_obj = stream_objects.get(stream_id)
@@ -4768,6 +4794,7 @@ class Plugin:
             start = None
 
         numbers = allocate_channel_numbers(used, len(plan.create), start)
+        channel_profiles = self._all_channel_profiles()
         progress = ProgressTracker(len(plan.create), "seed_channels", logger)
 
         records = []
@@ -4782,6 +4809,7 @@ class Plugin:
                         channel_number=number,
                         channel_group_id=target_group_id,
                     )
+                    self._add_channel_to_profiles(channel, channel_profiles)
                 records.append({'id': channel.id, 'number': number,
                                 'name': item.proposed_name,
                                 'source_names': list(item.source_names)})

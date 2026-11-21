@@ -4,6 +4,9 @@ This document has two halves. The first walks through doing things. The second i
 reference, which used to live in the [README](../README.md) and was moved here so that the README
 could go back to being an introduction.
 
+Channel Mapparr requires Dispatcharr v0.34.0 or later. Its settings page uses the collapsible sections
+and pick lists that Dispatcharr added in v0.34.0.
+
 **Walkthroughs**
 
 - [What this plugin does, and what it will not do](#what-this-plugin-does-and-what-it-will-not-do)
@@ -80,19 +83,26 @@ Two details worth knowing:
 
 ## Choosing which channels are touched
 
-There are two settings, and they solve opposite problems.
+There are two settings, and they solve opposite problems. Both are pick lists of every channel
+group.
 
-**Channel Groups to Process** is an allow list. Name the groups you want touched; leave it empty
-for all groups. It supports `*` and `?` wildcards too, so `US:*` selects every group whose name
-starts with `US:`. A name without a wildcard must match exactly, including case.
+**Channel Groups to Process** is an allow list. Pick the groups you want touched; leave it empty
+for all groups. A picked name must match a group exactly, including case.
 
-**Channel Groups to Ignore** is a deny list, and it wins over the allow list. It supports `*` and
-`?` wildcards and is case-insensitive, so `PPV*` excludes `PPV Events` and `PPV Extra` together.
+**Channel Groups to Ignore** is a deny list, and it wins over the allow list. Its names are matched
+case-insensitively.
+
+Both settings still understand `*` and `?` wildcards: `US:*` selects every group whose name starts
+with `US:`, and `PPV*` excludes `PPV Events` and `PPV Extra` together. A wildcard entry saved by an
+earlier version of the plugin stays in the list and keeps working, but the pick list cannot take a
+new one. A group added since the plugin last loaded appears in the lists after you press the
+refresh control on the Plugins page.
 
 Three behaviours are deliberate:
 
-- **A token that matches no existing group refuses the run.** A typo like `Locls` stops the action
-  with an error rather than quietly processing everything. This is on purpose: the failure mode it
+- **An entry that matches no existing group refuses the run.** With a pick list this happens when a
+  picked group has since been renamed or deleted, or a saved wildcard matches nothing; the action
+  stops with an error rather than quietly processing everything. This is on purpose: the failure mode it
   prevents is an ignore list that silently does nothing.
 - **It applies to writes as well as reads.** Organize by Category skips an ignored destination
   group and carries on; Import M3U Streams refuses to run at all if its destination group is
@@ -316,7 +326,7 @@ still on.
 # Reference
 
 The sections below were moved here from the README, which had grown to hold both an
-introduction and a full reference. They are unchanged.
+introduction and a full reference.
 
 ### Updating the Plugin
 
@@ -345,25 +355,28 @@ docker restart dispatcharr
 
 ### Settings Reference
 
+The settings page is divided into the collapsible sections below; the four that most installs never
+change start closed. A `multiselect` setting is a pick list: click it to choose from the list, and
+click a chosen entry's cross to remove it.
 
 | Setting | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | | | | |
 | **Matching and Scope** | *section* | | Which channel databases a run matches against, how close a name has to be before it counts as a match, and which channel groups are in scope. The two group settings are not opposites: Channel Groups to Process narrows a run to the groups you name, while Channel Groups to Ignore is a refusal that every action obeys, including the ones that only replay a saved results file. A name in Channel Groups to Ignore that matches no group stops the run rather than being skipped, because a typo there would otherwise quietly widen the run to everything. |
-| **Channel Databases** | `string` | `US` | Comma-separated country codes (AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, PL, UK, US). |
+| **Channel Databases** | `multiselect` | `US` | The countries whose channel databases are loaded (AU, BR, CA, DE, ES, FR, IN, MX, NL, NO, PL, UK, US). The same countries choose which tv-logos directories the per-channel logo actions search. Pick at least one: with none picked, the logo actions and Validate Settings refuse to run. |
 | **Match Sensitivity** | `select` | `normal` | Relaxed (70), Normal (80), Strict (90), Exact (95). |
-| **Channel Groups to Process** | `string` | - | Comma-separated group names for renaming, tagging and logo actions. Empty = all groups. Supports `*` and `?` wildcards, matched case-insensitively (`US:*` selects every group whose name starts with `US:`); a name without a wildcard must match exactly, including case. Use "Channel Groups to Ignore" to exclude instead. |
-| **Channel Groups to Ignore** | `string` | - | Comma-separated, supports `*` and `?` wildcards, case-insensitive. Channels in these groups are excluded from renaming, tagging, logos and Organize by Category, regardless of "Channel Groups to Process". Organize skips a target group that is ignored; Import M3U Streams refuses to run if its destination group is ignored. Does not apply to Import's stream matching or duplicate detection. A typo that matches no group refuses the run rather than silently processing everything. |
-| **Category Organization Groups** | `string` | - | Comma-separated group names for category sorting. Empty = all groups. |
+| **Channel Groups to Process** | `multiselect` | - | Pick list of every channel group. Limits renaming, tagging and logo actions to the groups picked. Empty = all groups. A picked name must match exactly, including case. A wildcard entry such as `US:*` saved by an earlier version of the plugin stays in the list and still selects every group it matches, case-insensitively; a new wildcard cannot be added from the form. Use "Channel Groups to Ignore" to exclude instead. The list is read when the plugin loads: after adding a group, press the refresh control on the Plugins page to see it here. |
+| **Channel Groups to Ignore** | `multiselect` | - | Pick list of every channel group, matched case-insensitively. A wildcard entry such as `US:*` saved by an earlier version of the plugin stays in the list and still selects every group it matches, case-insensitively; a new wildcard cannot be added from the form. Channels in these groups are excluded from renaming, tagging, logos and Organize by Category, regardless of "Channel Groups to Process". Organize skips a target group that is ignored; Import M3U Streams refuses to run if its destination group is ignored. Does not apply to Import's stream matching or duplicate detection. An entry that matches no group (a group since renamed or deleted, or a wildcard that matches nothing) refuses the run rather than silently processing everything. The list is read when the plugin loads: after adding a group, press the refresh control on the Plugins page to see it here. |
+| **Category Organization Groups** | `multiselect` | - | The groups Organize by Category may move channels into or create. The list holds every channel group plus every category named in the channel database files. Empty = the categories named in the channel database files. The list is read when the plugin loads: after adding a group, press the refresh control on the Plugins page to see it here. |
 | | | | |
 | **Import M3U Streams** | *section* | | The four settings Import M3U Streams uses to decide which provider streams to bring in and where to put them. That action creates one channel per STREAM, so a provider serving the same station once per M3U account produces one channel per account rather than one channel with several streams attached. Create Channels From Streams, in the next section, is the one that makes a single channel per station. |
 | **M3U Source** | `select` | `All active sources` | Filter streams to a specific M3U account. The default reads every account enabled in Dispatcharr and skips disabled ones; a disabled account picked by name is still read. |
-| **M3U Group Filter** | `string` | - | Pre-match filter by M3U group-title. |
-| **Category Filter** | `string` | - | Post-match filter by database category. |
+| **M3U Group Filter** | `multiselect` | - | The stream groups to import from, applied before matching. The list holds every group that contains at least one stream. Empty = every group. The list is read when the plugin loads: after adding a group, press the refresh control on the Plugins page to see it here. |
+| **Category Filter** | `multiselect` | - | Categories from the channel database, applied after matching: a stream is kept only if its category is picked. Empty = keep every category. |
 | **Custom Import Group Name** | `string` | - | Override category-based group naming for imports. |
 | | | | |
 | **Create Channels From Streams** | *section* | | The settings for the action that creates one channel per broadcast station, for streams no channel is using yet. It attaches no streams: it creates the channels and stops, leaving the stream assignment to another tool or to hand. Networks to Skip reads what a station IS rather than every network its record mentions, so a CBS station carrying a second network on a subchannel is still treated as a CBS station and is not skipped. |
-| **Stream Groups to Seed From** | `string` | - | Used by Create Channels From Streams. Comma-separated stream group names to scan. Only streams in these groups that are not attached to any channel are considered. Empty means the action does nothing. |
+| **Stream Groups to Seed From** | `multiselect` | - | Used by Create Channels From Streams. The stream groups to scan, picked from every group that contains at least one stream. Only streams in these groups that are not attached to any channel are considered. Empty means the action does nothing. |
 | **Channel Group to Create In** | `string` | - | Used by Create Channels From Streams. The existing channel group new channels are created in. It must already exist, must not be named the same as another group, and must not be in "Channel Groups to Ignore". |
 | **First Channel Number to Use** | `string` | - | Used by Create Channels From Streams. The first channel number to assign. Numbers already in use are skipped, so the run does not need a free block. Empty means start above the highest channel number on the system. |
 | **Networks to Skip When Creating Channels** | `string` | - | Used by Create Channels From Streams. Comma-separated network names. A station whose own network is one of these is reported under `skip, network excluded` in the preview and not created. It reads what a station **is**, not what it carries: a CBS station running Telemundo on a subchannel is a CBS station and is not skipped. The network is taken from the station record and from the stream name, because a low power record often names no network at all. |

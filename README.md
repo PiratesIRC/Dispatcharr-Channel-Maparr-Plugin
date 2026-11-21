@@ -67,7 +67,7 @@ rather than after 102. The plugin settings that name your M3U sources are delibe
 this page.*
 
 ## Requirements
-* Dispatcharr v0.20.0+
+* Dispatcharr v0.34.0+
 * Internet access, only for **Apply Per-Channel Logos (tv-logos)**, which fetches the logo file list from GitHub. The anonymous usage counts report (see below) also needs it, and it never blocks a run. Every other action works without it. The plugin no longer checks for its own updates.
 * The [Newsflasharr](https://github.com/PiratesIRC/Dispatcharr-Newsflasharr-Plugin) plugin, only if you want **emailed reports**. It is what actually sends the mail. Channel Mapparr does not require it: with Newsflasharr absent or disabled, nothing is sent and nothing fails.
 

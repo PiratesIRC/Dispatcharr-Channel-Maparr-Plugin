@@ -7,7 +7,7 @@ warning. So the plugin keeps its flat form in ``Plugin.fields``, which every
 version reads, and builds the sectioned copy here for ``Plugin.get_fields``,
 which only 0.34 and later call.
 
-The 0.34 form draws five comma-separated text settings as pick lists under NEW
+The 0.34 form draws seven comma-separated text settings as pick lists under NEW
 ids (``LIST_SETTINGS``). A multiselect needs a list value, and a stored text
 value under the same id would break the form, so the old text setting keeps its
 id: 0.33 still edits it, and ``legacy_settings`` writes the list value back into
@@ -26,7 +26,14 @@ LIST_SETTINGS = {
     "m3u_group_list": "m3u_group_filter",
     "m3u_category_list": "m3u_category_filter",
     "seed_source_group_list": "seed_source_groups",
+    "selected_group_list": "selected_groups",
+    "ignore_group_list": "ignore_groups",
 }
+
+# Pick lists whose options are every channel group. Both settings also take *
+# and ? wildcards; a wildcard entry already saved stays an option, but a new
+# one can only be typed in the flat text form (operator request 2026-11-21).
+CHANNEL_GROUP_LISTS = frozenset(("selected_group_list", "ignore_group_list"))
 NEW_ID_BY_OLD_ID = {old: new for new, old in LIST_SETTINGS.items()}
 
 # Country codes with a <CC>_channels.json file, and the name shown for each.
@@ -58,6 +65,9 @@ CATEGORIES = (
     "Spanish", "Sports", "United Kingdom", "United States", "Weather",
 )
 
+_WILDCARD_NOTE = ("A wildcard entry such as US:* saved earlier is kept in the list "
+                  "and still matches every group it covers.")
+
 _RELOAD_NOTE = ("The list is read when the plugin loads: after adding a group, "
                 "press the refresh control on the Plugins page to see it here.")
 
@@ -78,6 +88,14 @@ NEW_FIELDS = {
         "label": "Category Filter",
         "help_text": "Categories from the channel database. This filter is applied AFTER matching, so a stream is matched first and then kept only if its category is picked. Leave empty to keep every category.",
     },
+    "selected_group_list": {
+        "label": "Channel Groups to Process",
+        "help_text": "Limits renaming, tagging and logo actions to these channel groups. Leave empty to process every group. This setting includes; Channel Groups to Ignore excludes, and an exclusion wins. " + _WILDCARD_NOTE + " " + _RELOAD_NOTE,
+    },
+    "ignore_group_list": {
+        "label": "Channel Groups to Ignore",
+        "help_text": "Channels in these groups are excluded from renaming, tagging, logos and Organize by Category, regardless of Channel Groups to Process or Category Organization Groups. " + _WILDCARD_NOTE + " " + _RELOAD_NOTE,
+    },
     "seed_source_group_list": {
         "label": "Stream Groups to Seed From",
         "help_text": "Used by Create Channels From Streams. The stream groups to scan. Only streams in these groups that are not attached to any channel are considered. Leave empty to do nothing. The list holds every group that contains at least one stream. " + _RELOAD_NOTE,
@@ -97,8 +115,8 @@ HELP_PARAGRAPHS = {
             ("A name that matches no group", "A name in Channel Groups to Ignore that matches no group refuses most actions rather than being skipped, because a typo there would otherwise quietly widen the run to everything. The actions that replay a saved results file cannot refuse, because they never ask the database which groups exist; they filter on the group name stored in that file."),
         ],
     ),
-    "ignore_groups": (
-        "Comma-separated. Channels in these groups are excluded from renaming, tagging, logos and Organize by Category, regardless of Channel Groups to Process or Category Organization Groups. Supports * and ? wildcards; matching is case-insensitive.",
+    "ignore_group_list": (
+        "Channels in these groups are excluded from renaming, tagging, logos and Organize by Category, regardless of Channel Groups to Process or Category Organization Groups. " + _WILDCARD_NOTE + " " + _RELOAD_NOTE,
         [
             ("An entry that matches no group", "An entry that matches no channel group refuses most actions. Organize by Category skips an ignored target group and continues. Import M3U Streams does not check entries against every group; it only refuses if its own target group is ignored."),
         ],
@@ -209,7 +227,7 @@ def _stored_list(settings, new_id):
 
 def pick_list_fields(flat_fields, settings=None, channel_group_names=(),
                      stream_group_names=()):
-    """Return the flat form with five text settings replaced by pick lists under
+    """Return the flat form with seven text settings replaced by pick lists under
     their new ids. The input is not modified.
 
     The seed target group stays a text box: a single-choice list would need a
@@ -244,6 +262,8 @@ def pick_list_fields(flat_fields, settings=None, channel_group_names=(),
         elif new_id == "category_group_list":
             options = _options(list(channel_group_names) + list(CATEGORIES),
                                default + stored)
+        elif new_id in CHANNEL_GROUP_LISTS:
+            options = _options(channel_group_names, default + stored)
         elif new_id == "m3u_category_list":
             options = _options(CATEGORIES, default + stored)
         else:

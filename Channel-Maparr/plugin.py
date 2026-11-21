@@ -1866,7 +1866,7 @@ class Plugin:
         """Main plugin entry point"""
         logger = context.get("logger", LOGGER)
         settings = context.get("settings", {})
-        # The 0.34 form stores five settings as lists under new ids; write them
+        # The 0.34 form stores seven settings as lists under new ids; write them
         # back into the old text settings so every parser reads one form. Only
         # when get_fields built that form: on 0.33 a list left over from an
         # earlier 0.34 save must not override what the 0.33 form now holds.

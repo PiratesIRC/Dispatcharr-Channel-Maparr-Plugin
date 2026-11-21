@@ -2,7 +2,7 @@
 
 Dispatcharr 0.33 and earlier drop a field type they do not know, so the flat
 form in Plugin.fields must hold only the six old types, and the 0.34 form
-(sections and pick lists) is built only inside get_fields. Five text settings
+(sections and pick lists) is built only inside get_fields. Seven text settings
 are drawn as pick lists under new ids; run() writes them back into the old text
 ids, so these tests check both directions and the fallback.
 """
@@ -286,3 +286,47 @@ def test_run_translates_pick_lists_only_after_get_fields_built_them(
     inst._run_body("validate_settings", {}, {"settings": settings, "logger": MagicMock()})
     assert seen["channel_databases"] == expected
     assert settings["channel_databases"] == "UK", "the caller's dict must not change"
+
+
+# --- The two group settings that take wildcards (operator request 2026-11-21) --
+
+def test_the_wildcard_group_settings_are_pick_lists_of_channel_groups(plugin_module):
+    saved = {"selected_groups": "US:*, News", "ignore_groups": "Teamarr, PPV*"}
+    form = _by_id(_form(plugin_module, saved))
+    assert "selected_groups" not in form and "ignore_groups" not in form
+    process = form["selected_group_list"]
+    ignore = form["ignore_group_list"]
+    assert process["type"] == ignore["type"] == "multiselect"
+    assert process["default"] == ["US:*", "News"]
+    assert ignore["default"] == ["Teamarr", "PPV*"]
+    for field in (process, ignore):
+        values = {o["value"] for o in field["options"]}
+        assert {"Locals", "News", "US: ABC"} <= values, field["id"]
+        assert "Group, With Comma" not in values
+        assert set(field["default"]) <= values, field["id"]
+
+
+def test_a_saved_wildcard_entry_stays_selectable_after_it_is_saved_as_a_list(plugin_module):
+    """After one 0.34 save the old text setting may be gone from view; the
+    stored list alone must keep its wildcard entries as options."""
+    saved = {"selected_group_list": ["US:*"], "ignore_group_list": ["PPV*"]}
+    form = _by_id(_form(plugin_module, saved))
+    assert "US:*" in {o["value"] for o in form["selected_group_list"]["options"]}
+    assert "PPV*" in {o["value"] for o in form["ignore_group_list"]["options"]}
+
+
+def test_the_group_pick_lists_are_written_back_for_the_wildcard_parser():
+    out = cm_fields.legacy_settings({
+        "selected_group_list": ["US:*", "News"],
+        "ignore_group_list": [],
+        "selected_groups": "Old",
+        "ignore_groups": "PPV*",
+    })
+    assert out["selected_groups"] == "US:*, News"
+    assert out["ignore_groups"] == ""
+
+
+def test_the_ignore_list_keeps_its_split_help(plugin_module):
+    form = _by_id(_form(plugin_module))
+    assert "ignore_group_list_help_1" in form
+    assert form["ignore_group_list_help_1"]["label"] == "An entry that matches no group"

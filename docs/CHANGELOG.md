@@ -1,5 +1,23 @@
 # Channel Maparr Changelog
 
+## v1.26.3251847 (November 21, 2026)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.3251847
+
+### Changed
+
+- **This version requires Dispatcharr v0.34.0 or later.** The settings page now uses the collapsible sections and pick lists that Dispatcharr added in v0.34.0. The Hub listing states the same minimum, so an older Dispatcharr is not offered this version.
+- **The settings page is divided into collapsible sections**, and the long help texts are split into short titled paragraphs below each setting. The four sections most installs never change (Import M3U Streams, Create Channels From Streams, Emailed Reports and Anonymous Usage Counts) start closed.
+- **Seven settings that used to be comma-separated text are now pick lists:** Channel Databases, Channel Groups to Process, Channel Groups to Ignore, Category Organization Groups, M3U Group Filter, Category Filter and Stream Groups to Seed From. You choose from the countries, groups or categories that exist instead of typing names, so a misspelt group can no longer be saved. Your current values are carried over and shown as already picked the first time you open the page.
+
+### Added
+
+- **Channel Groups to Process and Channel Groups to Ignore offer prefix patterns.** The top of each list holds one pattern per group-name prefix, the text up to and including the first colon or bar, so a group named US| CBS offers US|*, which picks every group whose name starts with US| in any letter case. Each pattern shows how many groups it matches, and it also covers a matching group added later. A wildcard you saved before, such as PPV*, stays in the list and keeps working.
+
+### Fixed
+
+- **Channels created by Import M3U Streams and Create Channels From Streams now appear in Dispatcharr's output.** Dispatcharr outputs a channel only when it belongs to a channel profile, and these two actions created channels that belonged to none, so the channels existed but no client could see them. Both actions now add each new channel to every channel profile, enabled, which is what Dispatcharr does when you create a channel by hand. Channels created by an earlier version stay out of every profile until you add them to one on the Channels page.
+
 ## v1.26.2971911 (October 24, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.2971911

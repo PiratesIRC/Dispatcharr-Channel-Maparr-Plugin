@@ -40,7 +40,7 @@ A Dispatcharr plugin that standardizes broadcast (OTA) and premium/cable channel
 **Organizing**
 * **Category-based grouping**: move channels into groups by content category.
 * **M3U stream import**: create channels from streams, organized by category, in the background.
-* **Scoping**: process only named groups, or exclude groups with wildcard patterns. A pattern matching nothing refuses the run rather than silently processing everything.
+* **Scoping**: pick the channel groups to process, or the groups to exclude, from lists of the groups that exist; each list also offers one prefix pattern per group-name prefix, such as `US|*`. An entry matching nothing refuses the run rather than silently processing everything.
 * **Logos**: one default logo in bulk, or per-channel artwork fuzzy-matched against the [tv-logo/tv-logos](https://github.com/tv-logo/tv-logos) repository.
 
 **Seeing what happened**

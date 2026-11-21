@@ -3940,6 +3940,17 @@ class Plugin:
                             existing_channels
                         )
 
+                    # Look the stream up BEFORE creating anything. A stream deleted
+                    # after matching is absent from the prefetch; skipping it here
+                    # creates no channel, no membership and uses no channel number.
+                    # (A `continue` inside the transaction block below would leave
+                    # it normally and commit a channel with no stream.)
+                    stream_obj = stream_objects.get(stream_id)
+                    if stream_obj is None:
+                        logger.warning(f"{PLUGIN_LOG_PREFIX} Stream {stream_id} not found (may have been deleted), skipping")
+                        progress.update()
+                        continue
+
                     try:
                         # Create channel using ORM
                         with transaction.atomic():
@@ -3951,11 +3962,6 @@ class Plugin:
                             self._add_channel_to_profiles(new_channel, channel_profiles)
 
                             # Link stream to channel (uses prefetched stream objects)
-                            stream_obj = stream_objects.get(stream_id)
-                            if stream_obj is None:
-                                logger.warning(f"{PLUGIN_LOG_PREFIX} Stream {stream_id} not found (may have been deleted), skipping")
-                                progress.update()
-                                continue
                             ChannelStream.objects.create(
                                 channel=new_channel,
                                 stream=stream_obj,

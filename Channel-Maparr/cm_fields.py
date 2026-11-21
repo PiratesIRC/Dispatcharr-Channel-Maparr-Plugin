@@ -18,6 +18,7 @@ group names in. It is unit-tested in ``tests/test_cm_fields.py``.
 """
 
 import copy
+import fnmatch
 
 # new id: old id
 LIST_SETTINGS = {
@@ -31,9 +32,21 @@ LIST_SETTINGS = {
 }
 
 # Pick lists whose options are every channel group. Both settings also take *
-# and ? wildcards; a wildcard entry already saved stays an option, but a new
-# one can only be typed in the flat text form (operator request 2026-11-21).
+# and ? wildcards, but Dispatcharr accepts only a declared option value and its
+# pick list cannot take typed text, so the wildcards a user can choose are the
+# ones offered: one prefix pattern per group-name prefix (see prefix_pattern),
+# listed first, plus every wildcard entry already saved (operator request
+# 2026-11-21). Any other wildcard has to be saved some other way.
 CHANNEL_GROUP_LISTS = frozenset(("selected_group_list", "ignore_group_list"))
+
+# A group-name prefix ends at the first of these characters, inclusive.
+PREFIX_SEPARATORS = ":|"
+
+# Characters a derived prefix must not contain: a comma cannot survive the
+# comma-separated text the list is written back into, and * ? [ ] are fnmatch
+# syntax (wildcard_match.expand_patterns), so a prefix holding one would match
+# groups that do not start with it.
+_PREFIX_FORBIDDEN = ",*?[]"
 NEW_ID_BY_OLD_ID = {old: new for new, old in LIST_SETTINGS.items()}
 
 # Country codes with a <CC>_channels.json file, and the name shown for each.
@@ -65,8 +78,11 @@ CATEGORIES = (
     "Spanish", "Sports", "United Kingdom", "United States", "Weather",
 )
 
-_WILDCARD_NOTE = ("A wildcard entry such as US:* saved earlier is kept in the list "
-                  "and still matches every group it covers.")
+_WILDCARD_NOTE = ("The list starts with one pattern per group-name prefix, the text up to and "
+                  "including the first colon or bar, so US:* picks every group whose name starts "
+                  "with US: in any letter case; each shows how many groups it matches. A pattern "
+                  "also covers a matching group added later. A wildcard entry saved earlier stays "
+                  "in the list.")
 
 _RELOAD_NOTE = ("The list is read when the plugin loads: after adding a group, "
                 "press the refresh control on the Plugins page to see it here.")
@@ -209,6 +225,68 @@ def _options(names, extra=(), forbidden=",", sort=True):
     return [{"label": n, "value": n} for n in seen]
 
 
+def is_wildcard(value):
+    """True for an entry the group matcher treats as a pattern."""
+    return "*" in value or "?" in value
+
+
+def prefix_pattern(name):
+    """The prefix pattern a group name offers, or None.
+
+    The prefix is the text up to and including the first character in
+    PREFIX_SEPARATORS, so "US: ABC" gives "US:*" and "AR| SPORT: X" gives
+    "AR|*". There is none when the name has no separator, when only space
+    comes before it, or when the prefix holds a character in
+    _PREFIX_FORBIDDEN.
+    """
+    name = str(name or "").strip()
+    cuts = [i for i in (name.find(c) for c in PREFIX_SEPARATORS) if i >= 0]
+    if not cuts:
+        return None
+    prefix = name[:min(cuts) + 1]
+    if not prefix[:-1].strip() or any(c in prefix for c in _PREFIX_FORBIDDEN):
+        return None
+    return prefix + "*"
+
+
+def _group_options(channel_group_names, extra=()):
+    """Options for the two group pick lists: patterns first, then names.
+
+    The patterns are every wildcard entry in ``extra`` (each saved spelling
+    kept, because Dispatcharr rejects a save holding a value that is not an
+    option) and one prefix pattern per group-name prefix. Wildcards match case
+    insensitively, so a derived pattern is left out when a saved or earlier
+    derived pattern differs from it only in letter case. Every pattern's label
+    carries how many groups it matches now, counted the way
+    wildcard_match.expand_patterns matches (fnmatch on lower-cased text).
+    """
+    names = [str(n or "").strip() for n in channel_group_names or ()]
+    names = [n for n in names if n]
+    saved = []
+    for value in extra or ():
+        value = str(value or "").strip()
+        if value and is_wildcard(value) and value not in saved:
+            saved.append(value)
+    taken = {value.casefold() for value in saved}
+    derived = []
+    for name in names:
+        pattern = prefix_pattern(name)
+        if pattern and pattern.casefold() not in taken:
+            taken.add(pattern.casefold())
+            derived.append(pattern)
+
+    lowered = [n.lower() for n in names]
+
+    def label(pattern):
+        count = sum(1 for n in lowered if fnmatch.fnmatchcase(n, pattern.lower()))
+        return f"{pattern} ({count} group{'' if count == 1 else 's'})"
+
+    patterns = sorted(saved + derived, key=lambda v: (v.casefold(), v))
+    options = [{"label": label(v), "value": v} for v in patterns]
+    literals = [v for v in (extra or ()) if not is_wildcard(str(v or ""))]
+    return options + _options(names, literals)
+
+
 def _country_options(extra=()):
     options = [{"label": f"{code} ({name})", "value": code}
                for code, name in sorted(COUNTRY_NAMES.items())]
@@ -263,7 +341,7 @@ def pick_list_fields(flat_fields, settings=None, channel_group_names=(),
             options = _options(list(channel_group_names) + list(CATEGORIES),
                                default + stored)
         elif new_id in CHANNEL_GROUP_LISTS:
-            options = _options(channel_group_names, default + stored)
+            options = _group_options(channel_group_names, default + stored)
         elif new_id == "m3u_category_list":
             options = _options(CATEGORIES, default + stored)
         else:

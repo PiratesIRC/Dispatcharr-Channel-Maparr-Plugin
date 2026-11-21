@@ -330,3 +330,94 @@ def test_the_ignore_list_keeps_its_split_help(plugin_module):
     form = _by_id(_form(plugin_module))
     assert "ignore_group_list_help_1" in form
     assert form["ignore_group_list_help_1"]["label"] == "An entry that matches no group"
+
+
+# --- Derived prefix patterns in the two group pick lists (2026-11-21) --------
+
+from wildcard_match import expand_patterns  # noqa: E402
+
+
+@pytest.mark.parametrize("name, pattern", [
+    ("US: ABC", "US:*"),
+    ("US| CBS", "US|*"),
+    ("AR| SPORT: X", "AR|*"),       # the FIRST separator decides
+    ("UK: News | Live", "UK:*"),
+    ("  DE| Kids ", "DE|*"),        # surrounding space ignored
+])
+def test_a_group_name_gives_the_prefix_up_to_its_first_separator(name, pattern):
+    assert cm_fields.prefix_pattern(name) == pattern
+
+
+@pytest.mark.parametrize("name", [
+    "News",            # no separator
+    ": Orphan",        # nothing before the separator
+    " | Orphan",       # only space before the separator
+    "[VIP] US: ABC",   # [ ] are fnmatch syntax and would match other groups
+    "A*B: x",          # * is fnmatch syntax
+    "Why? | x",        # ? is fnmatch syntax
+    "",
+    None,
+])
+def test_no_pattern_is_offered_when_the_prefix_cannot_be_matched_literally(name):
+    assert cm_fields.prefix_pattern(name) is None
+
+
+def _group_form(settings=None, groups=("US: ABC", "US: NBC", "us: lower", "UK| News",
+                                       "News", "[VIP] US: x")):
+    flat = [{"id": "selected_groups", "label": "Channel Groups to Process", "type": "string", "default": ""},
+            {"id": "ignore_groups", "label": "Channel Groups to Ignore", "type": "string", "default": ""},
+            {"id": "category_groups", "label": "Category Organization Groups", "type": "string", "default": ""}]
+    return _by_id(cm_fields.pick_list_fields(flat, settings or {}, list(groups), []))
+
+
+def test_both_group_lists_offer_one_pattern_per_prefix_before_the_names():
+    form = _group_form()
+    for fid in ("selected_group_list", "ignore_group_list"):
+        values = [o["value"] for o in form[fid]["options"]]
+        # one pattern for US: and us: (wildcards match case-insensitively), one for UK|
+        assert values[:2] == ["UK|*", "US:*"], (fid, values[:4])
+        assert "us:*" not in values
+        assert {"US: ABC", "News", "[VIP] US: x"} <= set(values[2:])
+
+
+def test_a_pattern_label_counts_the_groups_it_matches_case_insensitively():
+    labels = {o["value"]: o["label"] for o in _group_form()["selected_group_list"]["options"]}
+    assert labels["US:*"] == "US:* (3 groups)"
+    assert labels["UK|*"] == "UK|* (1 group)"
+    assert labels["News"] == "News"
+
+
+def test_every_derived_pattern_matches_exactly_the_groups_with_its_prefix():
+    groups = ["US: ABC", "US: NBC", "us: lower", "UK| News", "UK|Sport", "UKX| Other",
+              "News", "[VIP] US: x", "AR| SPORT: X"]
+    values = [o["value"] for o in _group_form(groups=groups)["ignore_group_list"]["options"]]
+    patterns = [v for v in values if v.endswith("*")]
+    assert set(patterns) == {"AR|*", "UK|*", "UKX|*", "US:*"}
+    for pattern in patterns:
+        matched, _ = expand_patterns([pattern], groups, ci_plain=True)
+        prefix = pattern[:-1].casefold()
+        assert sorted(matched) == sorted(g for g in groups if g.casefold().startswith(prefix)), pattern
+
+
+def test_a_saved_wildcard_stays_and_suppresses_its_case_variant():
+    form = _group_form({"selected_groups": "us:*, Old*, News"})
+    options = form["selected_group_list"]["options"]
+    values = [o["value"] for o in options]
+    assert "us:*" in values and "Old*" in values
+    assert "US:*" not in values, "the saved spelling already matches the same groups"
+    assert set(form["selected_group_list"]["default"]) <= set(values)
+    labels = {o["value"]: o["label"] for o in options}
+    assert labels["us:*"] == "us:* (3 groups)", "a saved pattern is counted too"
+    assert labels["Old*"] == "Old* (0 groups)", "a saved pattern matching nothing says so"
+
+
+def test_other_pick_lists_get_no_patterns():
+    values = [o["value"] for o in _group_form()["category_group_list"]["options"]]
+    assert not [v for v in values if "*" in v]
+
+
+def test_derived_options_never_hold_a_comma_or_an_empty_value():
+    form = _group_form(groups=["A,B: x", "US: ABC", " : x"])
+    for fid in ("selected_group_list", "ignore_group_list"):
+        for o in form[fid]["options"]:
+            assert o["value"].strip() and "," not in o["value"], o

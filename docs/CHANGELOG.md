@@ -1,5 +1,13 @@
 # Channel Maparr Changelog
 
+## v1.26.3251925 (November 21, 2026)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.3251925
+
+### Fixed
+
+- **Import M3U Streams no longer creates an empty channel for a stream that was deleted during the run.** The action reads the matched streams once at the start. When one of them was deleted before the action reached it, the action still created its channel and added it to every channel profile, and only then noticed the stream was gone, so the channel was saved with no stream attached. The next imported channel was also given the same channel number. A deleted stream is now skipped before anything is created, with a warning in the log, and uses no channel number.
+
 ## v1.26.3251847 (November 21, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.3251847

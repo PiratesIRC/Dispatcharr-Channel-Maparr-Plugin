@@ -87,12 +87,58 @@ def carries_network(station, network):
     return network.strip().upper() in station_networks(station.get("network_affiliation"))
 
 
+# Spellings the FCC field uses for one network. "THE CW" is the CW, and the
+# MyNetworkTV family is written five ways. Keys and values are uppercase.
+_NETWORK_ALIASES = {
+    "THE CW": "CW",
+    "MYTV": "MYNETWORKTV",
+    "MYNET": "MYNETWORKTV",
+    "MYNETWORK": "MYNETWORKTV",
+    "MY NETWORK": "MYNETWORKTV",
+    "MY NETWORK TV": "MYNETWORKTV",
+    "MY": "MYNETWORKTV",
+}
+
+
+def canonical_network(name):
+    """Return the one spelling a network name is compared under, or None.
+
+    Two spellings of one network compare equal: "THE CW" and "CW". Anything
+    else is returned uppercased and otherwise unchanged.
+    """
+    if not name:
+        return None
+    text = re.sub(r"\s+", " ", str(name).strip()).upper()
+    if not text:
+        return None
+    return _NETWORK_ALIASES.get(text, text)
+
+
 def is_primary_network(station, network):
     """True only when ``network`` is the FIRST network the station names.
 
     Use this, not ``carries_network``, when deciding what a station IS. A
     station that carries Telemundo on a subchannel is not a Telemundo station.
+    Spellings are compared through ``canonical_network``.
     """
     if not network:
         return False
-    return primary_network(station.get("network_affiliation")) == network.strip().upper()
+    primary = primary_network(station.get("network_affiliation"))
+    if primary is None:
+        return False
+    return canonical_network(primary) == canonical_network(network)
+
+
+def names_other_network(station, network):
+    """True only when the stream names ``network`` and the station's primary is another one.
+
+    This is a refusal test, so it answers True only when the conflict is proven.
+    A station whose affiliation names no network never conflicts (a low power
+    record often has none), and neither does a stream that names no network.
+    """
+    if not network or not station:
+        return False
+    primary = primary_network(station.get("network_affiliation"))
+    if primary is None:
+        return False
+    return canonical_network(primary) != canonical_network(network)

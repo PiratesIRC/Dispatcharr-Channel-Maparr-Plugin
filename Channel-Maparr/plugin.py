@@ -18,7 +18,7 @@ from datetime import datetime
 from .fuzzy_matcher import FuzzyMatcher
 from .usage_client import UsageReporter, jsonl_sum, load_plugin_settings, with_usage_field
 from .channel_seeder import allocate_channel_numbers, build_seed_plan
-from .station_affiliation import primary_network
+from .station_affiliation import names_other_network, primary_network
 from .progress_status import (
     build_status_message, load_progress, save_progress_atomic,
 )
@@ -1838,6 +1838,22 @@ class Plugin:
             return None
         token = m.group(1).upper()
         return token if token in self._STREAM_NETWORKS else None
+
+    def _guard_network(self, stream_name):
+        """The network a stream names, for the other-network guard only.
+
+        _extract_stream_network reads a prefix ending in a colon ("US: FOX 44").
+        Provider names also carry a two letter country code and a space ("US FOX
+        44 (WEVV DT2)"), which that rule does not take, so the guard reads it too.
+        The matcher keeps the narrower rule, so no other behaviour changes.
+        """
+        network = self._extract_stream_network(stream_name)
+        if network:
+            return network
+        m = re.match(r"^\s*[A-Za-z]{2}\s+([A-Za-z]{2,12})\b", stream_name or "")
+        if m and m.group(1).upper() in self._STREAM_NETWORKS:
+            return m.group(1).upper()
+        return None
 
     def _format_ota_name(self, station_data, format_string, callsign, network_override=None):
         """
@@ -3664,11 +3680,16 @@ class Plugin:
                 continue
 
             # Try OTA broadcast match first
+            stream_network = self._extract_stream_network(stream_name)
             callsign, ota_station = self.matcher.match_broadcast_channel(
                 stream_name,
-                network=self._extract_stream_network(stream_name),
+                network=stream_network,
                 allow_market_fallback=bool(settings.get("ota_market_fallback", False)),
             )
+            # The station must be the stream's own network: a FOX subchannel of
+            # a CBS station is not a FOX station, so the stream is not an OTA match.
+            if names_other_network(ota_station, self._guard_network(stream_name)):
+                ota_station = None
 
             if ota_station:
                 category = OTA_IMPORT_CATEGORY
@@ -4725,9 +4746,16 @@ class Plugin:
                 network = self._extract_stream_network(stream_name)
                 callsign, station = self.matcher.match_broadcast_channel(
                     stream_name, network=network, allow_market_fallback=fallback)
+                # A station whose primary network is another one is not the
+                # station this stream means (a FOX subchannel of a CBS
+                # station): no channel is named after it. The station itself
+                # stays in the memo, so exclude still reads its primary network.
+                named = None
+                if station and not names_other_network(station, self._guard_network(stream_name)):
+                    named = station
                 name = None
-                if station:
-                    name = self._format_ota_name(station, fmt, callsign,
+                if named:
+                    name = self._format_ota_name(named, fmt, callsign,
                                                  network_override=network)
                 memo[stream_name] = (name, station)
             return memo[stream_name]

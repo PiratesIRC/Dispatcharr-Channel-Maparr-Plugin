@@ -26,6 +26,11 @@ Dispatcharr runtime.
 import collections
 import re
 
+try:
+    from .station_affiliation import is_primary_network
+except (ImportError, ValueError):
+    from station_affiliation import is_primary_network
+
 MarketReference = collections.namedtuple("MarketReference", "number city state")
 MarketIndex = collections.namedtuple("MarketIndex", "by_city city_states")
 
@@ -118,7 +123,7 @@ def parse_market_reference(stream_name, network):
 
     number = None
     match = re.match(
-        r"^" + re.escape(network) + r"\s+(\d{1,3})(?:/\d{1,3})?\b",
+        r"^" + re.escape(network) + r"\s*(\d{1,3})(?:/\d{1,3})?\b",
         text,
         re.IGNORECASE,
     )
@@ -189,7 +194,26 @@ def build_market_index(stations):
 
 
 def _serves_network(station, network):
+    """True when the station carries ``network`` anywhere in its affiliation.
+
+    This selects CANDIDATES, and it is what decides whether a city is
+    ambiguous. It must stay a carries test: a station that carries the network
+    on a subchannel still makes the city ambiguous. Charleston has an ABC
+    station in West Virginia that names ABC only on a subchannel, and counting
+    it as absent turned an ambiguous market into a confident wrong station.
+    The primary-network rule is applied to the single survivor instead; see
+    _resolved_station.
+    """
     return network.upper() in (station.get("network_affiliation") or "").upper()
+
+
+def _resolved_station(station, network):
+    """Return ``station`` only when ``network`` is its PRIMARY network.
+
+    A CBS station's FOX subchannel is not a FOX station, so a single survivor
+    that carries the network only on a subchannel is refused.
+    """
+    return station if is_primary_network(station, network) else None
 
 
 def _virtual_channel(station):
@@ -223,7 +247,7 @@ def resolve_station(reference, network, index):
         narrowed = [s for s in candidates if _virtual_channel(s) == reference.number]
         candidates = narrowed or candidates
     if len(candidates) == 1:
-        return candidates[0]
+        return _resolved_station(candidates[0], network)
 
     # Stage 2: the market city is served from a neighbouring community. The
     # city gives only the state. A channel number is required, because it is
@@ -248,4 +272,4 @@ def resolve_station(reference, network, index):
              if _serves_network(s, network)
              and _virtual_channel(s) == reference.number
              and (s.get("community_served_state") or "").upper() in states]
-    return wider[0] if len(wider) == 1 else None
+    return _resolved_station(wider[0], network) if len(wider) == 1 else None

@@ -1,5 +1,19 @@
 # Channel Maparr Changelog
 
+## 1.26.3262133 (2026-11-22)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.3262133
+
+### Changed
+
+- **Import M3U Streams and Create Channels From Streams report their real result on Dispatcharr 0.34.** Both now run as Dispatcharr tasks, so the task banner turns green or red with the plugin's own message when the run ends, and the plugin page's Tasks list shows the percentage while it runs. A Plugins page reload waits until a running action finishes. On Dispatcharr 0.33 they run in the background as before.
+- **Report and CSV file names use Dispatcharr's time zone** instead of UTC, and so does the CSV "Generated" line.
+
+### Fixed
+
+- **A stream is no longer matched to a station of another network.** Many stations carry a second network on a subchannel under the same call letters, so a stream such as "US FOX 44 (WEVV DT2)" could be attached to, or create a channel named for, a CBS station. A stream that names a network is now refused for a station whose primary network is a different one. A market name such as "[CHARLESTON]" that fits more than one station still resolves to nothing, and a network listed in Networks to Skip still excludes the station the call letters name.
+- **A channel number written straight after the network, as in "ABC7 [CITY]", is now read.**
+
 ## v1.26.3251925 (November 21, 2026)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.3251925

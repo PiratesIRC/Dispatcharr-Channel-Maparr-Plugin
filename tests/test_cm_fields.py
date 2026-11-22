@@ -48,7 +48,7 @@ def test_flat_form_uses_only_types_older_dispatcharr_can_draw(plugin_module):
 def test_manifest_fields_use_only_old_types_and_declare_version_1():
     manifest = json.loads((PLUGIN_DIR / "plugin.json").read_text(encoding="utf-8"))
     assert manifest["manifest_version"] == 1
-    assert manifest["capabilities"] == ["outbound_network", "filesystem_write"]
+    assert manifest["capabilities"] == ["outbound_network", "filesystem_write", "background_tasks"]
     bad = [f["id"] for f in manifest["fields"] if f["type"] not in OLD_TYPES]
     assert not bad, bad
 

@@ -226,8 +226,12 @@ def test_the_form_offers_no_country_database_that_does_not_ship(plugin_module):
 # actually acts on is the one in an action's RETURN value, which its own run()
 # reads to decide whether to send a websocket notification.
 # --------------------------------------------------------------------------- #
+#
+# "async" is served on Dispatcharr 0.34, which runs an async action as a tracked
+# task and shows its result in the task banner (plugin.json marks the two long
+# actions). Stream-Mapparr's test_task_banner.py pins the same key.
 SERVED_ACTION_KEYS = {"id", "label", "description", "confirm", "button_label",
-                      "button_variant", "button_color", "events"}
+                      "button_variant", "button_color", "events", "async"}
 
 
 def _actions_that_start_a_thread():

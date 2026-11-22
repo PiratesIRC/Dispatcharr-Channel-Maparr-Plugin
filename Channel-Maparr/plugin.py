@@ -195,6 +195,27 @@ USAGE = UsageReporter(
 )
 
 
+# Actions that Dispatcharr 0.34 runs as tracked tasks (plugin.json "async"). Inside
+# a Celery task their progress also goes to the reporter the task context carries,
+# which fills the plugin page's Tasks list. Set by Plugin.run only for these actions.
+_ASYNC_ACTIONS = frozenset({"import_m3u_streams", "create_channels_from_streams"})
+
+# The reporter for the task running now, or None. Only a single operation runs per
+# process (the operation slot in Plugin._run_inline_task), so one module slot is enough.
+_TASK_REPORTER = None
+
+
+def _forward_task_progress(percent, message):
+    """Send one progress line to the task reporter, if a task is running. Never raises."""
+    reporter = _TASK_REPORTER
+    if reporter is None:
+        return
+    try:
+        reporter(max(0, min(100, int(percent))), message)
+    except Exception as exc:
+        LOGGER.debug(f"{PLUGIN_LOG_PREFIX} task progress report failed: {exc}")
+
+
 class ProgressTracker:
     """Tracks operation progress with periodic logging and WebSocket updates."""
 
@@ -222,6 +243,7 @@ class ProgressTracker:
             pct = (self.processed_items / self.total_items) * 100
             remaining = (elapsed / self.processed_items) * (self.total_items - self.processed_items) if self.processed_items > 0 else 0
             eta_str = self._format_eta(remaining)
+            _forward_task_progress(pct, f"{self.action_id}: {pct:.0f}% ({self.processed_items}/{self.total_items})")
             self.logger.info(
                 f"{PLUGIN_LOG_PREFIX} [{self.action_id}] {pct:.0f}% "
                 f"({self.processed_items}/{self.total_items}) - ETA: {eta_str}"
@@ -259,6 +281,7 @@ class ProgressTracker:
             "finished_at": time.time(),
             "summary": summary or f"Processed {self.processed_items}/{self.total_items} in {eta_str}",
         })
+        _forward_task_progress(100, summary or f"{self.action_id}: Complete")
 
     def _persist(self, data):
         try:
@@ -825,6 +848,7 @@ class Plugin:
         },
         {
             "id": "import_m3u_streams",
+            "async": True,
             "label": "Import M3U Streams",
             "description": "Create channels from M3U streams organized by category. Runs in background. Dry Run exports a CSV preview.",
             "button_label": "\u21e9 Import Streams",
@@ -834,6 +858,7 @@ class Plugin:
         },
         {
             "id": "create_channels_from_streams",
+            "async": True,
             "label": "Create Channels From Streams",
             "description": "Create one channel per broadcast station for streams that are not attached to any channel yet. Unlike Import M3U Streams this creates one channel per station rather than one per stream, and it attaches no streams. Runs in background. Dry Run exports a CSV preview.",
             "button_label": "✚ Create Channels",
@@ -1854,13 +1879,54 @@ class Plugin:
 
     def run(self, action, params, context):
         """Run one action, then hand the usage total to the reporter (see _report_usage)."""
+        global _TASK_REPORTER
         result = None
+        # Dispatcharr 0.34 puts a progress reporter in the context of a tracked
+        # task. Only the async actions forward to it, and only inside Celery.
+        reporter = context.get("report_progress")
+        if action in _ASYNC_ACTIONS and callable(reporter) and self._in_celery_task():
+            _TASK_REPORTER = reporter
         try:
             result = self._run_body(action, params, context)
             return result
         finally:
+            _TASK_REPORTER = None
             if not (isinstance(result, dict) and result.get("background")):
                 self._report_usage(context.get("settings"), context.get("logger", LOGGER))
+
+    @staticmethod
+    def _in_celery_task():
+        """True when this code runs inside a Celery task.
+
+        Dispatcharr 0.34 runs every plugin action through the run_plugin_action
+        task on the plugins queue; 0.33 and earlier run them in the uWSGI
+        request. Never raises; False when Celery is absent.
+        """
+        try:
+            from celery import current_task
+            return bool(current_task is not None and getattr(current_task.request, "id", None))
+        except Exception:
+            return False
+
+    def _run_inline_task(self, body):
+        """Run ``body`` in the calling Celery task, holding the operation slot.
+
+        The thread path claims ``self._thread``; this claims the same slot, so an
+        inline run and a thread run never overlap in one process. Returns the
+        busy error when another operation holds it.
+        """
+        with self._thread_lock:
+            if self._thread and self._thread.is_alive():
+                return {"status": "error",
+                        "error": "An operation is already running. Please wait for it to finish."}
+            self._stop_event.clear()
+            self._thread = threading.current_thread()
+        try:
+            return body()
+        finally:
+            with self._thread_lock:
+                if self._thread is threading.current_thread():
+                    self._thread = None
 
     def _run_body(self, action, params, context):
         """Main plugin entry point"""
@@ -4331,6 +4397,13 @@ class Plugin:
             except GroupScopeError as exc:
                 return self._scope_error_return(exc)
 
+        # Inside a Celery task (Dispatcharr 0.34) the import runs inline, so the
+        # task banner and the Tasks list show its real result. A daemon thread
+        # would end the task at once.
+        if self._in_celery_task():
+            return self._run_inline_task(
+                lambda: self._import_m3u_streams_inline(settings, logger))
+
         if not self._try_start_thread(self._do_import_m3u_streams_bg, (copy.deepcopy(settings), logger)):
             return {"status": "error", "error": "An operation is already running. Please wait for it to finish."}
 
@@ -4339,6 +4412,16 @@ class Plugin:
             "message": "M3U import started in background. Check notifications for progress.",
             "background": True,
         }
+
+    def _import_m3u_streams_inline(self, settings, logger):
+        """The import body for a Celery task: returns the real result, never raises."""
+        try:
+            result = self._do_import_m3u_streams(settings, logger)
+        except Exception as e:
+            logger.exception(f"{PLUGIN_LOG_PREFIX} Import error: {e}")
+            result = {"status": "error", "error": f"Import error: {e}"}
+        self._last_bg_result = result
+        return result
 
     def validate_settings_action(self, settings, logger):
         """Comprehensive validation of plugin settings and database connectivity"""
@@ -4730,6 +4813,11 @@ class Plugin:
         # Everything that can refuse has refused by now. The card never shows a
         # background thread's return value, so nothing below this line can tell
         # the operator it went wrong except through Show Status and the log.
+        if self._in_celery_task():
+            # Inline inside a Celery task, so the banner shows the real result.
+            return self._run_inline_task(lambda: self._create_channels_body(
+                settings, logger, plan, target_ids[0]))
+
         if not self._try_start_thread(
                 self._create_channels_from_streams_bg,
                 (copy.deepcopy(settings), logger, plan, target_ids[0])):
@@ -4828,24 +4916,28 @@ class Plugin:
                     f"{target_group_id}")
         return records
 
-    def _create_channels_from_streams_bg(self, settings, logger, plan, target_group_id):
-        """Background wrapper: create the channels, then export the result."""
+    def _create_channels_body(self, settings, logger, plan, target_group_id):
+        """Create the channels, then export the result. Returns the result dict, never raises."""
         try:
             records = self._create_seed_channels(plan, target_group_id, settings, logger)
             csv_path, csv_filename = self._export_seed_preview(plan, settings, logger)
             message = (f"Created {len(records)} channels. No streams attached. "
                        f"Details in {csv_filename}")
-            self._last_bg_result = {"status": "success", "message": message,
-                                    "file": csv_path}
             logger.info(f"{PLUGIN_LOG_PREFIX} SEED COMPLETED: {message}")
+            result = {"status": "success", "message": message, "file": csv_path}
+        except Exception as exc:
+            logger.exception(f"{PLUGIN_LOG_PREFIX} Channel creation error: {exc}")
+            result = {"status": "error", "error": str(exc)}
+        self._last_bg_result = result
+        return result
+
+    def _create_channels_from_streams_bg(self, settings, logger, plan, target_group_id):
+        """Background wrapper: create the channels, then tell the operator the outcome."""
+        try:
+            result = self._create_channels_body(settings, logger, plan, target_group_id)
+            message = result.get("message") or f"Channel creation error: {result.get('error')}"
             send_websocket_update('updates', 'update', {
                 "type": "plugin", "plugin": self.name, "message": message})
-        except Exception as exc:
-            self._last_bg_result = {"status": "error", "error": str(exc)}
-            logger.exception(f"{PLUGIN_LOG_PREFIX} Channel creation error: {exc}")
-            send_websocket_update('updates', 'update', {
-                "type": "plugin", "plugin": self.name,
-                "message": f"Channel creation error: {exc}"})
         finally:
             self._report_usage(None, logger)
 

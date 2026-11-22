@@ -223,7 +223,7 @@ def test_the_manifest_and_the_served_list_hold_the_same_actions(plugin_module):
 
 @pytest.mark.parametrize("key", ["button_label", "button_color", "confirm",
                                  "label", "description", "button_variant",
-                                 "background"])
+                                 "background", "async"])
 def test_the_manifest_and_the_served_list_agree_on_button_metadata(plugin_module, key):
     """They drifted, so reading either one alone misled.
 

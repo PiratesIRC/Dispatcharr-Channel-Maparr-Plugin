@@ -11,7 +11,8 @@
   "manifest_version": 1,
   "capabilities": [
     "outbound_network",
-    "filesystem_write"
+    "filesystem_write",
+    "background_tasks"
   ],
   "fields": [
     {
@@ -392,6 +393,7 @@
     },
     {
       "id": "import_m3u_streams",
+      "async": true,
       "label": "Import M3U Streams",
       "description": "Create channels from M3U streams organized by category. Runs in background. Dry Run exports a CSV preview.",
       "button_label": "\u21e9 Import Streams",
@@ -403,6 +405,7 @@
     },
     {
       "id": "create_channels_from_streams",
+      "async": true,
       "label": "Create Channels From Streams",
       "description": "Create one channel per broadcast station for streams that are not attached to any channel yet. Unlike Import M3U Streams this creates one channel per station rather than one per stream, and it attaches no streams. Runs in background. Dry Run exports a CSV preview.",
       "button_label": "\u271a Create Channels",

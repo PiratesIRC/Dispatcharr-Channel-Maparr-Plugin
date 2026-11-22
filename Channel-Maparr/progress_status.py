@@ -56,6 +56,19 @@ def format_local_timestamp(unix_ts, fmt="%Y-%m-%d %H:%M %Z"):
     return datetime.fromtimestamp(unix_ts).strftime(fmt).strip()
 
 
+def local_now(fmt):
+    """The current time formatted in the operator's configured timezone.
+
+    Used for file names and the CSV preamble a person reads. A Celery worker's
+    clock is UTC, so a bare datetime.now() put a 5 hour offset in both.
+    Stored machine timestamps are not formatted here.
+    """
+    tz = _display_tz()
+    if tz is not None:
+        return datetime.now(tz).strftime(fmt)
+    return datetime.now().strftime(fmt)
+
+
 def format_eta(seconds):
     """Human-readable duration. Negative/zero -> '0s'."""
     s = int(seconds)

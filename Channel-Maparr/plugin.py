@@ -20,7 +20,7 @@ from .usage_client import UsageReporter, jsonl_sum, load_plugin_settings, with_u
 from .channel_seeder import allocate_channel_numbers, build_seed_plan
 from .station_affiliation import names_other_network, primary_network
 from .progress_status import (
-    build_status_message, load_progress, save_progress_atomic,
+    build_status_message, load_progress, local_now, save_progress_atomic,
 )
 from .group_scope import (
     GroupScopeError,
@@ -1047,7 +1047,7 @@ class Plugin:
         """
         lines = [
             f"# Report: Channel Mapparr, {title}",
-            f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"# Generated: {local_now('%Y-%m-%d %H:%M:%S')}",
             f"# Plugin Version: {self.version}",
             "# Lines beginning with a hash are this preamble, not data. Tell your",
             "# spreadsheet to skip them on import. The column headings are on the",
@@ -2287,7 +2287,7 @@ class Plugin:
             os.makedirs(export_dir, exist_ok=True)
 
             # Create timestamp for filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = local_now("%Y%m%d_%H%M%S")
             csv_filename = f"channel_mapparr_preview_{timestamp}.csv"
             csv_path = os.path.join(export_dir, csv_filename)
 
@@ -2946,7 +2946,7 @@ class Plugin:
         """Write the Replace Logos Dry Run preview CSV; return its filename."""
         export_dir = PluginConfig.EXPORT_DIR
         os.makedirs(export_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = local_now("%Y%m%d_%H%M%S")
         csv_filename = f"channel_mapparr_logo_replace_preview_{timestamp}.csv"
         csv_path = os.path.join(export_dir, csv_filename)
         tmp_path = None
@@ -2992,7 +2992,7 @@ class Plugin:
         """
         backup_dir = PluginConfig.LOGO_BACKUP_DIR
         os.makedirs(backup_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = local_now("%Y%m%d_%H%M%S")
         filename = f"logo_backup_{timestamp}.json"
         path = os.path.join(backup_dir, filename)
         payload = {
@@ -3175,7 +3175,7 @@ class Plugin:
             os.makedirs(export_dir, exist_ok=True)
 
             # Create CSV
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = local_now("%Y%m%d_%H%M%S")
             csv_filename = f"channel_mapparr_category_groups_preview_{timestamp}.csv"
             csv_path = os.path.join(export_dir, csv_filename)
 
@@ -4107,7 +4107,7 @@ class Plugin:
         os.makedirs(export_dir, exist_ok=True)
 
         # Create timestamp for filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = local_now("%Y%m%d_%H%M%S")
         csv_filename = f"channel_mapparr_m3u_import_preview_{timestamp}.csv"
         csv_path = os.path.join(export_dir, csv_filename)
 
@@ -4859,7 +4859,7 @@ class Plugin:
         """Write the plan to a CSV and return (path, filename)."""
         export_dir = PluginConfig.EXPORT_DIR
         os.makedirs(export_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = local_now("%Y%m%d_%H%M%S")
         csv_filename = f"channel_mapparr_seed_preview_{timestamp}.csv"
         csv_path = os.path.join(export_dir, csv_filename)
 

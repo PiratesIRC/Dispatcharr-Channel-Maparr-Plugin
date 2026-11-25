@@ -102,7 +102,8 @@ def _capture_real_container_paths():
     REAL_CONTAINER_PATHS.update({
         "RESULTS_FILE": plugin_module.PluginConfig.RESULTS_FILE,
         "EXPORT_DIR": plugin_module.PluginConfig.EXPORT_DIR,
-        "PROGRESS_FILE": plugin_module.PROGRESS_FILE,
+        "PROGRESS_FILE": plugin_module.PluginConfig.PROGRESS_FILE,
+        "M3U_IMPORT_RESULTS_FILE": plugin_module.PluginConfig.M3U_IMPORT_RESULTS_FILE,
         "RENAME_LEDGER_FILE": plugin_module.PluginConfig.RENAME_LEDGER_FILE,
         "LOGO_BACKUP_DIR": plugin_module.PluginConfig.LOGO_BACKUP_DIR,
         "REPORT_DIR": reports_module.REPORT_DIR,
@@ -175,8 +176,12 @@ def redirect_container_paths(shared_stubs_stay_intact, tmp_path, monkeypatch):
                         str(tmp_path / "loaded_channels.json"))
     monkeypatch.setattr(plugin_module.PluginConfig, "EXPORT_DIR",
                         str(tmp_path / "exports"))
-    monkeypatch.setattr(plugin_module, "PROGRESS_FILE",
+    monkeypatch.setattr(plugin_module.PluginConfig, "PROGRESS_FILE",
                         str(tmp_path / "progress.json"))
+    monkeypatch.setattr(plugin_module.PluginConfig, "M3U_IMPORT_RESULTS_FILE",
+                        str(tmp_path / "m3u_import_results.json"))
+    # Real Dispatcharr data is refused at the storage layer too (plugin_storage.REFUSE_REAL_DATA).
+    monkeypatch.setattr(plugin_module.storage._ps, "REFUSE_REAL_DATA", True)
     monkeypatch.setattr(plugin_module.PluginConfig, "RENAME_LEDGER_FILE",
                         str(tmp_path / "channel_maparr_rename_counts.jsonl"))
     monkeypatch.setattr(plugin_module.PluginConfig, "LOGO_BACKUP_DIR",
@@ -187,13 +192,24 @@ def redirect_container_paths(shared_stubs_stay_intact, tmp_path, monkeypatch):
                         str(tmp_path / "plugin_stats" / "channel-mapparr"))
     monkeypatch.setattr(plugin_module.USAGE, "_start",
                         lambda *a, **k: USAGE_STARTS.append(a))
-    monkeypatch.setattr(reports_module, "REPORT_DIR",
-                        str(tmp_path / "reports"))
+    # The bound reports folder is one value in three places: PluginConfig, the report writer and
+    # the notify bridge text. A test redirects all three together.
+    import channel_maparr.notify_bridge as bridge_module  # noqa: E402
+    reports_dir = str(tmp_path / "reports")
+    monkeypatch.setattr(reports_module, "REPORT_DIR", reports_dir)
+    monkeypatch.setattr(plugin_module.PluginConfig, "REPORT_DIR", reports_dir)
+    monkeypatch.setattr(bridge_module, "REPORT_LOCATION", reports_dir)
 
 
 @pytest.fixture(scope="session")
 def plugin_dir():
     return PLUGIN_DIR
+
+
+@pytest.fixture(scope="session")
+def plugin_impl(plugin_module):
+    """plugin.py itself (the package re-exports only Plugin); the storage tests use this name."""
+    return plugin_module
 
 
 @pytest.fixture(scope="session")

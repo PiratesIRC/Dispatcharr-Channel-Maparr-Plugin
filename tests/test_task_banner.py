@@ -279,7 +279,7 @@ def test_progress_tracker_update_reaches_the_reporter(plugin_module, monkeypatch
     reporter = MagicMock()
     monkeypatch.setattr(plugin_module, "_TASK_REPORTER", reporter)
     monkeypatch.setattr(plugin_module, "send_websocket_update", MagicMock())
-    monkeypatch.setattr(plugin_module, "PROGRESS_FILE", str(tmp_path / "progress.json"))
+    monkeypatch.setattr(plugin_module.PluginConfig, "PROGRESS_FILE", str(tmp_path / "progress.json"))
     tracker = plugin_module.ProgressTracker(4, "import_streams", MagicMock())
     tracker.last_update_time = 0.0
 

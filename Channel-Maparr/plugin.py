@@ -34,6 +34,18 @@ from .group_scope import (
 from .wildcard_match import expand_patterns
 from . import cm_fields
 
+try:
+    from . import storage
+except ImportError:  # loaded as a bare module, as the test harness allows
+    import storage
+
+try:
+    from . import reports as _reports_module
+    from . import notify_bridge as _notify_bridge_module
+except ImportError:  # loaded as bare modules, as the test harness allows
+    import reports as _reports_module
+    import notify_bridge as _notify_bridge_module
+
 # Django model imports
 from apps.channels.models import (
     Channel, ChannelGroup, ChannelProfile, ChannelProfileMembership, ChannelStream, Logo,
@@ -48,12 +60,6 @@ LOGGER = logging.getLogger("plugins.channel_mapparr")
 
 # Plugin name prefix for all log messages
 PLUGIN_LOG_PREFIX = "[Channel Mapparr]"
-
-# Persistent progress file — ProgressTracker writes here so the Show Status
-# action can report live state from any context, including after a worker
-# restart mid-operation. Lives in /data because the plugin directory itself
-# is owned by root and not writable by the dispatch uwsgi user.
-PROGRESS_FILE = "/data/channel_mapparr_progress.json"
 
 # Dispatcharr clips action toasts at roughly 280 characters from the MIDDLE
 # with no visual marker, so a name list that enumerates every match of a
@@ -85,6 +91,18 @@ def _format_capped_name_list(names, limit=_MAX_NAMES_IN_MESSAGE):
     return shown
 
 
+def _plugin_key_for_dir(path):
+    """The key Dispatcharr's loader gives a plugin installed in this folder."""
+    return os.path.basename(os.path.normpath(path)).replace(" ", "_").lower()
+
+
+# The PluginConfig key follows the install folder, which differs by install route: a
+# hand copy keeps "channel-mapparr", an imported release zip becomes "channel_maparr" and
+# a Hub install "channel_mapparr". A written-out key finds no settings row on the last
+# two, and the reporter then sends nothing, so the key is computed from this folder.
+PLUGIN_DB_KEY = _plugin_key_for_dir(os.path.dirname(os.path.abspath(__file__)))
+
+
 class PluginConfig:
     """Configuration constants for Channel Maparr."""
 
@@ -108,16 +126,29 @@ class PluginConfig:
     DEFAULT_IGNORED_TAGS = "[4K], [FHD], [HD], [SD], [Unknown], [Unk], [Slow], [Dead]"
 
     # File Paths
+    # Private state, moved into the plugin data directory by storage.bind (the
+    # literals are the legacy paths, kept in LEGACY_PATHS for the carry-over).
+    PLUGIN_DB_KEY = PLUGIN_DB_KEY
     RESULTS_FILE = "/data/channel_mapparr_loaded_channels.json"
+    # Written by ProgressTracker in whichever worker runs an action, and read
+    # only by the Show Status readout. Nothing gates on it, so it is not kept
+    # beside the data directory.
+    PROGRESS_FILE = "/data/channel_mapparr_progress.json"
+    M3U_IMPORT_RESULTS_FILE = "/data/channel_mapparr_m3u_import_results.json"
     # Append-only tally of channel names written by Rename Channels and Tag
     # Unknown Channels: one JSON line per run that wrote at least one name.
     RENAME_LEDGER_FILE = "/data/channel_maparr_rename_counts.jsonl"
-    EXPORT_DIR = "/data/exports"
+    # The usage reporter's directory: install id, send record and lock.
+    USAGE_DATA_DIR = "/data/plugin_stats"
     # Replace Logos (tv-logos) writes every channel's previous logo_id here
     # before it changes anything. Kept out of EXPORT_DIR on purpose: Clear CSV
     # Exports and the retention pruning delete from there, and this file is the
     # only record of what the replaced logos were.
     LOGO_BACKUP_DIR = "/data/channel_mapparr_logo_backups"
+    # Shared with Newsflasharr (set by storage.bind to the shared reports folder).
+    REPORT_DIR = "/data/channel_mapparr_reports"
+    # Shared by seven plugins and read by the operator: stays in /data.
+    EXPORT_DIR = "/data/exports"
 
     # The export directory is SHARED with at least five other plugins. Measured
     # on the live installation: 65 stream_mapparr_ files, 26 epg_janitor_, 14
@@ -170,29 +201,31 @@ class PluginConfig:
     ESTIMATED_SECONDS_PER_STREAM_MATCH = 0.5
 
 
+# Bind the state paths to the plugin data directory, once per import, before anything reads
+# them (the usage reporter below and the Plugin class). Legacy mode leaves them as written.
+storage.bind(PluginConfig, __file__, LOGGER)
+# The notify bridge and the report writer name the shared reports folder; both must hold the
+# value bind resolved, so the report files and the text that names them agree.
+_reports_module.REPORT_DIR = PluginConfig.REPORT_DIR
+_notify_bridge_module.REPORT_LOCATION = PluginConfig.REPORT_DIR
+
 # Reports the Channels Renamed total and a random install id to the plugin-stats
 # Worker, so the README badges count each install that keeps the setting ticked and
 # runs an action (README, "Anonymous usage counts"). The total is read from the same
 # ledger the rename actions write. report() never raises; only the network send runs
 # on a background thread.
-def _plugin_key_for_dir(path):
-    """The key Dispatcharr's loader gives a plugin installed in this folder."""
-    return os.path.basename(os.path.normpath(path)).replace(" ", "_").lower()
-
-
-# The PluginConfig key follows the install folder, which differs by install route: a
-# hand copy keeps "channel-mapparr", an imported release zip becomes "channel_maparr" and
-# a Hub install "channel_mapparr". A written-out key finds no settings row on the last
-# two, and the reporter then sends nothing, so the key is computed from this folder.
-PLUGIN_DB_KEY = _plugin_key_for_dir(os.path.dirname(os.path.abspath(__file__)))
-
 USAGE = UsageReporter(
     plugin="channel-mapparr",
     counter="channels_renamed",
     label="Channels Renamed",
     total_fn=lambda: jsonl_sum(PluginConfig.RENAME_LEDGER_FILE + "*", key="channels"),
     settings_fn=lambda: load_plugin_settings(PLUGIN_DB_KEY),
+    data_dir=PluginConfig.USAGE_DATA_DIR,
 )
+if PluginConfig.STORAGE_MIGRATION is not None and PluginConfig.STORAGE_MIGRATION.install_id_blocked:
+    # The old install id could not be carried over. A fresh one minted here would be a second
+    # install, so this process reports nothing (the settings argument cannot prevent that).
+    USAGE.report = lambda *args, **kwargs: None
 
 
 # Actions that Dispatcharr 0.34 runs as tracked tasks (plugin.json "async"). Inside
@@ -285,13 +318,13 @@ class ProgressTracker:
 
     def _persist(self, data):
         try:
-            save_progress_atomic(PROGRESS_FILE, data)
+            save_progress_atomic(PluginConfig.PROGRESS_FILE, data)
         except Exception as exc:
             # WARNING on first failure (silent failures hide a broken Show
             # Status action). Suppress repeats — update() ticks per-item on
             # 17K+ stream runs and would otherwise flood the log.
             if not getattr(self, "_persist_warned", False):
-                self.logger.warning(f"{PLUGIN_LOG_PREFIX} progress file write failed at {PROGRESS_FILE}: {exc}")
+                self.logger.warning(f"{PLUGIN_LOG_PREFIX} progress file write failed at {PluginConfig.PROGRESS_FILE}: {exc}")
                 self._persist_warned = True
             else:
                 self.logger.debug(f"{PLUGIN_LOG_PREFIX} progress file write retry failed: {exc}")
@@ -721,7 +754,7 @@ class Plugin:
                              "per run rather than one email with two files. The HTML "
                              "page is easier to read and the CSV is easier to sort and "
                              "filter. Both files are written to "
-                             "/data/channel_mapparr_reports either way; this setting "
+                             "/data/plugins/_shared/newsflasharr/channel-mapparr/ either way; this setting "
                              "only decides which are emailed.",
             },
             {
@@ -831,7 +864,7 @@ class Plugin:
         {
             "id": "replace_tv_logos",
             "label": "Replace Logos (tv-logos)",
-            "description": "Like Apply Per-Channel Logos, but also replaces a logo a channel already has when the tv-logos repo has a match for its name. Uses the country codes from Channel Databases and the threshold from Match Sensitivity. Channels with no match keep their current logo; one with no logo at all takes the logo of its EPG entry when it has one. A real run first saves every replaced channel's previous logo to /data/channel_mapparr_logo_backups. Dry Run exports a CSV preview.",
+            "description": "Like Apply Per-Channel Logos, but also replaces a logo a channel already has when the tv-logos repo has a match for its name. Uses the country codes from Channel Databases and the threshold from Match Sensitivity. Channels with no match keep their current logo; one with no logo at all takes the logo of its EPG entry when it has one. A real run first saves every replaced channel's previous logo to a logo_backups folder in the plugin's data folder under /data/plugins/_data/. Dry Run exports a CSV preview.",
             "button_label": "\u21bb Replace Logos",
             "button_variant": "filled",
             "button_color": "red",
@@ -1142,6 +1175,11 @@ class Plugin:
         except ImportError:
             import report_counter
         return report_counter
+
+    def _storage_is_legacy(self):
+        """True while this process keeps using the old /data paths (storage.bind did not rebind)."""
+        layout = getattr(PluginConfig, "STORAGE_LAYOUT", None)
+        return layout is None or bool(layout.legacy)
 
     def _report_dir(self):
         """Where report files are written. A method so a test can redirect it."""
@@ -1688,6 +1726,12 @@ class Plugin:
         if count <= 0:
             return False
         line = json.dumps({"ts": int(time.time()), "channels": count, "mode": mode})
+        if not self._storage_is_legacy():
+            # An old-code worker may have appended to the old tally since the copy: bring it in first.
+            try:
+                storage.sync_tally_tail(PluginConfig.STORAGE_LAYOUT, PluginConfig.RENAME_LEDGER_FILE, log)
+            except Exception as exc:
+                log.debug(f"{PLUGIN_LOG_PREFIX} could not append the old tally tail: {exc}")
         try:
             with open(PluginConfig.RENAME_LEDGER_FILE, "a", encoding="utf-8") as handle:
                 handle.write(line + "\n")
@@ -1896,6 +1940,10 @@ class Plugin:
     def run(self, action, params, context):
         """Run one action, then hand the usage total to the reporter (see _report_usage)."""
         global _TASK_REPORTER
+        try:
+            storage.check_context(PluginConfig.STORAGE_LAYOUT, context, LOGGER)
+        except Exception:
+            pass  # a diagnostic warning must never fail the action
         result = None
         # Dispatcharr 0.34 puts a progress reporter in the context of a tracked
         # task. Only the async actions forward to it, and only inside Celery.
@@ -4205,7 +4253,7 @@ class Plugin:
         Returns:
             str: Path to results file
         """
-        results_file = "/data/channel_mapparr_m3u_import_results.json"
+        results_file = PluginConfig.M3U_IMPORT_RESULTS_FILE
 
         results_data = {
             'processed_at': datetime.now().isoformat(),
@@ -4971,7 +5019,7 @@ class Plugin:
 
     def plugin_status_action(self, settings, logger):
         """Read the persistent progress file and return a user-facing summary."""
-        progress = load_progress(PROGRESS_FILE)
+        progress = load_progress(PluginConfig.PROGRESS_FILE)
         message = build_status_message(progress)
         return {"status": "success", "message": message}
 

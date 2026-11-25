@@ -292,7 +292,7 @@
           "label": "Both, which arrives as two emails"
         }
       ],
-      "help_text": "Which report file to email. A notification carries one attachment, so choosing both sends two separate emails per run rather than one email with two files. The HTML page is easier to read and the CSV is easier to sort and filter. Both files are written to /data/channel_mapparr_reports either way; this setting only decides which are emailed."
+      "help_text": "Which report file to email. A notification carries one attachment, so choosing both sends two separate emails per run rather than one email with two files. The HTML page is easier to read and the CSV is easier to sort and filter. Both files are written to /data/plugins/_shared/newsflasharr/channel-mapparr/ either way; this setting only decides which are emailed."
     },
     {
       "id": "_section_usage",
@@ -372,7 +372,7 @@
     {
       "id": "replace_tv_logos",
       "label": "Replace Logos (tv-logos)",
-      "description": "Like Apply Per-Channel Logos, but also replaces a logo a channel already has when the tv-logos repo has a match for its name. Uses the country codes from Channel Databases and the threshold from Match Sensitivity. Channels with no match keep their current logo; one with no logo at all takes the logo of its EPG entry when it has one. A real run first saves every replaced channel's previous logo to /data/channel_mapparr_logo_backups. Dry Run exports a CSV preview.",
+      "description": "Like Apply Per-Channel Logos, but also replaces a logo a channel already has when the tv-logos repo has a match for its name. Uses the country codes from Channel Databases and the threshold from Match Sensitivity. Channels with no match keep their current logo; one with no logo at all takes the logo of its EPG entry when it has one. A real run first saves every replaced channel's previous logo to a logo_backups folder in the plugin's data folder under /data/plugins/_data/. Dry Run exports a CSV preview.",
       "button_label": "\u21bb Replace Logos",
       "button_variant": "filled",
       "button_color": "red",

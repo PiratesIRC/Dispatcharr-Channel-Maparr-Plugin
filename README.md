@@ -90,7 +90,27 @@ The server stores that id with the total and the date of the last report, and ke
 
 What counts as an active install: an install that sent at least one report in the last 30 UTC days. A badge changes after the server's hourly recount, which runs at the start of each UTC hour, and Shields may cache the badge for up to an hour more, so a new report can take up to about two hours to show.
 
-The setting is the last one in the settings form, in its own section. Unticking it takes effect when the next action finishes; the plugin then asks the server to delete this install's figures. Once the server confirms the delete, the plugin forgets its id, and ticking the setting again later starts a new one; if the delete could not reach the server, the plugin keeps the id and retries. The plugin keeps that id and the timing of its reports in /data/plugin_stats/channel-mapparr/ (install_id, sent, backoff, disabled, delete_backoff, lock). To start a new id, untick the setting and let an action run so the server deletes this install's figures; deleting that folder while the setting is ticked, or before the server confirms the delete, leaves the old figures on the server, and the new id then sends the full total again, so the badge counts it twice.
+The setting is the last one in the settings form, in its own section. Unticking it takes effect when the next action finishes; the plugin then asks the server to delete this install's figures. Once the server confirms the delete, the plugin forgets its id, and ticking the setting again later starts a new one; if the delete could not reach the server, the plugin keeps the id and retries. The plugin keeps that id and the timing of its reports in the usage folder of its data folder (usage/channel-mapparr/ under /data/plugins/_data/, see Where Channel Mapparr keeps its files) (install_id, sent, backoff, disabled, delete_backoff, lock). To start a new id, untick the setting and let an action run so the server deletes this install's figures; deleting that folder while the setting is ticked, or before the server confirms the delete, leaves the old figures on the server, and the new id then sends the full total again, so the badge counts it twice.
+
+## Where Channel Mapparr keeps its files
+
+The plugin keeps its private files in its data folder. Dispatcharr creates that folder under /data/plugins/_data/, named for the plugin's key (channel-mapparr for a folder install, channel_mapparr after a Hub install). On the first start after an upgrade the plugin copies the files it used to keep under /data into that folder. The copy never deletes, renames or edits an old file, and a file already in the data folder is left as it is. The copy is recorded in migrated.json in the data folder.
+
+Inside the data folder:
+
+- channel_mapparr_loaded_channels.json: the last channel list the plugin loaded.
+- channel_mapparr_progress.json: the progress of the running or last action, read by Show Status.
+- channel_mapparr_m3u_import_results.json: the results of the last M3U import.
+- channel_maparr_rename_counts.jsonl: the Channels Renamed tally, one line per run that renamed a channel. It is append only.
+- logo_backups/: the logos that Replace Logos (tv-logos) replaced, saved before each real run changes anything.
+- usage/channel-mapparr/: the usage reporter's install id and send record.
+
+Outside the data folder:
+
+- /data/plugins/_shared/newsflasharr/channel-mapparr/: the emailed reports that Newsflasharr attaches. Newsflasharr reads them from there.
+- /data/exports/: the CSV exports. Seven plugins share this folder, and the plugin deletes only its own exports from it.
+
+Delete data on uninstall removes the data folder, with the tally and the install id in it. It does not remove the shared reports folder or /data/exports. Once migrated.json shows no failed copy, the old /data files can be removed by hand, provided no old file has changed since the time recorded in migrated.json, because a process still running the previous version keeps writing them.
 
 ## Documentation
 

@@ -109,6 +109,7 @@ Outside the data folder:
 
 - /data/plugins/_shared/newsflasharr/channel-mapparr/: the emailed reports that Newsflasharr attaches. Newsflasharr reads them from there.
 - /data/exports/: the CSV exports. Seven plugins share this folder, and the plugin deletes only its own exports from it.
+- /data/channel-mapparr/report_count.json: the count of reports built, which Newsflasharr's Show Status reads at that path, so it stays there.
 
 Delete data on uninstall removes the data folder, with the tally and the install id in it. It does not remove the shared reports folder or /data/exports. Once migrated.json shows no failed copy, the old /data files can be removed by hand, provided no old file has changed since the time recorded in migrated.json, because a process still running the previous version keeps writing them.
 

@@ -256,20 +256,31 @@ The server stores that id with the total and the date of the last report, and ke
 
 What counts as an active install: an install that sent at least one report in the last 30 UTC days. A badge changes after the server's hourly recount, which runs at the start of each UTC hour, and Shields may cache the badge for up to an hour more, so a new report can take up to about two hours to show.
 
-The setting is the last one in the settings form, in its own section. Unticking it takes effect when the next action finishes; the plugin then asks the server to delete this install's figures. Once the server confirms the delete, the plugin forgets its id, and ticking the setting again later starts a new one; if the delete could not reach the server, the plugin keeps the id and retries. The plugin keeps that id and the timing of its reports in /data/plugin_stats/channel-mapparr/ (install_id, sent, backoff, disabled, delete_backoff, lock). To start a new id, untick the setting and let an action run so the server deletes this install's figures; deleting that folder while the setting is ticked, or before the server confirms the delete, leaves the old figures on the server, and the new id then sends the full total again, so the badge counts it twice.
+The setting is the last one in the settings form, in its own section. Unticking it takes effect when the next action finishes; the plugin then asks the server to delete this install's figures. Once the server confirms the delete, the plugin forgets its id, and ticking the setting again later starts a new one; if the delete could not reach the server, the plugin keeps the id and retries. The plugin keeps that id and the timing of its reports in the `usage/channel-mapparr/` folder of its data directory (`/data/plugin_stats/channel-mapparr/` on Dispatcharr 0.33) (install_id, sent, backoff, disabled, delete_backoff, lock). To start a new id, untick the setting and let an action run so the server deletes this install's figures; deleting that folder while the setting is ticked, or before the server confirms the delete, leaves the old figures on the server, and the new id then sends the full total again, so the badge counts it twice.
 
 ## Where everything is written
 
-| Path | What it is |
-| :--- | :--- |
-| `/data/channel_mapparr_loaded_channels.json` | What the last matching pass decided. Replayed by the rename and report actions. |
-| `/data/channel_mapparr_m3u_import_results.json` | Results of the last M3U import. |
-| `/data/channel_mapparr_progress.json` | Live progress, read by **Show Status**. |
-| `/data/exports/` | CSV previews. These contain your M3U source names and are never emailed. |
-| `/data/channel_mapparr_reports/` | The HTML and CSV files built for emailing. |
-| `/data/channel-mapparr/report_count.json` | A count of the reports this plugin has built, for Newsflasharr's **Show Status** action to display. Note the hyphen: this one directory is named after the plugin's notification source, not after its other files. |
-| `/data/channel_maparr_rename_counts.jsonl` | One line for each run that renamed at least one channel name: the count and the mode, never a name. Read by the usage counter; the total is not shown anywhere else. |
-| `/data/plugin_stats/channel-mapparr/` | The usage counter's own state: a random id for this install, and the times of its last report. Delete nothing here while the setting is ticked; see [Anonymous usage counts](#anonymous-usage-counts). |
+On Dispatcharr 0.34 the plugin's private files live in its data directory,
+`/data/plugins/_data/channel-mapparr/` on a hand install. The folder is named by the plugin id, so a
+Hub install can use a different name. On Dispatcharr 0.33 they stay at the old `/data` paths listed
+in the last column.
+
+| Path on 0.34 | What it is | Path on 0.33 and earlier versions |
+| :--- | :--- | :--- |
+| `<data dir>/channel_mapparr_loaded_channels.json` | What the last matching pass decided. Replayed by the rename and report actions. | `/data/channel_mapparr_loaded_channels.json` |
+| `<data dir>/channel_mapparr_m3u_import_results.json` | Results of the last M3U import. | `/data/channel_mapparr_m3u_import_results.json` |
+| `<data dir>/channel_mapparr_progress.json` | Live progress, read by **Show Status**. | `/data/channel_mapparr_progress.json` |
+| `<data dir>/channel_maparr_rename_counts.jsonl` | One line for each run that renamed at least one channel name: the count and the mode, never a name. Read by the usage counter; the total is not shown anywhere else. | `/data/channel_maparr_rename_counts.jsonl` |
+| `<data dir>/logo_backups/` | The `logo_backup_<time>.json` files written by **Replace Logos (tv-logos)** before it changes anything. | `/data/channel_mapparr_logo_backups/` |
+| `<data dir>/usage/channel-mapparr/` | The usage counter's own state: a random id for this install, and the times of its last report. Delete nothing here while the setting is ticked; see [Anonymous usage counts](#anonymous-usage-counts). | `/data/plugin_stats/channel-mapparr/` |
+| `<data dir>/migrated.json` | What the first run on this version copied from the old paths, and anything it could not copy. | none |
+| `/data/plugins/_shared/newsflasharr/channel-mapparr/` | The HTML and CSV files built for emailing. | `/data/channel_mapparr_reports/` |
+| `/data/exports/` | CSV previews. These contain your M3U source names and are never emailed. | the same |
+| `/data/channel-mapparr/report_count.json` | A count of the reports this plugin has built, for Newsflasharr's **Show Status** action to display. Note the hyphen: this one directory is named after the plugin's notification source, not after its other files. Newsflasharr reads it at this path, so it does not move. | the same |
+
+The first run on 0.34 copies the old files across and leaves the originals where they are. See
+[Where Channel Mapparr keeps its files](../README.md#where-channel-mapparr-keeps-its-files) before
+deleting them.
 
 All of these must be writable by Dispatcharr's `dispatch` user. If an action reports success but
 writes nothing, that is the first thing to check.
@@ -402,7 +413,7 @@ click a chosen entry's cross to remove it.
 | **Emailed Reports** | *section* | | Whether this plugin hands a report to the Newsflasharr plugin, after which runs, and in which format. Nothing is sent unless Newsflasharr is installed and carries a routing rule matching this plugin and its usage report event; without that rule the report is delivered as plain text with no attachment, because attachments are email only. This plugin has no scheduler, so a report is only ever produced by a run you start yourself. |
 | **Send notifications to Newsflasharr** | `boolean` | `false` | Master switch for emailed reports. Requires the Newsflasharr plugin, which is what sends the mail. What routes where is configured in Newsflasharr's own routing rules, keyed on this plugin's name. |
 | **Email A Report After** | `select` | `every_run` | `never`, or every run that produces an export. Organize by Category reports only in Dry Run, because a real run of it produces no export. Does nothing unless the switch above is on. |
-| **Email Report Format** | `select` | `html` | `html`, `csv`, or `both`. A notification carries one attachment, so `both` sends two emails per run rather than one email with two files. Both files are written to `/data/channel_mapparr_reports` either way; this only decides which are emailed. |
+| **Email Report Format** | `select` | `html` | `html`, `csv`, or `both`. A notification carries one attachment, so `both` sends two emails per run rather than one email with two files. Both files are written to `/data/plugins/_shared/newsflasharr/channel-mapparr/` either way; this only decides which are emailed. |
 | | | | |
 | **Anonymous Usage Counts** | *section* | | Whether this plugin sends its Channels Renamed total and a random install id to the plugin author's counter, which feeds the public badges. The one setting in this section is the last one in the form. See [Anonymous usage counts](#anonymous-usage-counts). |
 | **Share anonymous usage counts** | `boolean` | `true` | Sends this plugin's Channels Renamed total and a random id to the plugin author's counter at plugin-stats.dpas.workers.dev, at most once an hour after a successful send, or ten minutes after the last successful send when a run has just renamed channels. Untick to stop; the server deletes this install's figures the next time an action runs. See [Anonymous usage counts](#anonymous-usage-counts). |
@@ -458,7 +469,7 @@ The action buttons are listed in the recommended execution order:
    channel with no match keeps its current logo, and one that already has the matched logo is not
    touched. The same station logos apply, and so do the EPG and network fallbacks, which only fill a channel with no logo; the preview marks them `Assign EPG logo` and `Assign network logo`. With Dry Run on it writes `channel_mapparr_logo_replace_preview_<time>.csv` to
    `/data/exports`, listing each channel's current logo, the new one and the outcome. A real run first
-   writes `logo_backup_<time>.json` to `/data/channel_mapparr_logo_backups`, holding every changed
+   writes `logo_backup_<time>.json` to the `logo_backups` folder of the plugin's data directory (`/data/channel_mapparr_logo_backups` on Dispatcharr 0.33), holding every changed
    channel's previous logo ID, and refuses to change anything if that file cannot be written. Run it
    with Dry Run on first and read the preview.
 7. **Organize by Category** - Move channels into category groups (or CSV preview).

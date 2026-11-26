@@ -260,7 +260,7 @@ The setting is the last one in the settings form, in its own section. Unticking 
 
 ## Where everything is written
 
-On Dispatcharr 0.34 the plugin's private files live in its data directory, `/data/plugins/_data/<name>/`. Dispatcharr names that directory after the plugin's slug when it has one, and after its key when it has no slug. The key comes from the plugin's folder name, so the names `channel-mapparr`, `channel_maparr` and `channel_mapparr` have all been seen, and a Hub install's name is not fixed. The plugin logs the directory it uses, and its mismatch warning names it whenever Dispatcharr's data_dir differs. On Dispatcharr 0.33 they stay at the old `/data` paths listed in the last column.
+On Dispatcharr 0.34 the plugin's private files live in its data directory, `/data/plugins/_data/<name>/`. Dispatcharr names that directory after the plugin's slug when it has one, and after its key when it has no slug. The key comes from the plugin's folder name, so the names `channel-mapparr`, `channel_maparr` and `channel_mapparr` have all been seen, and a Hub install's name is not fixed. The folder name follows Dispatcharr's own rule (its `stable_plugin_data_path` function); this repository does not verify that rule. When the directory Dispatcharr passes differs from the one the plugin resolved, the plugin names the resolved directory in a warning. On Dispatcharr 0.33 they stay at the old `/data` paths listed in the last column.
 
 | Path on 0.34 | What it is | Path on 0.33 and earlier versions |
 | :--- | :--- | :--- |

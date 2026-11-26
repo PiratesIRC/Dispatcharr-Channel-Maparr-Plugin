@@ -19,7 +19,10 @@ except ImportError:  # loaded as a bare module, as plugin.py allows
 # code never copy the same old-code bytes twice. That holds while every worker resolves the same
 # data directory: the offsets file and the lock sit in that one directory, and nothing else writes
 # the offsets. The slug and key split can break it, since two workers that resolve different
-# directories each keep their own tally, lock and offsets (design rule 7). The progress file is
+# directories each keep their own tally, lock and offsets. The general rule is that a lock that
+# coordinates workers belongs beside the data directory, so every worker shares one; this tally
+# lock sits inside it, which is why the guarantee above needs every worker to resolve the same
+# directory. The progress file is
 # written by whichever worker runs an action and read only by the Show Status readout.
 _BIND_TABLE = (
     ("RESULTS_FILE", "file", "channel_mapparr_loaded_channels.json"),

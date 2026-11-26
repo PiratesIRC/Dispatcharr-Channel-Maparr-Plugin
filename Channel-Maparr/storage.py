@@ -12,18 +12,18 @@ try:
 except ImportError:  # loaded as a bare module, as plugin.py allows
     import plugin_storage as _ps
 
-# (constant name, kind, rel under the data dir). Every row is private state of this plugin. The
-# reports row (kind "dir", rel None) is the shared Newsflasharr reports directory. One row does
-# coordinate workers: the rename tally's tail sync takes a lock (Spec.tally_lock) inside the data
-# directory, which serialises the offsets read and write and the append, so two workers of this
-# code never copy the same old-code bytes twice. That holds while every worker resolves the same
-# data directory: the offsets file and the lock sit in that one directory, and nothing else writes
-# the offsets. The slug and key split can break it, since two workers that resolve different
-# directories each keep their own tally, lock and offsets. The general rule is that a lock that
-# coordinates workers belongs beside the data directory, so every worker shares one; this tally
-# lock sits inside it, which is why the guarantee above needs every worker to resolve the same
-# directory. The progress file is
-# written by whichever worker runs an action and read only by the Show Status readout.
+# (constant name, kind, rel under the data dir). Every row is private state of this plugin.
+# The reports row (kind "dir", rel None) is the shared Newsflasharr reports directory.
+#
+# Where the locks live. Locks that coordinate the plugin's scheduled work sit beside the data
+# directory, so every worker shares them whatever slug or key it resolved. The tally lock sits
+# inside the data directory instead, because it only serialises writers of that directory's own
+# tally file: a worker that resolved a different directory writes a different tally, so it
+# needs no shared lock with this one. Within one directory the lock serialises the offsets read
+# and write and the append, so two workers never copy the same old-code bytes twice.
+#
+# The progress file is written by whichever worker runs an action and read only by the Show
+# Status readout.
 _BIND_TABLE = (
     ("RESULTS_FILE", "file", "channel_mapparr_loaded_channels.json"),
     ("PROGRESS_FILE", "file", "channel_mapparr_progress.json"),

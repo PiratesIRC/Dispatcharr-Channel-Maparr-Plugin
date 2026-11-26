@@ -1,5 +1,16 @@
 # Channel Maparr Changelog
 
+## 1.26.3302105 (2026-11-26)
+
+This release answers the Hub storage audit issue (#616).
+
+### Changed
+
+- **The rename tally survives a failed first copy.** Each old tally line is counted once, and a copy that failed on the first start is caught up in the same process. The Channels Renamed badge also no longer leaves out lines an older worker wrote after the move.
+- **Files the plugin writes are readable by its owner only.** The data files, the logo backups and their folders are created with owner-only permissions.
+- **Reports default to the shared Newsflasharr folder.** Where no report location is set, reports now go to `/data/plugins/_shared/newsflasharr/channel-mapparr/`, not the old `/data/channel_mapparr_reports`.
+- The README and the user guide name the plugin's data folder. It follows the slug Dispatcharr assigns the plugin, or its folder key when it has none.
+
 ## 1.26.3301541 (2026-11-26)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.3301541

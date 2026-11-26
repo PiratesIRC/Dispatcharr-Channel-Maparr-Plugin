@@ -106,7 +106,7 @@ PLUGIN_DB_KEY = _plugin_key_for_dir(os.path.dirname(os.path.abspath(__file__)))
 class PluginConfig:
     """Configuration constants for Channel Maparr."""
 
-    PLUGIN_VERSION = "1.26.3301541"
+    PLUGIN_VERSION = "1.26.3302105"
 
     # Channel Database Settings
     DEFAULT_CHANNEL_DATABASES = "US"

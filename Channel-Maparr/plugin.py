@@ -209,11 +209,6 @@ storage.bind(PluginConfig, __file__, LOGGER)
 _reports_module.REPORT_DIR = PluginConfig.REPORT_DIR
 _notify_bridge_module.REPORT_LOCATION = PluginConfig.REPORT_DIR
 
-# Reports the Channels Renamed total and a random install id to the plugin-stats
-# Worker, so the README badges count each install that keeps the setting ticked and
-# runs an action (README, "Anonymous usage counts"). The total is read from the same
-# ledger the rename actions write. report() never raises; only the network send runs
-# on a background thread.
 def _rename_tally_total():
     """The Channels Renamed total. Brings in an old-code worker's tally tail before it sums.
 
@@ -229,6 +224,11 @@ def _rename_tally_total():
     return jsonl_sum(PluginConfig.RENAME_LEDGER_FILE + "*", key="channels")
 
 
+# Reports the Channels Renamed total and a random install id to the plugin-stats
+# Worker, so the README badges count each install that keeps the setting ticked and
+# runs an action (README, "Anonymous usage counts"). The total is read from the same
+# ledger the rename actions write. report() never raises; only the network send runs
+# on a background thread.
 USAGE = UsageReporter(
     plugin="channel-mapparr",
     counter="channels_renamed",

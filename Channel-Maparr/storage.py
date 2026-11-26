@@ -13,9 +13,12 @@ except ImportError:  # loaded as a bare module, as plugin.py allows
     import plugin_storage as _ps
 
 # (constant name, kind, rel under the data dir). Every row is private state of this plugin. The
-# reports row (kind "dir", rel None) is the shared Newsflasharr reports directory. No row is
-# cross-worker coordination state, so nothing is kept beside the data directories: the progress
-# file is written by whichever worker runs an action and read only by the Show Status readout.
+# reports row (kind "dir", rel None) is the shared Newsflasharr reports directory. One row does
+# coordinate workers: the rename tally's tail sync takes a lock (Spec.tally_lock) inside the data
+# directory, which serialises the offsets read and write and the append, so two workers of this
+# code never copy the same old-code bytes twice. That is enough because the offsets file and the
+# lock sit in that one directory and nothing else writes the offsets. The progress file is
+# written by whichever worker runs an action and read only by the Show Status readout.
 _BIND_TABLE = (
     ("RESULTS_FILE", "file", "channel_mapparr_loaded_channels.json"),
     ("PROGRESS_FILE", "file", "channel_mapparr_progress.json"),

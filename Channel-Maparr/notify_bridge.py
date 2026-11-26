@@ -53,8 +53,9 @@ _DEFAULT_FORMAT = "html"
 # so a reader with container access can find the complete set. It is NOT sent as
 # the notification's url: measured on a real delivery on 2026-08-02, the email
 # template renders url as a hyperlink, and this is a path inside the container,
-# so the recipient got a link that could not resolve from a mail client.
-REPORT_LOCATION = "/data/channel_mapparr_reports"
+# so the recipient got a link that could not resolve from a mail client. The default is the
+# shared Newsflasharr folder (see reports.REPORT_DIR); plugin.py sets the resolved value.
+REPORT_LOCATION = "/data/plugins/_shared/newsflasharr/channel-mapparr"
 
 
 def is_enabled(settings):

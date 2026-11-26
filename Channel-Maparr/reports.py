@@ -28,8 +28,10 @@ import re
 import time
 
 # Reports are written here, deliberately NOT under /data/logos: Dispatcharr's
-# nginx serves that tree unauthenticated to the entire local network.
-REPORT_DIR = "/data/channel_mapparr_reports"
+# nginx serves that tree unauthenticated to the entire local network. The default is
+# the shared Newsflasharr folder, so a module imported without plugin.py never writes
+# the legacy folder; plugin.py sets the value storage.bind resolved.
+REPORT_DIR = "/data/plugins/_shared/newsflasharr/channel-mapparr"
 
 # Every report file starts with this. The pruner matches on it, so a copied and
 # unrenamed prefix would make pruning match nothing and the directory would grow

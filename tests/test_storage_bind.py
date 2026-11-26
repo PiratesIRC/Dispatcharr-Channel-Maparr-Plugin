@@ -4,10 +4,12 @@ These tests drive storage.bind with a fake layout (storage._ps.resolve is replac
 the legacy literals read from the source, so they never touch a real /data path.
 """
 import ast
+import importlib.util
 import os
 
 import pytest
 
+from conftest import PLUGIN_DIR
 from storage_helpers import (PLUGIN_SOURCE, STATE_NAMES, Log, make_cfg, make_layout,
                              source_literals, tmp_legacy)
 
@@ -121,3 +123,26 @@ def test_the_plugin_reads_its_paths_from_the_rebound_constants(plugin_impl, monk
     monkeypatch.setattr(cfg, "PROGRESS_FILE", progress)
     plugin = plugin_impl.Plugin()
     assert plugin.results_file == results
+
+
+def test_the_module_defaults_name_the_shared_reports_folder(plugin_impl):
+    """A module imported without plugin.py must not default to the legacy reports folder.
+
+    Each module is loaded fresh from its file, so the conftest redirect of the bound values
+    does not apply, and the literal the module ships with is what is checked.
+    """
+    shared ="/data/plugins/_shared/newsflasharr/channel-mapparr"
+    for filename, attribute in (("reports.py", "REPORT_DIR"), ("notify_bridge.py", "REPORT_LOCATION")):
+        spec = importlib.util.spec_from_file_location("fresh_" + filename[:-3], PLUGIN_DIR / filename)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        assert getattr(module, attribute) == shared, f"{filename} {attribute} defaults to the legacy folder"
+
+
+def test_every_legacy_path_is_redirected_away_from_the_container(plugin_impl):
+    """The autouse fixture points every legacy path the bind table names at tmp_path."""
+    cfg = plugin_impl.PluginConfig
+    assert cfg.LEGACY_PATHS, "bind must have recorded the legacy paths"
+    still_real = {name: getattr(cfg, name) for name in cfg.LEGACY_PATHS
+                  if str(getattr(cfg, name)).startswith("/data")}
+    assert still_real == {}, f"tests would write these container paths: {still_real}"

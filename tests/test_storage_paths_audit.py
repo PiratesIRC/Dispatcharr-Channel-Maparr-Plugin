@@ -17,11 +17,12 @@ PLUGIN_DIR = pathlib.Path(__file__).resolve().parent.parent / "Channel-Maparr"
 SKIPPED = {"storage.py", "plugin_storage.py"}
 
 # Every other module, and the exact literals it may hold. Each one is a deliberate default:
-# reports.py and notify_bridge.py keep the legacy value that storage.bind replaces at import.
+# reports.py and notify_bridge.py default to the shared Newsflasharr folder, which storage.bind
+# leaves as it is; plugin.py sets the value the data directory resolved.
 ALLOWED = {
     "plugin.py": None,  # checked separately: only inside PluginConfig
-    "reports.py": {"/data/channel_mapparr_reports", "/data/exports"},
-    "notify_bridge.py": {"/data/channel_mapparr_reports"},
+    "reports.py": {"/data/plugins/_shared/newsflasharr/channel-mapparr", "/data/exports"},
+    "notify_bridge.py": {"/data/plugins/_shared/newsflasharr/channel-mapparr"},
     "usage_client.py": {"/data/plugin_stats"},
     "notify_client.py": {"/data/newsflasharr"},
     "report_counter.py": {"/data/"},

@@ -261,8 +261,10 @@ The setting is the last one in the settings form, in its own section. Unticking 
 ## Where everything is written
 
 On Dispatcharr 0.34 the plugin's private files live in its data directory,
-`/data/plugins/_data/channel-mapparr/` on a hand install. The folder is named by the plugin id, so a
-Hub install can use a different name. On Dispatcharr 0.33 they stay at the old `/data` paths listed
+`/data/plugins/_data/channel-mapparr/` on a hand install. The folder is named by the plugin key, which
+follows the install route: `channel-mapparr` for a hand copy into the plugins folder, `channel_maparr`
+for an imported release zip, and `channel_mapparr` for an install from the Plugin Hub. Look for the
+one your install produced. On Dispatcharr 0.33 they stay at the old `/data` paths listed
 in the last column.
 
 | Path on 0.34 | What it is | Path on 0.33 and earlier versions |

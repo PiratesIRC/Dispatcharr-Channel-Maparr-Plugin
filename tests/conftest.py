@@ -186,6 +186,12 @@ def redirect_container_paths(shared_stubs_stay_intact, tmp_path, monkeypatch):
                         str(tmp_path / "channel_maparr_rename_counts.jsonl"))
     monkeypatch.setattr(plugin_module.PluginConfig, "LOGO_BACKUP_DIR",
                         str(tmp_path / "logo_backups"))
+    # Every other legacy path the bind table names still at its container value goes under
+    # tmp_path too, so a new row cannot reach /data from a test by being forgotten here.
+    for name, legacy in getattr(plugin_module.PluginConfig, "LEGACY_PATHS", {}).items():
+        if getattr(plugin_module.PluginConfig, name, None) == legacy:
+            monkeypatch.setattr(plugin_module.PluginConfig, name,
+                                str(tmp_path / "legacy" / legacy.lstrip("/")))
     USAGE_STARTS.clear()
     monkeypatch.setattr(plugin_module.USAGE, "data_dir", str(tmp_path / "plugin_stats"))
     monkeypatch.setattr(plugin_module.USAGE, "directory",

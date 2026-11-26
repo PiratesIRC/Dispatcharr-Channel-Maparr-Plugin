@@ -94,7 +94,7 @@ The setting is the last one in the settings form, in its own section. Unticking 
 
 ## Where Channel Mapparr keeps its files
 
-The plugin keeps its private files in its data folder. Dispatcharr creates that folder under /data/plugins/_data/, named for the plugin's key (channel-mapparr for a folder install, channel_mapparr after a Hub install). On the first start after an upgrade the plugin copies the files it used to keep under /data into that folder. The copy never deletes, renames or edits an old file, and a file already in the data folder is left as it is. The copy is recorded in migrated.json in the data folder.
+The plugin keeps its private files in its data folder. Dispatcharr creates that folder under /data/plugins/_data/, named for the plugin's key, which follows the install route. A hand copy into the plugins folder gives `channel-mapparr`, an imported release zip gives `channel_maparr`, and an install from the Plugin Hub gives `channel_mapparr`. So the folder can carry any of the three names. On the first start after an upgrade the plugin copies the files it used to keep under /data into that folder. The copy never deletes, renames or edits an old file, and a file already in the data folder is left as it is. The copy is recorded in migrated.json in the data folder.
 
 Inside the data folder:
 

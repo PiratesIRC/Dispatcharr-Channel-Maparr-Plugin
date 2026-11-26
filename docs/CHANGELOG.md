@@ -1,5 +1,14 @@
 # Channel Maparr Changelog
 
+## 1.26.3301541 (2026-11-26)
+
+GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.3301541
+
+### Changed
+
+- **Channel Mapparr keeps its private files in Dispatcharr's per-plugin data folder.** On Dispatcharr 0.34 the loaded channel list, the progress and M3U import results files, the Channels Renamed tally, the logo backups and the usage reporter's install id move from `/data` to `/data/plugins/_data/<plugin key>/`, and the reports Newsflasharr attaches move to `/data/plugins/_shared/newsflasharr/channel-mapparr/`. The first start on this version copies the old files across, leaves them in place and records the copy in `migrated.json`. Remove the old files by hand only once `migrated.json` lists no failed copy and no old file has changed since the time it records. CSV exports stay in `/data/exports/`. Delete data on uninstall removes the data folder, with the tally and the install id in it.
+- The README has a new section, "Where Channel Mapparr keeps its files", that lists each file.
+
 ## 1.26.3262133 (2026-11-22)
 
 GitHub release: https://github.com/PiratesIRC/Dispatcharr-Channel-Maparr-Plugin/releases/tag/1.26.3262133

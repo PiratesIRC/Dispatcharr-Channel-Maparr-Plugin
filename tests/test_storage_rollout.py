@@ -89,3 +89,34 @@ def test_the_progress_file_has_no_old_code_reader(plugin_impl):
                   if isinstance(t, ast.Name) and t.id == "PROGRESS_FILE"}
     assert names, "the progress writer must read PluginConfig.PROGRESS_FILE"
     assert not bare_names, "no module-level PROGRESS_FILE may remain"
+
+
+def test_the_badge_total_counts_an_old_worker_tail_without_a_write(
+        plugin_impl, storage, live_layout, monkeypatch, tmp_path):
+    """The Channels Renamed badge total syncs the old tally first, so a run that wrote nothing still counts it."""
+    layout, legacy = live_layout
+    head = b'{"ts": 1, "channels": 2, "mode": "rename"}\n'
+    tail = b'{"ts": 2, "channels": 5, "mode": "rename"}\n'
+    os.makedirs(os.path.dirname(legacy["RENAME_LEDGER_FILE"]), exist_ok=True)
+    with open(legacy["RENAME_LEDGER_FILE"], "wb") as fh:
+        fh.write(head)
+    storage.migrate(layout, storage.items_for(plugin_impl.PluginConfig, layout), Log(), version="t")
+    with open(legacy["RENAME_LEDGER_FILE"], "ab") as fh:  # an old-code worker appends after the copy
+        fh.write(tail)
+    new_tally = os.path.join(layout.data_dir, "channel_maparr_rename_counts.jsonl")
+    before = open(new_tally, "rb").read()
+
+    assert plugin_impl.USAGE.total_fn() == 7
+    assert open(new_tally, "rb").read() == before + tail, "the sync appends the tail once"
+    assert plugin_impl.USAGE.total_fn() == 7, "a second total must not append the tail again"
+
+
+def test_the_badge_total_in_legacy_mode_reads_the_legacy_file_only(plugin_impl, monkeypatch, tmp_path):
+    tally = tmp_path / "legacy_rename.jsonl"
+    tally.write_text('{"channels": 4}\n', encoding="utf-8")
+    monkeypatch.setattr(plugin_impl.PluginConfig, "RENAME_LEDGER_FILE", str(tally))
+    calls = []
+    monkeypatch.setattr(plugin_impl.storage, "sync_tally_tail", lambda *a, **k: calls.append(a))
+
+    assert plugin_impl.USAGE.total_fn() == 4
+    assert calls == []

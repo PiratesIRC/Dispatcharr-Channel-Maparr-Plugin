@@ -214,11 +214,26 @@ _notify_bridge_module.REPORT_LOCATION = PluginConfig.REPORT_DIR
 # runs an action (README, "Anonymous usage counts"). The total is read from the same
 # ledger the rename actions write. report() never raises; only the network send runs
 # on a background thread.
+def _rename_tally_total():
+    """The Channels Renamed total. Brings in an old-code worker's tally tail before it sums.
+
+    An old-code worker can append to the old tally after the carry-over copied it. A
+    run that wrote nothing would otherwise send a total that leaves those lines out.
+    """
+    layout = getattr(PluginConfig, "STORAGE_LAYOUT", None)
+    if layout is not None and not layout.legacy:
+        try:
+            storage.sync_tally_tail(layout, PluginConfig.RENAME_LEDGER_FILE, LOGGER)
+        except Exception as exc:
+            LOGGER.debug(f"{PLUGIN_LOG_PREFIX} could not append the old tally tail: {exc}")
+    return jsonl_sum(PluginConfig.RENAME_LEDGER_FILE + "*", key="channels")
+
+
 USAGE = UsageReporter(
     plugin="channel-mapparr",
     counter="channels_renamed",
     label="Channels Renamed",
-    total_fn=lambda: jsonl_sum(PluginConfig.RENAME_LEDGER_FILE + "*", key="channels"),
+    total_fn=_rename_tally_total,
     settings_fn=lambda: load_plugin_settings(PLUGIN_DB_KEY),
     data_dir=PluginConfig.USAGE_DATA_DIR,
 )
